@@ -298,7 +298,32 @@ public struct InboundStreamLinkage: InboundDataLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public struct OutboundStreamLinkage: OutboundDataLinkage {
+public protocol OutboundStreamTypeLinkage: OutboundDataLinkage {
+
+    func invokeReceiveStreamData(
+        _ from: ProtocolInstanceReference,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray?
+    func invokeGetOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int
+    func invokeSendStreamData(
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError)
+
+    func invokeSendEarlyStreamData(
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError)
+
+    func invokeAbortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError)
+    func invokeAbortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError)
+}
+
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct OutboundStreamLinkage: OutboundStreamTypeLinkage {
     public typealias PairedLinkage = InboundStreamLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) { self.reference = reference }
@@ -467,5 +492,100 @@ public struct StreamListenerLinkage: ListenerLinkage {
             from,
             flowReference: flowReference
         )
+    }
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol InboundMessageLinkage: InboundDataLinkage {
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol OutboundMessageLinkage: OutboundDataLinkage where PairedLinkage: InboundMessageLinkage {
+
+    associatedtype OutboundMessageType: ~Copyable
+
+    func invokeReceiveMessage(
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> OutboundMessageType?
+
+    func invokeSendMessage(
+        _ from: ProtocolInstanceReference,
+        message: consuming OutboundMessageType
+    ) throws(NetworkError)
+
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct InboundHTTPMessageLinkage: InboundMessageLinkage {
+    public typealias PairedLinkage = OutboundHTTPMessageLinkage
+    private(set) public var reference: ProtocolInstanceReference
+    public init(reference: ProtocolInstanceReference) { self.reference = reference }
+    public init() { self.reference = .init() }
+}
+
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct OutboundHTTPMessageLinkage: OutboundMessageLinkage, OutboundStreamTypeLinkage {
+    public typealias OutboundMessageType = HTTPProtocol.HTTPMessage
+
+    public typealias PairedLinkage = InboundHTTPMessageLinkage
+    private(set) public var reference: ProtocolInstanceReference
+    public init(reference: ProtocolInstanceReference) { self.reference = reference }
+    public init() { self.reference = .init() }
+
+    public func invokeAttachUpperStreamProtocol(
+        _ from: ProtocolInstanceReference,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) -> Self {
+        return .init()
+        // TODO: Hook this up
+//        try reference.attachUpperStreamProtocol(from, remote: remote, local: local, parameters: parameters, path: path)
+    }
+
+    public func invokeReceiveMessage(_ from: ProtocolInstanceReference) throws(NetworkError) -> HTTPProtocol.HTTPMessage? {
+        return nil
+    }
+
+    public func invokeSendMessage(_ from: ProtocolInstanceReference, message: consuming HTTPProtocol.HTTPMessage) throws(NetworkError) {
+
+    }
+
+    public func invokeReceiveStreamData(
+        _ from: ProtocolInstanceReference,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray? {
+        try reference.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+    }
+    public func invokeGetOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int
+    {
+        try reference.getOutboundStreamDataRoomAvailable(from)
+    }
+    public func invokeSendStreamData(
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        try reference.sendStreamData(from, streamData: streamData)
+    }
+
+    public func invokeSendEarlyStreamData(
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        try reference.sendEarlyStreamData(from, streamData: streamData)
+    }
+
+    public func invokeAbortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
+        try reference.abortInbound(from, error: error)
+    }
+    public func invokeAbortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
+        try reference.abortOutbound(from, error: error)
     }
 }
