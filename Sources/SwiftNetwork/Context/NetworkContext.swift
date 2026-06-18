@@ -47,6 +47,57 @@ public protocol NetworkContextProtocol: AnyObject, Hashable {
     func barrierAsync(_ block: @escaping () -> Void)
 }
 
+
+@_spi(Essentials)
+@available(Network 0.1.0, *)
+public final class NetworkContext2<CustomProtocolInstance: ~Copyable>: NetworkContextProtocol, @unchecked Sendable {
+
+    var customInstances = NetworkGappyArray<CustomProtocolInstance>()
+
+    internal func registerCustomInstance(_ instance: consuming CustomProtocolInstance) -> NetworkStateIndex {
+        customInstances.insert(instance)
+    }
+    internal func unregisterCustomInstance(_ index: NetworkStateIndex) {
+        customInstances.remove(index: index)
+    }
+
+    public init(identifier: String) {
+        self.identifier = identifier
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        #if !NETWORK_EMBEDDED
+        hasher.combine(self.identifier)
+        #else
+        // Embedded does not currently support directly taking the hash of a string
+        for byte in self.identifier.utf8 {
+            hasher.combine(byte)
+        }
+        #endif
+    }
+
+    public let identifier: String
+    
+    public func activate() {
+
+    }
+    
+    public func async(_ block: @escaping () -> Void) {
+
+    }
+    
+    public func barrierAsync(_ block: @escaping () -> Void) {
+
+    }
+    
+    public static func == (lhs: borrowing NetworkContext2<CustomProtocolInstance>, rhs: borrowing NetworkContext2<CustomProtocolInstance>) -> Bool {
+        return false
+    }
+    
+
+}
+
+
 @_spi(Essentials)
 @available(Network 0.1.0, *)
 public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
