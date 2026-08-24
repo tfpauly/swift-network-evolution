@@ -25,8 +25,8 @@ extension ProtocolInstanceReference {
         switch reference {
         case .none: return
         case .tcp(var instance): instance.handleInboundDataAvailableEvent(from)
-        case .udp(let index): context.udpInstances[index].handleInboundDataAvailableEvent(from)
-        case .ip(let index): context.ipInstances[index].handleInboundDataAvailableEvent(from)
+        case .udp(let index): context.state.udpInstances[index].handleInboundDataAvailableEvent(from)
+        case .ip(let index): context.state.ipInstances[index].handleInboundDataAvailableEvent(from)
         case .tls(let instance): instance.handleInboundDataAvailableEvent(from)
         case .tlsEncryptionLevel(let instance): instance.handleInboundDataAvailableEvent(from)
         case .streamEndpointFlow(let instance): instance.handleInboundDataAvailableEvent(from)
@@ -50,8 +50,8 @@ extension ProtocolInstanceReference {
         switch reference {
         case .none: return
         case .tcp(var instance): instance.handleOutboundRoomAvailableEvent(from)
-        case .udp(let index): context.udpInstances[index].handleOutboundRoomAvailableEvent(from)
-        case .ip(let index): context.ipInstances[index].handleOutboundRoomAvailableEvent(from)
+        case .udp(let index): context.state.udpInstances[index].handleOutboundRoomAvailableEvent(from)
+        case .ip(let index): context.state.ipInstances[index].handleOutboundRoomAvailableEvent(from)
         case .tls(var instance): instance.handleOutboundRoomAvailableEvent(from)
         case .tlsEncryptionLevel(let instance): instance.handleOutboundRoomAvailableEvent(from)
         case .streamEndpointFlow(let instance): instance.handleOutboundRoomAvailableEvent(from)

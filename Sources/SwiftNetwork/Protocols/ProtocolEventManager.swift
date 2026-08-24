@@ -311,27 +311,27 @@ public struct ProtocolEventManager: ~Copyable {
             return contextIndex
         }
         self.context = context
-        let registeredIndex = context.registerProtocolEventState()
+        let registeredIndex = context.state.registerProtocolEventState()
         contextIndex = registeredIndex
         return registeredIndex
     }
     deinit {
         guard let contextIndex, let context else { return }
         context.async {
-            context.unregisterProtocolEventState(contextIndex)
+            context.state.unregisterProtocolEventState(contextIndex)
         }
     }
 }
 
 @available(Network 0.1.0, *)
-extension NetworkContext {
+extension NetworkContext.State {
     fileprivate func softAssert() {
         #if DEBUG
         self.assert()
         #endif
     }
     @inline(always)
-    fileprivate func runEvents(on referenceToTrigger: ProtocolInstanceReference) {
+    fileprivate mutating func runEvents(on referenceToTrigger: ProtocolInstanceReference) {
         guard !referenceToTrigger.isNone,
             let indexToTrigger = referenceToTrigger.protocolEventStateIndex
         else { return }
@@ -347,7 +347,7 @@ extension NetworkContext {
     }
 
     @inline(always)
-    fileprivate func runEvent(_ event: consuming ProtocolEventManagerState.PendingEvent) {
+    fileprivate mutating func runEvent(_ event: consuming ProtocolEventManagerState.PendingEvent) {
         let referenceToTrigger = event.toReference
         guard !referenceToTrigger.isNone,
             let indexToTrigger = referenceToTrigger.protocolEventStateIndex()
@@ -373,7 +373,7 @@ extension NetworkContext {
         drainPendingEvents(index: indexToTrigger)
     }
 
-    fileprivate func drainPendingEvents(index: NetworkStateIndex) {
+    fileprivate mutating func drainPendingEvents(index: NetworkStateIndex) {
         if protocolEventStates[index].isIdle && !protocolEventStates[index].drainingEvents {
             protocolEventStates[index].drainingEvents = true
             let lowerEvents = protocolEventStates[index].startDrainingPendingEventsFromLower()
@@ -408,7 +408,7 @@ extension NetworkContext {
         }
     }
 
-    fileprivate func deliverEventToUpperProtocol(
+    fileprivate mutating func deliverEventToUpperProtocol(
         index: NetworkStateIndex,
         parentIndex: NetworkStateIndex?,
         event: consuming ProtocolEventManagerState.PendingEvent,
@@ -436,7 +436,7 @@ extension NetworkContext {
         }
     }
 
-    fileprivate func reassignQueuedPendingEventsForUpperProtocol(
+    fileprivate mutating func reassignQueuedPendingEventsForUpperProtocol(
         index: NetworkStateIndex,
         parentIndex: NetworkStateIndex?,
         newUpper: ProtocolInstanceReference
@@ -460,7 +460,7 @@ extension NetworkContext {
         }
     }
 
-    fileprivate func enqueuePendingEventForUpperProtocol(
+    fileprivate mutating func enqueuePendingEventForUpperProtocol(
         index: NetworkStateIndex,
         event: consuming ProtocolEventManagerState.PendingEvent
     ) {
@@ -468,12 +468,12 @@ extension NetworkContext {
         protocolEventStates[index].enqueuePendingEventForUpperProtocol(event)
     }
 
-    fileprivate func discardPendingEventsForUpperProtocol(index: NetworkStateIndex) {
+    fileprivate mutating func discardPendingEventsForUpperProtocol(index: NetworkStateIndex) {
         self.softAssert()
         protocolEventStates[index].discardPendingEventsForUpperProtocol()
     }
 
-    fileprivate func addEventFromLowerProtocol(
+    fileprivate mutating func addEventFromLowerProtocol(
         index: NetworkStateIndex,
         event: consuming ProtocolEventManagerState.PendingEvent
     ) {
@@ -481,7 +481,7 @@ extension NetworkContext {
         protocolEventStates[index].addEventFromLowerProtocol(event: event)
     }
 
-    fileprivate func handleCallFromUpperProtocol<R, E: Error>(
+    fileprivate mutating func handleCallFromUpperProtocol<R, E: Error>(
         index: NetworkStateIndex,
         _ body: () throws(E) -> R
     ) throws(E) -> R {
@@ -494,7 +494,7 @@ extension NetworkContext {
         return try body()
     }
 
-    fileprivate func handleCallFromUpperProtocol<R: ~Copyable, E: Error>(
+    fileprivate mutating func handleCallFromUpperProtocol<R: ~Copyable, E: Error>(
         index: NetworkStateIndex,
         _ body: () throws(E) -> R
     ) throws(E) -> R {
@@ -507,7 +507,7 @@ extension NetworkContext {
         return try body()
     }
 
-    fileprivate func handleCallFromUpperProtocol<R, T: ~Copyable, E: Error>(
+    fileprivate mutating func handleCallFromUpperProtocol<R, T: ~Copyable, E: Error>(
         index: NetworkStateIndex,
         _ value: consuming T,
         _ body: (consuming T) throws(E) -> R
@@ -521,7 +521,7 @@ extension NetworkContext {
         return try body(value)
     }
 
-    fileprivate func fromExternal<R, E: Error>(index: NetworkStateIndex, _ body: () throws(E) -> R) throws(E) -> R {
+    fileprivate mutating func fromExternal<R, E: Error>(index: NetworkStateIndex, _ body: () throws(E) -> R) throws(E) -> R {
         self.softAssert()
         let startedExternalCall = protocolEventStates[index].startExternalCall()
         defer {
@@ -533,7 +533,7 @@ extension NetworkContext {
         return try body()
     }
 
-    fileprivate func fromExternal<R: ~Copyable, E: Error>(
+    fileprivate mutating func fromExternal<R: ~Copyable, E: Error>(
         index: NetworkStateIndex,
         _ body: () throws(E) -> R
     ) throws(E) -> R {
@@ -548,7 +548,7 @@ extension NetworkContext {
         return try body()
     }
 
-    fileprivate func fromExternal<R, T: ~Copyable, E: Error>(
+    fileprivate mutating func fromExternal<R, T: ~Copyable, E: Error>(
         index: NetworkStateIndex,
         _ value: consuming T,
         _ body: (consuming T) throws(E) -> R
@@ -564,43 +564,26 @@ extension NetworkContext {
         return try body(value)
     }
 
-    fileprivate func async(index: NetworkStateIndex, _ block: @escaping () -> Void) {
-        self.softAssert()
-        self.async {
-            self.protocolEventStates[index].startAsyncCall()
-            defer {
-                self.protocolEventStates[index].finishAsyncCall()
-                self.drainPendingEvents(index: index)
-            }
-            block()
+    fileprivate mutating func runAsync(index: NetworkStateIndex, _ block: () -> Void) {
+        protocolEventStates[index].startAsyncCall()
+        defer {
+            protocolEventStates[index].finishAsyncCall()
+            drainPendingEvents(index: index)
         }
+        block()
     }
 
-    fileprivate func scheduleWakeup(
-        index: NetworkStateIndex,
-        timerReference: TimerReference,
-        referenceToWakeup: ProtocolInstanceReference,
-        milliseconds: UInt64
-    ) {
-        self.softAssert()
-        self.resetTimer(
-            for: timerReference,
-            to: .milliseconds(
-                milliseconds,
-                {
-                    self.assert()
-                    self.protocolEventStates[index].startTimerWakeupCall()
-                    defer {
-                        self.protocolEventStates[index].finishTimerWakeupCall()
-                        self.drainPendingEvents(index: index)
-                    }
-                    referenceToWakeup.timerWakeup()
-                }
-            )
-        )
+    fileprivate mutating func runTimerWakeup(index: NetworkStateIndex, referenceToWakeup: ProtocolInstanceReference) {
+        assert()
+        protocolEventStates[index].startTimerWakeupCall()
+        defer {
+            protocolEventStates[index].finishTimerWakeupCall()
+            drainPendingEvents(index: index)
+        }
+        referenceToWakeup.timerWakeup()
     }
 
-    fileprivate func connectRequested(index: NetworkStateIndex) {
+    fileprivate mutating func connectRequested(index: NetworkStateIndex) {
         self.softAssert()
         if protocolEventStates[index].connectCallState == .initial {
             // Connect can't be called yet, but remember that it has been requested
@@ -608,7 +591,7 @@ extension NetworkContext {
         }
     }
 
-    fileprivate func canCallConnect(index: NetworkStateIndex, requested: Bool) -> Bool {
+    fileprivate mutating func canCallConnect(index: NetworkStateIndex, requested: Bool) -> Bool {
         self.softAssert()
         guard
             (protocolEventStates[index].connectCallState == .initial && requested)
@@ -625,7 +608,7 @@ extension NetworkContext {
         return true
     }
 
-    fileprivate func canCallDisconnect(index: NetworkStateIndex) -> Bool {
+    fileprivate mutating func canCallDisconnect(index: NetworkStateIndex) -> Bool {
         self.softAssert()
         guard protocolEventStates[index].connectCallState != .disconnectCalled,
             protocolEventStates[index].connectedState != .disconnected
@@ -636,9 +619,43 @@ extension NetworkContext {
         return true
     }
 
-    fileprivate func isConnected(index: NetworkStateIndex) -> Bool {
+    fileprivate mutating func isConnected(index: NetworkStateIndex) -> Bool {
         self.softAssert()
         return protocolEventStates[index].connectedState == .connected
+    }
+}
+
+@available(Network 0.1.0, *)
+extension NetworkContext {
+    fileprivate func softAssert() {
+        #if DEBUG
+        self.assert()
+        #endif
+    }
+
+    fileprivate func async(index: NetworkStateIndex, _ block: @escaping () -> Void) {
+        self.softAssert()
+        self.async {
+            self.state.runAsync(index: index, block)
+        }
+    }
+
+    fileprivate func scheduleWakeup(
+        index: NetworkStateIndex,
+        timerReference: TimerReference,
+        referenceToWakeup: ProtocolInstanceReference,
+        milliseconds: UInt64
+    ) {
+        self.softAssert()
+        self.resetTimer(
+            for: timerReference,
+            to: .milliseconds(
+                milliseconds,
+                {
+                    self.state.runTimerWakeup(index: index, referenceToWakeup: referenceToWakeup)
+                }
+            )
+        )
     }
 }
 
@@ -667,35 +684,35 @@ extension ProtocolInstanceReference {
 
     func connectRequested() {
         guard let _protocolEventStateIndex else { return }
-        context.connectRequested(index: _protocolEventStateIndex)
+        context.state.connectRequested(index: _protocolEventStateIndex)
     }
 
     func canCallConnect(requested: Bool) -> Bool {
         guard let _protocolEventStateIndex else { return false }
-        return context.canCallConnect(index: _protocolEventStateIndex, requested: requested)
+        return context.state.canCallConnect(index: _protocolEventStateIndex, requested: requested)
     }
 
     var canCallDisconnect: Bool {
         guard let _protocolEventStateIndex else { return false }
-        return context.canCallDisconnect(index: _protocolEventStateIndex)
+        return context.state.canCallDisconnect(index: _protocolEventStateIndex)
     }
 
     @inline(always)
     var isConnected: Bool {
         guard let _protocolEventStateIndex else { return false }
-        return context.isConnected(index: _protocolEventStateIndex)
+        return context.state.isConnected(index: _protocolEventStateIndex)
     }
 
     @inline(always)
     func handleCallFromUpperProtocol<R, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
     }
 
     @inline(always)
     func handleCallFromUpperProtocol<R: ~Copyable, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
     }
 
     @inline(always)
@@ -704,13 +721,13 @@ extension ProtocolInstanceReference {
         _ body: (consuming T) throws(E) -> R
     ) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, value, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, value, body)
     }
 
     @inline(always)
     func deliverEventToUpperProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let _protocolEventStateIndex else { return }
-        context.deliverEventToUpperProtocol(
+        context.state.deliverEventToUpperProtocol(
             index: _protocolEventStateIndex,
             parentIndex: _parentProtocolEventStateIndex,
             event: event
@@ -720,7 +737,7 @@ extension ProtocolInstanceReference {
     @inline(always)
     func enqueuePendingEventForUpperProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let _protocolEventStateIndex else { return }
-        context.enqueuePendingEventForUpperProtocol(
+        context.state.enqueuePendingEventForUpperProtocol(
             index: _protocolEventStateIndex,
             event: event
         )
@@ -729,7 +746,7 @@ extension ProtocolInstanceReference {
     @inline(always)
     func reassignQueuedPendingEventsForUpperProtocol(to newUpper: ProtocolInstanceReference) {
         guard let _protocolEventStateIndex else { return }
-        context.reassignQueuedPendingEventsForUpperProtocol(
+        context.state.reassignQueuedPendingEventsForUpperProtocol(
             index: _protocolEventStateIndex,
             parentIndex: _parentProtocolEventStateIndex,
             newUpper: newUpper
@@ -739,23 +756,23 @@ extension ProtocolInstanceReference {
     @inline(always)
     func discardPendingEventsForUpperProtocol() {
         guard let _protocolEventStateIndex else { return }
-        context.discardPendingEventsForUpperProtocol(index: _protocolEventStateIndex)
+        context.state.discardPendingEventsForUpperProtocol(index: _protocolEventStateIndex)
     }
 
     @inline(always)
     func addEventFromLowerProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let protocolEventStateIndex = protocolEventStateIndex else { return }
-        context.addEventFromLowerProtocol(index: protocolEventStateIndex, event: event)
+        context.state.addEventFromLowerProtocol(index: protocolEventStateIndex, event: event)
     }
 
     public func fromExternal<R, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, body)
     }
 
     public func fromExternal<R: ~Copyable, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, body)
     }
 
     func fromExternal<R, T: ~Copyable, E: Error>(
@@ -763,7 +780,7 @@ extension ProtocolInstanceReference {
         _ body: (consuming T) throws(E) -> R
     ) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, value, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, value, body)
     }
 
     public func async(_ block: @escaping () -> Void) {
@@ -799,7 +816,7 @@ extension ProtocolInstanceReference {
     }
 
     func unscheduleWakeup(timerReference: TimerReference) {
-        context.assert()
+        context.state.assert()
         self.context.resetTimer(for: timerReference, to: .unschedule)
     }
 }
@@ -809,35 +826,35 @@ extension ProtocolInstanceReference2 {
 
     func connectRequested() {
         guard let eventStateIndex else { return }
-        context.connectRequested(index: eventStateIndex)
+        context.state.connectRequested(index: eventStateIndex)
     }
 
     func canCallConnect(requested: Bool) -> Bool {
         guard let eventStateIndex else { return false }
-        return context.canCallConnect(index: eventStateIndex, requested: requested)
+        return context.state.canCallConnect(index: eventStateIndex, requested: requested)
     }
 
     var canCallDisconnect: Bool {
         guard let eventStateIndex else { return false }
-        return context.canCallDisconnect(index: eventStateIndex)
+        return context.state.canCallDisconnect(index: eventStateIndex)
     }
 
     @inline(__always)
     var isConnected: Bool {
         guard let eventStateIndex else { return false }
-        return context.isConnected(index: eventStateIndex)
+        return context.state.isConnected(index: eventStateIndex)
     }
 
     @inline(__always)
     func handleCallFromUpperProtocol<R, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
     }
 
     @inline(__always)
     func handleCallFromUpperProtocol<R: ~Copyable, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, body)
     }
 
     @inline(__always)
@@ -846,13 +863,13 @@ extension ProtocolInstanceReference2 {
         _ body: (consuming T) throws(E) -> R
     ) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.handleCallFromUpperProtocol(index: protocolEventStateIndex, value, body)
+        return try context.state.handleCallFromUpperProtocol(index: protocolEventStateIndex, value, body)
     }
 
     @inline(__always)
     func deliverEventToUpperProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let eventStateIndex else { return }
-        context.deliverEventToUpperProtocol(
+        context.state.deliverEventToUpperProtocol(
             index: eventStateIndex,
             parentIndex: parentEventStateIndex,
             event: event
@@ -862,7 +879,7 @@ extension ProtocolInstanceReference2 {
     @inline(__always)
     func enqueuePendingEventForUpperProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let eventStateIndex else { return }
-        context.enqueuePendingEventForUpperProtocol(
+        context.state.enqueuePendingEventForUpperProtocol(
             index: eventStateIndex,
             event: event
         )
@@ -871,7 +888,7 @@ extension ProtocolInstanceReference2 {
     @inline(__always)
     func reassignQueuedPendingEventsForUpperProtocol(to newUpper: ProtocolInstanceReference) {
         guard let eventStateIndex else { return }
-        context.reassignQueuedPendingEventsForUpperProtocol(
+        context.state.reassignQueuedPendingEventsForUpperProtocol(
             index: eventStateIndex,
             parentIndex: parentEventStateIndex,
             newUpper: newUpper
@@ -881,23 +898,23 @@ extension ProtocolInstanceReference2 {
     @inline(__always)
     func discardPendingEventsForUpperProtocol() {
         guard let eventStateIndex else { return }
-        context.discardPendingEventsForUpperProtocol(index: eventStateIndex)
+        context.state.discardPendingEventsForUpperProtocol(index: eventStateIndex)
     }
 
     @inline(__always)
     func addEventFromLowerProtocol(event: consuming ProtocolEventManagerState.PendingEvent) {
         guard let protocolEventStateIndex = protocolEventStateIndex else { return }
-        context.addEventFromLowerProtocol(index: protocolEventStateIndex, event: event)
+        context.state.addEventFromLowerProtocol(index: protocolEventStateIndex, event: event)
     }
 
     public func fromExternal<R, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, body)
     }
 
     public func fromExternal<R: ~Copyable, E: Error>(_ body: () throws(E) -> R) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, body)
     }
 
     func fromExternal<R, T: ~Copyable, E: Error>(
@@ -905,7 +922,7 @@ extension ProtocolInstanceReference2 {
         _ body: (consuming T) throws(E) -> R
     ) throws(E) -> R {
         let protocolEventStateIndex = protocolEventStateIndex!
-        return try context.fromExternal(index: protocolEventStateIndex, value, body)
+        return try context.state.fromExternal(index: protocolEventStateIndex, value, body)
     }
 
     public func async(_ block: @escaping () -> Void) {
@@ -937,7 +954,7 @@ extension ProtocolInstanceReference2 {
     }
 
     public func unscheduleWakeup(timerReference: TimerReference) {
-        context.assert()
+        context.state.assert()
         self.context.resetTimer(for: timerReference, to: .unschedule)
     }
 }

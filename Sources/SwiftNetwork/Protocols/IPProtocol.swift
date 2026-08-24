@@ -350,12 +350,12 @@ public struct IPProtocol: NetworkProtocol {
         // Only called by newProtocolInstance()
         fileprivate static func registerNewIP(on context: NetworkContext) -> ProtocolInstanceReference {
             let ip = IPInstance(context: context)
-            let registeredIndex = context.registerIPInstance(ip)
-            context.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
-            context.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
-                ip: &context.ipInstances[registeredIndex]
+            let registeredIndex = context.state.registerIPInstance(ip)
+            context.state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
+            context.state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
+                ip: &context.state.ipInstances[registeredIndex]
             )
-            return context.ipInstances[registeredIndex].reference
+            return context.state.ipInstances[registeredIndex].reference
         }
 
         var passthroughEvents = true

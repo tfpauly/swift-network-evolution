@@ -47,7 +47,7 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
             switch reference.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try reference.context.udpInstances[index].attachLowerProtocol(
+                try reference.context.state.udpInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -55,7 +55,7 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
                     path: path
                 )
             case .ip(let index):
-                try reference.context.ipInstances[index].attachLowerProtocol(
+                try reference.context.state.ipInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -167,7 +167,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
             switch reference.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try reference.context.udpInstances[index].attachUpperProtocol(
+                try reference.context.state.udpInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,
@@ -175,7 +175,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
                     path: path
                 )
             case .ip(let index):
-                try reference.context.ipInstances[index].attachUpperProtocol(
+                try reference.context.state.ipInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,

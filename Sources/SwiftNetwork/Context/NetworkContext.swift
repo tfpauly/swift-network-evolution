@@ -120,10 +120,49 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         lhs === rhs
     }
 
-    var globals: NetworkContext.Globals
-    let scheduler: any NetworkContext.Scheduler
-    let schedulerIsDefault: Bool
-    internal let _identifier: String
+    public struct State: ~Copyable {
+        var globals: NetworkContext.Globals
+        let scheduler: any NetworkContext.Scheduler
+        let schedulerIsDefault: Bool
+        internal let identifier: String
+
+#if !NETWORK_DRIVERKIT && !NETWORK_STANDALONE
+        func assert() {
+            if schedulerIsDefault {
+                dispatchPrecondition(condition: DispatchPredicate.onQueue(queue))
+            } else {
+                precondition(scheduler.runningInScheduler, "Not running on context scheduler")
+            }
+        }
+#endif
+
+#if !NETWORK_PRIVATE || NETWORK_STANDALONE
+        internal var protocolEventStates = NetworkGappyArray<ProtocolEventManagerState>()
+        internal var udpInstances = NetworkGappyArray<UDPProtocol.Instance>()
+        internal var ipInstances = NetworkGappyArray<IPProtocol.Instance>()
+#endif
+        internal mutating func registerProtocolEventState() -> NetworkStateIndex {
+            protocolEventStates.insert(.init())
+        }
+        internal mutating func unregisterProtocolEventState(_ index: NetworkStateIndex) {
+            protocolEventStates.remove(index: index)
+        }
+
+        internal mutating func registerUDPInstance(_ instance: consuming UDPProtocol.Instance) -> NetworkStateIndex {
+            udpInstances.insert(instance)
+        }
+        internal mutating func unregisterUDPInstance(_ index: NetworkStateIndex) {
+            udpInstances.remove(index: index)
+        }
+
+        internal mutating func registerIPInstance(_ instance: consuming IPProtocol.Instance) -> NetworkStateIndex {
+            ipInstances.insert(instance)
+        }
+        internal mutating func unregisterIPInstance(_ index: NetworkStateIndex) {
+            ipInstances.remove(index: index)
+        }
+    }
+    var state: State
 
     internal init(
         identifier: String,
@@ -131,18 +170,17 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         scheduler: any NetworkContext.Scheduler,
         schedulerIsDefault: Bool
     ) {
-        self._identifier = identifier
-        self.globals = globals
-        self.scheduler = scheduler
-        self.schedulerIsDefault = schedulerIsDefault
+        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: schedulerIsDefault, identifier: identifier)
     }
 
     public static let implicitContext: NetworkContext = NetworkContext(identifier: "context")
 
     public var identifier: String {
-        get {
-            _identifier
-        }
+        state.identifier
+    }
+
+    private var schedulerIsDefault: Bool {
+        state.schedulerIsDefault
     }
 
     var cacheContext: NetworkContext {
@@ -167,17 +205,14 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
 
     #if !NETWORK_PRIVATE && !NETWORK_STANDALONE && canImport(Dispatch)
     public init(identifier: String) {
-        _identifier = identifier
-        globals = Globals(label: identifier)
-        scheduler = DefaultScheduler(globals: globals)
-        schedulerIsDefault = true
+        let globals = Globals(label: identifier)
+        let scheduler = DefaultScheduler(globals: globals)
+        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: true, identifier: identifier)
     }
 
     public init(identifier: String, externalScheduler: any Scheduler) {
-        _identifier = identifier
-        globals = Globals(label: identifier)
-        scheduler = externalScheduler
-        schedulerIsDefault = false
+        let globals = Globals(label: identifier)
+        state = .init(globals: globals, scheduler: externalScheduler, schedulerIsDefault: false, identifier: identifier)
     }
     #endif
 
@@ -187,16 +222,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
 
     #if !NETWORK_PRIVATE || NETWORK_STANDALONE
     public func activate() {}
-
-    #if !NETWORK_DRIVERKIT && !NETWORK_STANDALONE
-    func assert() {
-        if schedulerIsDefault {
-            dispatchPrecondition(condition: DispatchPredicate.onQueue(queue))
-        } else {
-            precondition(scheduler.runningInScheduler, "Not running on context scheduler")
-        }
-    }
-    #endif
 
     func sharesWorkloop(with other: NetworkContext) -> Bool {
         false
@@ -225,33 +250,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
 
     internal func protocolIdentifierIndex<P: NetworkProtocol>(for protocolDefinition: ProtocolDefinition<P>) -> NetworkStateIndex {
         return protocolIdentifiers.register(protocol: protocolDefinition.identifier)
-    }
-
-
-    #if !NETWORK_PRIVATE || NETWORK_STANDALONE
-    internal var protocolEventStates = NetworkGappyArray<ProtocolEventManagerState>()
-    internal var udpInstances = NetworkGappyArray<UDPProtocol.Instance>()
-    internal var ipInstances = NetworkGappyArray<IPProtocol.Instance>()
-    #endif
-    internal func registerProtocolEventState() -> NetworkStateIndex {
-        protocolEventStates.insert(.init())
-    }
-    internal func unregisterProtocolEventState(_ index: NetworkStateIndex) {
-        protocolEventStates.remove(index: index)
-    }
-
-    internal func registerUDPInstance(_ instance: consuming UDPProtocol.Instance) -> NetworkStateIndex {
-        udpInstances.insert(instance)
-    }
-    internal func unregisterUDPInstance(_ index: NetworkStateIndex) {
-        udpInstances.remove(index: index)
-    }
-
-    internal func registerIPInstance(_ instance: consuming IPProtocol.Instance) -> NetworkStateIndex {
-        ipInstances.insert(instance)
-    }
-    internal func unregisterIPInstance(_ index: NetworkStateIndex) {
-        ipInstances.remove(index: index)
     }
 }
 
@@ -403,14 +401,38 @@ extension NetworkContext {
 extension NetworkContext {
 
     var queue: DispatchQueue {
-        globals.queue
+        state.queue
     }
 
     public func async(_ block: @escaping () -> Void) {
-        scheduler.runImmediate(block)
+        state.async(block)
     }
 
     public func barrierAsync(_ block: @escaping () -> Void) {
+        state.barrierAsync(block)
+    }
+
+    public var runningInContext: Bool {
+        state.runningInContext
+    }
+
+    func assert() {
+        state.assert()
+    }
+}
+
+@available(Network 0.1.0, *)
+extension NetworkContext.State {
+
+    var queue: DispatchQueue {
+        globals.queue
+    }
+
+    fileprivate func async(_ block: @escaping () -> Void) {
+        scheduler.runImmediate(block)
+    }
+
+    fileprivate func barrierAsync(_ block: @escaping () -> Void) {
         scheduler.runImmediate(block)
     }
 
@@ -443,20 +465,19 @@ extension NetworkContext {
 
     #if !NETWORK_PRIVATE || NETWORK_STANDALONE
     func resetTimer(for reference: TimerReference, to time: FutureTime) {
+        state.resetTimer(for: reference, to: time)
+    }
+    #endif
+}
+
+@available(Network 0.1.0, *)
+extension NetworkContext.State {
+    fileprivate func resetTimer(for reference: TimerReference, to time: NetworkContext.FutureTime) {
         switch time {
         case .unschedule:
             scheduler.unschedule(reference: reference)
         case .milliseconds(let milliseconds, let block):
             scheduler.schedule(block, milliseconds: Int64(milliseconds), reference: reference)
         }
-    }
-    #endif
-}
-
-class ProtocolInstanceStorage {
-
-
-    struct Foo: ~Sendable {
-        var bar: Int
     }
 }

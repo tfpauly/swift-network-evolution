@@ -37,8 +37,8 @@ extension ProtocolInstanceReference {
         switch reference {
         case .none: return
         case .tcp(var instance): instance.handleConnectedEvent(from)
-        case .udp(let index): context.udpInstances[index].handleConnectedEvent(from)
-        case .ip(let index): context.ipInstances[index].handleConnectedEvent(from)
+        case .udp(let index): context.state.udpInstances[index].handleConnectedEvent(from)
+        case .ip(let index): context.state.ipInstances[index].handleConnectedEvent(from)
         case .tls(var instance): instance.handleConnectedEvent(from)
         case .tlsEncryptionLevel(let instance): instance.handleConnectedEvent(from)
         case .streamEndpointFlow(let instance): instance.handleConnectedEvent(from)
@@ -64,8 +64,8 @@ extension ProtocolInstanceReference {
         switch reference {
         case .none: return
         case .tcp(var instance): instance.handleDisconnectedEvent(from, error: error)
-        case .udp(let index): context.udpInstances[index].handleDisconnectedEvent(from, error: error)
-        case .ip(let index): context.ipInstances[index].handleDisconnectedEvent(from, error: error)
+        case .udp(let index): context.state.udpInstances[index].handleDisconnectedEvent(from, error: error)
+        case .ip(let index): context.state.ipInstances[index].handleDisconnectedEvent(from, error: error)
         case .tls(var instance): instance.handleDisconnectedEvent(from, error: error)
         case .tlsEncryptionLevel(let instance): instance.handleDisconnectedEvent(from, error: error)
         case .streamEndpointFlow(let instance): instance.handleDisconnectedEvent(from, error: error)
@@ -91,8 +91,8 @@ extension ProtocolInstanceReference {
     func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
         switch self.reference {
         case .none: return
-        case .udp(let index): context.udpInstances[index].handleNetworkProtocolEvent(from, event: event)
-        case .ip(let index): context.ipInstances[index].handleNetworkProtocolEvent(from, event: event)
+        case .udp(let index): context.state.udpInstances[index].handleNetworkProtocolEvent(from, event: event)
+        case .ip(let index): context.state.ipInstances[index].handleNetworkProtocolEvent(from, event: event)
         case .tcp(var instance): instance.handleNetworkProtocolEvent(from, event: event)
         case .tls(var instance): instance.handleNetworkProtocolEvent(from, event: event)
         case .tlsEncryptionLevel(let instance): instance.handleNetworkProtocolEvent(from, event: event)
@@ -153,8 +153,8 @@ extension ProtocolInstanceReference {
         self.handleCallFromUpperProtocol {
             switch self.reference {
             case .none: return
-            case .udp(let index): context.udpInstances[index].connect(from)
-            case .ip(let index): context.ipInstances[index].connect(from)
+            case .udp(let index): context.state.udpInstances[index].connect(from)
+            case .ip(let index): context.state.ipInstances[index].connect(from)
             case .tcp(var instance): instance.connect(from)
             case .tls(var instance): instance.connect(from)
             #if !NETWORK_NO_SWIFT_QUIC
@@ -180,8 +180,8 @@ extension ProtocolInstanceReference {
         self.handleCallFromUpperProtocol {
             switch self.reference {
             case .none: return
-            case .udp(let index): context.udpInstances[index].disconnect(from, error: error)
-            case .ip(let index): context.ipInstances[index].disconnect(from, error: error)
+            case .udp(let index): context.state.udpInstances[index].disconnect(from, error: error)
+            case .ip(let index): context.state.ipInstances[index].disconnect(from, error: error)
             case .tcp(var instance): instance.disconnect(from, error: error)
             case .tls(var instance): instance.disconnect(from, error: error)
             #if !NETWORK_NO_SWIFT_QUIC
@@ -207,8 +207,8 @@ extension ProtocolInstanceReference {
         self.handleCallFromUpperProtocol {
             switch self.reference {
             case .none: return
-            case .udp(let index): context.udpInstances[index].handleApplicationEvent(from, event: event)
-            case .ip(let index): context.ipInstances[index].handleApplicationEvent(from, event: event)
+            case .udp(let index): context.state.udpInstances[index].handleApplicationEvent(from, event: event)
+            case .ip(let index): context.state.ipInstances[index].handleApplicationEvent(from, event: event)
             case .tcp(var instance): instance.handleApplicationEvent(from, event: event)
             case .tls(var instance): instance.handleApplicationEvent(from, event: event)
             #if !NETWORK_NO_SWIFT_QUIC
@@ -243,7 +243,7 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.udpInstances[index].attachUpperProtocol(
+                try context.state.udpInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,
@@ -251,7 +251,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                try context.ipInstances[index].attachUpperProtocol(
+                try context.state.ipInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,
@@ -426,7 +426,7 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                return try context.udpInstances[index].attachUpperDatagramProtocol(
+                return try context.state.udpInstances[index].attachUpperDatagramProtocol(
                     from,
                     remote: remote,
                     local: local,
@@ -434,7 +434,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                return try context.ipInstances[index].attachUpperDatagramProtocol(
+                return try context.state.ipInstances[index].attachUpperDatagramProtocol(
                     from,
                     remote: remote,
                     local: local,
@@ -492,7 +492,7 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.udpInstances[index].attachLowerProtocol(
+                try context.state.udpInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -500,7 +500,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                try context.ipInstances[index].attachLowerProtocol(
+                try context.state.ipInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -626,7 +626,7 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.udpInstances[index].attachLowerDatagramProtocol(
+                try context.state.udpInstances[index].attachLowerDatagramProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -634,7 +634,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                try context.ipInstances[index].attachLowerDatagramProtocol(
+                try context.state.ipInstances[index].attachLowerDatagramProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -877,13 +877,13 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: return
             case .udp(let index):
-                try context.udpInstances[index].detach(from)
+                try context.state.udpInstances[index].detach(from)
 
                 // TODO: TFPDEBUG Better generic way to fully release/unregister protocol? How does a protocol outlast all upper linkages... maybe that *must* be a class type or must register. This would cover the async in the deinit of the event manager.
-                context.unregisterUDPInstance(index)
+                context.state.unregisterUDPInstance(index)
             case .ip(let index):
-                try context.ipInstances[index].detach(from)
-                context.unregisterIPInstance(index)
+                try context.state.ipInstances[index].detach(from)
+                context.state.unregisterIPInstance(index)
             case .tcp(var instance): try instance.detach(from)
             case .tls(var instance): try instance.detach(from)
             #if !NETWORK_NO_SWIFT_QUIC
@@ -911,8 +911,8 @@ extension ProtocolInstanceReference {
         self.handleCallFromUpperProtocol {
             switch self.reference {
             case .none: return nil
-            case .udp(let index): return context.udpInstances[index].getMetadata(from)
-            case .ip(let index): return context.ipInstances[index].getMetadata(from)
+            case .udp(let index): return context.state.udpInstances[index].getMetadata(from)
+            case .ip(let index): return context.state.ipInstances[index].getMetadata(from)
             case .tcp(let instance): return instance.getMetadata(from)
             case .tls(let instance): return instance.getMetadata(from)
             #if !NETWORK_NO_SWIFT_QUIC
@@ -941,9 +941,9 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: return nil
             case .udp(let index):
-                return context.udpInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return context.state.udpInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
             case .ip(let index):
-                return context.ipInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return context.state.ipInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
             case .tcp(let instance): return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
             case .tls(let instance): return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
             #if !NETWORK_NO_SWIFT_QUIC

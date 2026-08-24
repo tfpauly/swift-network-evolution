@@ -242,12 +242,12 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: return nil
             case .udp(let index):
-                return try context.udpInstances[index].receiveDatagrams(
+                return try context.state.udpInstances[index].receiveDatagrams(
                     from,
                     maximumDatagramCount: maximumDatagramCount
                 )
             case .ip(let index):
-                return try context.ipInstances[index].receiveDatagrams(from, maximumDatagramCount: maximumDatagramCount)
+                return try context.state.ipInstances[index].receiveDatagrams(from, maximumDatagramCount: maximumDatagramCount)
             #if !NETWORK_NO_SWIFT_QUIC
             case .quicDatagram(var instance):
                 return try instance.receiveDatagrams(from, maximumDatagramCount: maximumDatagramCount)
@@ -277,13 +277,13 @@ extension ProtocolInstanceReference {
             switch self.reference {
             case .none: return nil
             case .udp(let index):
-                return try context.udpInstances[index].getDatagramsToSend(
+                return try context.state.udpInstances[index].getDatagramsToSend(
                     from,
                     maximumDatagramCount: maximumDatagramCount,
                     minimumDatagramSize: minimumDatagramSize
                 )
             case .ip(let index):
-                return try context.ipInstances[index].getDatagramsToSend(
+                return try context.state.ipInstances[index].getDatagramsToSend(
                     from,
                     maximumDatagramCount: maximumDatagramCount,
                     minimumDatagramSize: minimumDatagramSize
@@ -330,8 +330,8 @@ extension ProtocolInstanceReference {
                 var datagrams = datagrams
                 datagrams.finalizeAllFramesAsFailed()
                 return
-            case .udp(let index): try context.udpInstances[index].sendDatagrams(from, datagrams: datagrams)
-            case .ip(let index): try context.ipInstances[index].sendDatagrams(from, datagrams: datagrams)
+            case .udp(let index): try context.state.udpInstances[index].sendDatagrams(from, datagrams: datagrams)
+            case .ip(let index): try context.state.ipInstances[index].sendDatagrams(from, datagrams: datagrams)
             #if !NETWORK_NO_SWIFT_QUIC
             case .quicDatagram(var instance): try instance.sendDatagrams(from, datagrams: datagrams)
             #endif

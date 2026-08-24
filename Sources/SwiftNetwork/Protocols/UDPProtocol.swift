@@ -137,12 +137,12 @@ public struct UDPProtocol: NetworkProtocol {
             on context: NetworkContext,
         ) -> ProtocolInstanceReference {
             let udp = UDPInstance(context: context)
-            let registeredIndex = context.registerUDPInstance(udp)
-            context.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
-            context.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
-                udp: &context.udpInstances[registeredIndex]
+            let registeredIndex = context.state.registerUDPInstance(udp)
+            context.state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
+            context.state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
+                udp: &context.state.udpInstances[registeredIndex]
             )
-            return context.udpInstances[registeredIndex].reference
+            return context.state.udpInstances[registeredIndex].reference
         }
 
         var passthroughEvents = true
