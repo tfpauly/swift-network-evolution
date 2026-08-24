@@ -107,9 +107,10 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
         self.remote = remote
         self.parameters = parameters
         self.path = path
+        self.lower = lowerProtocol
         do throws(NetworkError) {
-            self.lower = try lowerProtocol.invokeAttachUpperProtocol(
-                reference,
+            try lowerProtocol.invokeAttachUpperProtocol(
+                asUpper,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -262,39 +263,9 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class DatagramUpperHarness: UpperHarness<InboundDatagramLinkage>, TopDatagramProtocol {
+public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, TopDatagramProtocol {
 
     override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramUpperHarness: self) }
-
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        lowerDatagramProtocol: OutboundDatagramLinkage
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try lowerDatagramProtocol.invokeAttachUpperDatagramProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
-    }
 
     public convenience init?(
         identifier: String = "",
@@ -422,36 +393,6 @@ public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamPr
             return
         }
         completions.outboundAborted = completion
-    }
-
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        lowerStreamProtocol: OutboundStreamLinkage
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try lowerStreamProtocol.invokeAttachUpperStreamProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
     }
 
     public convenience init?(
@@ -675,7 +616,7 @@ where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class DatagramLowerHarness: LowerHarness<OutboundDatagramLinkage>, BottomDatagramProtocol {
+public class DatagramLowerHarness: LowerHarness<DefaultOutboundDatagramLinkage>, BottomDatagramProtocol {
     public var maximumOutputSize = 1500
 
     override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramLowerHarness: self) }
@@ -760,7 +701,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     public var receivedDisconnected = false
 
     public func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -863,17 +804,19 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        do throws(NetworkError) {
-            self.lower = try listenerProtocol.invokeAttachUpperProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
+        // TODO: TFPDEBUG
+
+//        do throws(NetworkError) {
+//            self.lower = try listenerProtocol.invokeAttachUpperProtocol(
+//                asUpper as! LinkageType.PairedLinkage.PairedLinkage,
+//                remote: remote,
+//                local: local,
+//                parameters: parameters,
+//                path: path
+//            )
+//        } catch {
+//            return nil
+//        }
     }
     #endif
 

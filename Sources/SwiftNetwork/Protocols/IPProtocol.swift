@@ -323,8 +323,12 @@ public struct IPProtocol: NetworkProtocol {
     }
 
     struct IPInstance: ~Copyable, OneToOneDatagramProtocol {
-        var upper = InboundDatagramLinkage()
-        var lower = OutboundDatagramLinkage()
+
+        typealias UpperProtocol = DefaultInboundDatagramLinkage
+        typealias LowerProtocol = DefaultOutboundDatagramLinkage
+
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         var ipInstanceIndex: NetworkStateIndex? = nil
 
@@ -1055,6 +1059,11 @@ public struct IPProtocol: NetworkProtocol {
 
     static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
         IPProtocol().newProtocolInstance(context: context)!
+    }
+
+    static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
+        let reference = IPProtocol().newProtocolInstance(context: context)!
+        return (UpperLinkage(reference: reference), LowerLinkage(reference: reference))
     }
 
     #if !NETWORK_EMBEDDED

@@ -24,7 +24,7 @@ internal import os
 @_spi(ProtocolProvider)
 public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDatagramHandler, LoggableProtocol {
 
-    public typealias LowerProtocol = OutboundDatagramLinkage
+    public typealias LowerProtocol = DefaultOutboundDatagramLinkage
 
     // Private Constant state
     private let local: Endpoint
@@ -72,7 +72,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         parameters: Parameters,
         path: PathProperties,
         logger: LoggingHandle,
-        lowerProtocol: OutboundDatagramLinkage
+        lowerProtocol: DefaultOutboundDatagramLinkage
     ) {
         self.local = local
         self.remote = remote
@@ -255,7 +255,7 @@ extension DatagramPerfTestHandler: UpperProtocolHandler {
 
     // UpperProtocolHandler conformance
     public func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,

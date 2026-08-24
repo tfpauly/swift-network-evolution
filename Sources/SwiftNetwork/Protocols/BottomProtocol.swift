@@ -151,7 +151,7 @@ where UpperProtocol == InboundStreamLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol BottomDatagramProtocol: ~Copyable, BottomProtocolHandler, OutboundDatagramHandler
-where UpperProtocol == InboundDatagramLinkage {
+where UpperProtocol == DefaultInboundDatagramLinkage {
 
     /// Returns received datagrams to the upper protocol.
     ///
@@ -194,21 +194,17 @@ extension BottomProtocolHandler where Self: ~Copyable {
         #endif
     }
 
-    #if !NETWORK_EMBEDDED
-    public mutating func attachUpperProtocol<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
+    public mutating func attachUpperProtocol(
+        _ upperProtocol: UpperProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Linkage {
-        guard Linkage.self == UpperProtocol.PairedLinkage.self else {
-            throw NetworkError.posix(ENOTSUP)
-        }
+    ) throws(NetworkError) {
         guard upper.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        upper = UpperProtocol(reference: from)
+        upper = upperProtocol
 
         do {
             try self.setup(remote: remote, local: local, parameters: parameters, path: path)
@@ -216,10 +212,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
             upper = .init(reference: .init())
             throw error
         }
-
-        return asLower as! Linkage
     }
-    #endif
 
     public mutating func detach(_ from: ProtocolInstanceReference) throws(NetworkError) {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
@@ -307,14 +300,14 @@ extension BottomProtocolHandler where Self: ~Copyable {
     public var protocolEstablishmentReport: ProtocolEstablishmentReport? { nil }
 }
 
-extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == InboundDatagramLinkage {
+extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultInboundDatagramLinkage {
     public mutating func attachUpperDatagramProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundDatagramLinkage {
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
         guard upper.isDetached else {
             throw NetworkError.posix(EALREADY)
         }

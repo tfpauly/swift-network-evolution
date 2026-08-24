@@ -71,7 +71,7 @@ public protocol ListenerHandler: ~Copyable, LowerProtocolHandler where UpperProt
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol DatagramListenerHandler: ~Copyable, ListenerHandler
-where UpperProtocol.DataLinkage == OutboundDatagramLinkage {
+where UpperProtocol.DataLinkage == DefaultOutboundDatagramLinkage {
     mutating func attachNewDatagramFlowProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
@@ -87,13 +87,13 @@ where UpperProtocol.DataLinkage == OutboundDatagramLinkage {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundDatagramLinkage
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
 
     // Attach to an inbound flow
     mutating func attachUpperDatagramProtocolToExistingFlow(
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> OutboundDatagramLinkage
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
 }
 
 @_spi(ProtocolProvider)
@@ -248,7 +248,7 @@ extension ProtocolInstanceReference {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundDatagramLinkage {
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
         try self.handleCallFromUpperProtocol { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -341,7 +341,7 @@ extension ProtocolInstanceReference {
     func attachUpperDatagramProtocolToExistingFlow(
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> OutboundDatagramLinkage {
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
         try self.handleCallFromUpperProtocol { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")

@@ -66,7 +66,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
     var lower = LowerProtocol(reference: .init())
-    var asUpper: LinkageType { .init(reference: reference) }
+    var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
 
     var eventManager = ProtocolEventManager()
 
@@ -75,6 +75,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     var parameters: Parameters
     var path: PathProperties
 
+    // TODO: TFPDEBUG Remove this once we have fixed listeners
     fileprivate init(
         identifier: String = "",
         local: Endpoint?,
@@ -91,7 +92,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.path = path
     }
 
-    #if !NETWORK_EMBEDDED
     init(
         identifier: String = "",
         local: Endpoint?,
@@ -107,18 +107,18 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        self.lower = try lowerProtocol.invokeAttachUpperProtocol(
-            reference,
+        self.lower = lowerProtocol
+        try lowerProtocol.invokeAttachUpperProtocol(
+            asUpper,
             remote: remote,
             local: local,
             parameters: parameters,
             path: path
         )
     }
-    #endif
 
     func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -245,35 +245,9 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     }
 }
 
-final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<InboundDatagramLinkage>, InboundDatagramHandler {
+final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
 
     override var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramEndpointFlow: self) }
-
-    convenience init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        lowerDatagramProtocol: OutboundDatagramLinkage
-    ) throws(NetworkError) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        self.lower = try lowerDatagramProtocol.invokeAttachUpperDatagramProtocol(
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
-    }
 
     func attachLowerDatagramProtocol(
         _ lowerProtocol: ProtocolInstanceReference,
@@ -379,32 +353,6 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
 
     func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
     func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
-
-    convenience init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        lowerStreamProtocol: OutboundStreamLinkage
-    ) throws(NetworkError) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        self.lower = try lowerStreamProtocol.invokeAttachUpperStreamProtocol(
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
-    }
 
     func attachLowerStreamProtocol(
         _ lowerProtocol: ProtocolInstanceReference,

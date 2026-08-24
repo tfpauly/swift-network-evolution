@@ -143,7 +143,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let ipLinkage = OutboundDatagramLinkage(reference: reference)
+            let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             let upperHarness = DatagramUpperHarness(
                 identifier: "Client",
                 local: localEndpoint,
@@ -376,7 +376,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             clientOptions.setProtocolInstance(clientReference)
             clientParameters.defaultStack.internet = .ip(clientOptions)
 
-            let clientIPLinkage = OutboundDatagramLinkage(reference: clientReference)
+            let clientIPLinkage = DefaultOutboundDatagramLinkage(reference: clientReference)
             let clientUpperHarness = DatagramUpperHarness(
                 identifier: "Client",
                 local: clientEndpoint,
@@ -413,7 +413,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             serverOptions.setProtocolInstance(serverReference)
             serverParameters.defaultStack.internet = .ip(serverOptions)
 
-            let serverIPLinkage = OutboundDatagramLinkage(reference: serverReference)
+            let serverIPLinkage = DefaultOutboundDatagramLinkage(reference: serverReference)
             let serverUpperHarness = DatagramUpperHarness(
                 identifier: "Server",
                 local: serverEndpoint,

@@ -78,16 +78,51 @@ public struct UDPProtocol: NetworkProtocol {
         public func isEqual(to other: UDPMetadata, for: ProtocolCompareMode) -> Bool { true }
     }
 
-    struct UDPInstance: ~Copyable, OneToOneDatagramProtocol {
-        var upper = InboundDatagramLinkage()
-        var lower = OutboundDatagramLinkage()
+    struct UDPInstanceFlags: OptionSet {
+        init(rawValue: Self.RawValue) {
+            self.rawValue = rawValue
+        }
+        var rawValue: UInt16
+        static let isIPv4 = UDPInstanceFlags(rawValue: 1 << 0)
+        static let flowControlled = UDPInstanceFlags(rawValue: 1 << 1)
+        static let outputPending = UDPInstanceFlags(rawValue: 1 << 2)
+        static let partialChecksumOffload = UDPInstanceFlags(rawValue: 1 << 3)
+        static let noChecksum = UDPInstanceFlags(rawValue: 1 << 4)
+        static let noMetadata = UDPInstanceFlags(rawValue: 1 << 5)
+        static let ignoreInboundChecksum = UDPInstanceFlags(rawValue: 1 << 6)
+        static let upperTransportIsQUIC = UDPInstanceFlags(rawValue: 1 << 7)
+        static let fullChecksumOffload = UDPInstanceFlags(rawValue: 1 << 8)
+        static let reportedReceiveError = UDPInstanceFlags(rawValue: 1 << 9)
+        static let gotPathAttributes = UDPInstanceFlags(rawValue: 1 << 10)
+    }
+
+    typealias UDPInstance = UDPInnerInstance<DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage>
+    struct UDPInnerInstance<Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage>: ~Copyable, OneToOneDatagramProtocol {
+
+        // TODO: How can we register an index or array for this particular type?
+        // "Static stored properties not supported in generic types"
+        // Idea: Make the caller who first instantiates one or asks for the reference to it create the storage
+
+
+
+//        static public let _protocolIndex = NetworkMutex<Int?>(nil)
+//        static public var protocolIndex: Int {
+//            if let p = _protocolIndex { return p }
+//            
+//        }
+
+        typealias UpperProtocol = Upper
+        typealias LowerProtocol = Lower
+
+        var upper = UpperProtocol(reference: ProtocolInstanceReference())
+        var lower = LowerProtocol(reference: ProtocolInstanceReference())
 
         var udpInstanceIndex: NetworkStateIndex? = nil
 
         private(set) var context: NetworkContext
         init(context: NetworkContext) { self.context = context }
 
-        private(set) var reference: ProtocolInstanceReference = .init()
+        var reference: ProtocolInstanceReference = .init()
 
         var log = NetworkLoggerState()
 
@@ -119,24 +154,7 @@ public struct UDPProtocol: NetworkProtocol {
         var serviceClass = Parameters.ServiceClass.bestEffort
         var maximumDatagramSize: Int = 0
 
-        struct Flags: OptionSet {
-            init(rawValue: Self.RawValue) {
-                self.rawValue = rawValue
-            }
-            var rawValue: UInt16
-            static let isIPv4 = Flags(rawValue: 1 << 0)
-            static let flowControlled = Flags(rawValue: 1 << 1)
-            static let outputPending = Flags(rawValue: 1 << 2)
-            static let partialChecksumOffload = Flags(rawValue: 1 << 3)
-            static let noChecksum = Flags(rawValue: 1 << 4)
-            static let noMetadata = Flags(rawValue: 1 << 5)
-            static let ignoreInboundChecksum = Flags(rawValue: 1 << 6)
-            static let upperTransportIsQUIC = Flags(rawValue: 1 << 7)
-            static let fullChecksumOffload = Flags(rawValue: 1 << 8)
-            static let reportedReceiveError = Flags(rawValue: 1 << 9)
-            static let gotPathAttributes = Flags(rawValue: 1 << 10)
-        }
-        var flags: Flags = Flags()
+        var flags = UDPInstanceFlags()
 
         var gotPathAttributes: Bool {
             get { flags.contains(.gotPathAttributes) }
@@ -455,6 +473,11 @@ public struct UDPProtocol: NetworkProtocol {
 
     static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
         UDPProtocol().newProtocolInstance(context: context)!
+    }
+
+    static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
+        let reference = UDPProtocol().newProtocolInstance(context: context)!
+        return (UpperLinkage(reference: reference), LowerLinkage(reference: reference))
     }
 }
 

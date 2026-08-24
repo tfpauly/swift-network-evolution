@@ -199,6 +199,17 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
 
     // MARK: - Storage of Per-Protocol Event Manager States
 
+    private var protocolIdentifiers = NetworkProtocolRegistrar()
+
+    internal func protocolIdentifierIndex(for protocolIdentifier: ProtocolIdentifier) -> NetworkStateIndex {
+        return protocolIdentifiers.register(protocol: protocolIdentifier)
+    }
+
+    internal func protocolIdentifierIndex<P: NetworkProtocol>(for protocolDefinition: ProtocolDefinition<P>) -> NetworkStateIndex {
+        return protocolIdentifiers.register(protocol: protocolDefinition.identifier)
+    }
+
+
     #if !NETWORK_PRIVATE || NETWORK_STANDALONE
     internal var protocolEventStates = NetworkGappyArray<ProtocolEventManagerState>()
     internal var udpInstances = NetworkGappyArray<UDPProtocol.Instance>()
@@ -409,4 +420,12 @@ extension NetworkContext {
         }
     }
     #endif
+}
+
+class ProtocolInstanceStorage {
+
+
+    struct Foo: ~Sendable {
+        var bar: Int
+    }
 }

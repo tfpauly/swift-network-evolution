@@ -473,17 +473,14 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
 
 // Per-Level Sending Callbacks
 extension QUICCrypto: OutboundStreamHandler {
-    #if !NETWORK_EMBEDDED
-    func attachUpperProtocol<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
+    func attachUpperProtocol(
+        _ upperProtocol: UpperProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Linkage {
-        asLower as! Linkage
+    ) throws(NetworkError) {
     }
-    #endif
 
     func attachUpperStreamProtocol(
         _ from: ProtocolInstanceReference,

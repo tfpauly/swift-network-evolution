@@ -70,7 +70,7 @@ final class IPUDPTransfer {
                 clientUDPOptions.setProtocolInstance(clientUDP)
                 clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
-                let clientUDPLinkage = OutboundDatagramLinkage(reference: clientUDP)
+                let clientUDPLinkage = DefaultOutboundDatagramLinkage(reference: clientUDP)
                 let clientInput = DatagramUpperHarness(
                     identifier: "Client",
                     local: ipv4Client,
@@ -124,7 +124,7 @@ final class IPUDPTransfer {
                 serverUDPOptions.setProtocolInstance(serverUDP)
                 serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
-                let serverUDPLinkage = OutboundDatagramLinkage(reference: serverUDP)
+                let serverUDPLinkage = DefaultOutboundDatagramLinkage(reference: serverUDP)
                 let serverInput = DatagramUpperHarness(
                     identifier: "Server",
                     local: ipv4Server,

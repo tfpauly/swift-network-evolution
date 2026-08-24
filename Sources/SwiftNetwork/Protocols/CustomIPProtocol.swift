@@ -65,8 +65,11 @@ public struct CustomIPProtocol: NetworkProtocol {
     }
 
     final class CustomIPInstance: OneToOneDatagramProtocol, ProtocolInstanceContainer {
-        var upper = InboundDatagramLinkage()
-        var lower = OutboundDatagramLinkage()
+        typealias UpperProtocol = DefaultInboundDatagramLinkage
+        typealias LowerProtocol = DefaultOutboundDatagramLinkage
+
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         private(set) var context: NetworkContext
         init(context: NetworkContext) { self.context = context }
