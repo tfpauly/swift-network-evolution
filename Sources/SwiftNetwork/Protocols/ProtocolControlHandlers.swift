@@ -18,15 +18,13 @@
 public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance {
     associatedtype LowerProtocol: LowerProtocolLinkage
 
-    #if !NETWORK_EMBEDDED
     mutating func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError)
-    #endif
 
     mutating func handleConnectedEvent(_ from: ProtocolInstanceReference)
     mutating func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?)
@@ -126,15 +124,14 @@ extension ProtocolInstanceReference {
 public protocol LowerProtocolHandler<UpperProtocol>: ~Copyable, ProtocolInstance {
     associatedtype UpperProtocol: UpperProtocolLinkage
 
-    #if !NETWORK_EMBEDDED
-    mutating func attachUpperProtocol<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
+    mutating func attachUpperProtocol(
+        _ upperProtocol: UpperProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Linkage
-    #endif
+    ) throws(NetworkError)
+
     mutating func detach(_ from: ProtocolInstanceReference) throws(NetworkError)
 
     mutating func connect(_ from: ProtocolInstanceReference)
@@ -233,44 +230,45 @@ extension ProtocolInstanceReference {
         }
     }
 
-    #if !NETWORK_EMBEDDED
-    func attachUpperProtocol<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
+    func attachUpperProtocol<Linkage: UpperProtocolLinkage>(
+        _ upperProtocol: Linkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Linkage {
+    ) throws(NetworkError) {
+        // TODO: TFPDEBUG
+        /*
         try self.handleCallFromUpperProtocol { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                return try context.udpInstances[index].attachUpperProtocol(
-                    from,
+                try context.udpInstances[index].attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .ip(let index):
-                return try context.ipInstances[index].attachUpperProtocol(
-                    from,
+                try context.ipInstances[index].attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .tcp(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .tls(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
@@ -278,32 +276,32 @@ extension ProtocolInstanceReference {
                 )
             #if !NETWORK_NO_SWIFT_QUIC
             case .quic(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .quicStream(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .quicDatagram(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .quicCrypto(let instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
@@ -312,16 +310,16 @@ extension ProtocolInstanceReference {
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
             case .datagramLowerHarness(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path
                 )
             case .streamLowerHarness(var instance):
-                return try instance.attachUpperProtocol(
-                    from,
+                try instance.attachUpperProtocol(
+                    upperProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
@@ -330,9 +328,9 @@ extension ProtocolInstanceReference {
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
-                return try container.accessLower(at: index) { instance throws(NetworkError) in
+                try container.accessLower(at: index) { instance throws(NetworkError) in
                     try instance.attachUpperProtocol(
-                        from,
+                        upperProtocol,
                         remote: remote,
                         local: local,
                         parameters: parameters,
@@ -343,8 +341,8 @@ extension ProtocolInstanceReference {
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
         }
+         */
     }
-    #endif
 
     func attachUpperStreamProtocol(
         _ from: ProtocolInstanceReference,
@@ -423,7 +421,7 @@ extension ProtocolInstanceReference {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundDatagramLinkage {
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
         try self.handleCallFromUpperProtocol { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -480,14 +478,16 @@ extension ProtocolInstanceReference {
         }
     }
 
-    #if !NETWORK_EMBEDDED
-    public func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+    public func attachLowerProtocol<Linkage: LowerProtocolLinkage>(
+        _ lowerProtocol: Linkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
+        // TODO: TFPDEBUG
+
+        /*
         try self.fromExternal { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -612,8 +612,8 @@ extension ProtocolInstanceReference {
             default: fatalError("Protocol cannot accept attachLowerProtocol call")
             }
         }
+         */
     }
-    #endif
 
     public func attachLowerDatagramProtocol(
         _ lowerProtocol: ProtocolInstanceReference,
@@ -798,6 +798,9 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
+        // TODO: TFPDEBUG
+
+        /*
         try self.fromExternal { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -824,6 +827,7 @@ extension ProtocolInstanceReference {
             default: fatalError("Protocol cannot accept attachLowerProtocolForNewPath call")
             }
         }
+         */
     }
     #endif
 
@@ -834,6 +838,8 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
+        // TODO: TFPDEBUG
+        /*
         try self.fromExternal { () throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -862,6 +868,7 @@ extension ProtocolInstanceReference {
             default: fatalError("Protocol cannot accept attachLowerDatagramProtocolForNewPath call")
             }
         }
+         */
     }
 
     public func detach(_ from: ProtocolInstanceReference) throws(NetworkError) {
@@ -871,6 +878,8 @@ extension ProtocolInstanceReference {
             case .none: return
             case .udp(let index):
                 try context.udpInstances[index].detach(from)
+
+                // TODO: TFPDEBUG Better generic way to fully release/unregister protocol? How does a protocol outlast all upper linkages... maybe that *must* be a class type or must register. This would cover the async in the deinit of the event manager.
                 context.unregisterUDPInstance(index)
             case .ip(let index):
                 try context.ipInstances[index].detach(from)

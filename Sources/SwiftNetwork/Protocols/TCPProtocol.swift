@@ -371,8 +371,11 @@ public struct TCPProtocol: NetworkProtocol {
     }
 
     final class TCPInstance: OneToOneStreamToDatagramProtocol, TimerSchedulable {
-        var upper = InboundStreamLinkage()
-        var lower = OutboundDatagramLinkage()
+
+        typealias LowerProtocol = DefaultOutboundDatagramLinkage
+
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         private(set) var context: NetworkContext
         init(context: NetworkContext) { self.context = context }

@@ -129,7 +129,7 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where LowerProtocol == OutboundDatagramLinkage {
+public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where LowerProtocol: OutboundDatagramLinkage {
     mutating func attachLowerDatagramProtocol(
         _ lowerProtocol: ProtocolInstanceReference,
         remote: Endpoint?,
@@ -141,7 +141,7 @@ public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where Lowe
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where UpperProtocol == InboundDatagramLinkage {
+public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where UpperProtocol == DefaultInboundDatagramLinkage {
 
     mutating func attachUpperDatagramProtocol(
         _ from: ProtocolInstanceReference,
@@ -149,7 +149,7 @@ public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where Up
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundDatagramLinkage
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
 
     mutating func receiveDatagrams(
         _ from: ProtocolInstanceReference,

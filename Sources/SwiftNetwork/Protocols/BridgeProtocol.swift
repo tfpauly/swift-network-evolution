@@ -120,11 +120,12 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
     public final class BridgeInstance: BottomDatagramProtocol, ProtocolInstanceContainer, TimerSchedulable {
 
         var maximumOutputSize = 1500
-        public var upper = InboundDatagramLinkage()
-        var lower = OutboundDatagramLinkage()
+        public var upper = DefaultInboundDatagramLinkage()
+        var lower = DefaultOutboundDatagramLinkage()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) { self.context = context }
+        // TODO: TFPDEBUG Make this not use custom!
         public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
@@ -331,6 +332,11 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
 
     static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
         BridgeDatagramProtocol().newProtocolInstance(context: context)!
+    }
+
+    static public func instance<LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> LowerLinkage {
+        let reference = BridgeDatagramProtocol().newProtocolInstance(context: context)!
+        return LowerLinkage(reference: reference)
     }
 }
 

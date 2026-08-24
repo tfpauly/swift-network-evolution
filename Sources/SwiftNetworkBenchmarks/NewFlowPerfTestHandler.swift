@@ -193,7 +193,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
 extension NewFlowPerfTestHandler: UpperProtocolHandler {
     // Conform to UpperProtocolHandler but the function is unused
     public func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,

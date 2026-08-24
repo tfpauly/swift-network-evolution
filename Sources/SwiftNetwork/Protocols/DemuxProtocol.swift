@@ -170,17 +170,20 @@ public struct DemuxProtocol: NetworkProtocol {
     public final class DemuxInstance: OutboundDatagramHandler, InboundDatagramHandler, LoggableProtocol,
         ProtocolInstanceContainer
     {
-        var defaultUpper = InboundDatagramLinkage()
+        public typealias UpperProtocol = DefaultInboundDatagramLinkage
+        public typealias LowerProtocol = DefaultOutboundDatagramLinkage
+        
+        var defaultUpper = UpperProtocol()
         var defaultInboundFrames = FrameArray()
 
         struct DemuxEntry: ~Copyable {
-            var upper: InboundDatagramLinkage
+            var upper: UpperProtocol
             var inboundFrames = FrameArray()
             var demuxPatterns = Deque<DemuxPattern>()
         }
         var demuxEntries = NetworkUniqueArray<DemuxEntry>()
 
-        var lower = OutboundDatagramLinkage()
+        var lower = LowerProtocol()
         var asUpper: LowerProtocol.PairedLinkage { .init(reference: reference) }
         var asLower: UpperProtocol.PairedLinkage { .init(reference: reference) }
 
@@ -217,20 +220,48 @@ public struct DemuxProtocol: NetworkProtocol {
             #endif
         }
 
-        #if !NETWORK_EMBEDDED
-        public func attachUpperProtocol<Linkage>(
-            _ from: ProtocolInstanceReference,
+        //        public func attachUpperDatagramProtocol(_ from: ProtocolInstanceReference, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
+        //            <#code#>
+        //        }
+        //
+
+        public func attachUpperProtocol(
+            _ upperProtocol: DefaultInboundDatagramLinkage,
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
             path: PathProperties?
-        ) throws(NetworkError) -> Linkage where Linkage: LowerProtocolLinkage {
-            try attachUpperDatagramProtocol(from, remote: remote, local: local, parameters: parameters, path: path)
-                as! Linkage
+        ) throws(NetworkError) {
+            if defaultUpper.isDetached {
+                // Set up default
+                defaultUpper = upperProtocol
+                #if !NETWORK_EMBEDDED
+                if let parameters {
+                    if let options = parameters.protocolOptions(for: self.reference) {
+                        self.log.logPrefix = options.logIDString ?? ""
+                    }
+                }
+                #endif
+            } else if defaultUpper != upperProtocol {
+                #if !NETWORK_EMBEDDED
+                if let parameters {
+                    if let demuxOptions: ProtocolOptions<DemuxProtocol> = parameters.protocolOptions(
+                        for: self.reference
+                    ) {
+                        demuxEntries.append(
+                            DemuxEntry(
+                                upper: upperProtocol,
+                                demuxPatterns: demuxOptions.perProtocolOptions!.demuxPatterns
+                            )
+                        )
+                    }
+                }
+                #endif
+            }
         }
 
         public func attachLowerProtocol(
-            _ lowerProtocol: ProtocolInstanceReference,
+            _ lowerProtocol: LowerProtocol,
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
@@ -239,8 +270,9 @@ public struct DemuxProtocol: NetworkProtocol {
             guard lower.isDetached else {
                 throw NetworkError.posix(EALREADY)
             }
-            self.lower = try lowerProtocol.attachUpperProtocol(
-                reference,
+            lower = lowerProtocol
+            try lowerProtocol.invokeAttachUpperProtocol(
+                asUpper,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -248,15 +280,13 @@ public struct DemuxProtocol: NetworkProtocol {
             )
         }
 
-        #endif
-
         public func attachUpperDatagramProtocol(
             _ from: ProtocolInstanceReference,
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
             path: PathProperties?
-        ) throws(NetworkError) -> OutboundDatagramLinkage {
+        ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
             if defaultUpper.isDetached {
                 // Set up default
                 defaultUpper = UpperProtocol(reference: from)

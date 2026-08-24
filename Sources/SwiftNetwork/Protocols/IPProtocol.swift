@@ -326,8 +326,12 @@ public struct IPProtocol: NetworkProtocol {
     }
 
     struct IPInstance: ~Copyable, OneToOneDatagramProtocol {
-        var upper = InboundDatagramLinkage()
-        var lower = OutboundDatagramLinkage()
+
+        typealias UpperProtocol = DefaultInboundDatagramLinkage
+        typealias LowerProtocol = DefaultOutboundDatagramLinkage
+
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         var ipInstanceIndex: NetworkStateIndex? = nil
 
@@ -922,7 +926,7 @@ public struct IPProtocol: NetworkProtocol {
 
             mutating func writeOutboundFrames(
                 _ frames: inout FrameArray,
-                lower: OutboundDatagramLinkage,
+                lower: LowerProtocol,
                 selfReference: ProtocolInstanceReference
             ) {
                 frames.iterateMutableFrames { frame in
@@ -1708,7 +1712,7 @@ public struct IPProtocol: NetworkProtocol {
 
             mutating func writeOutboundFrames(
                 _ frames: inout FrameArray,
-                lower: OutboundDatagramLinkage,
+                lower: LowerProtocol,
                 selfReference: ProtocolInstanceReference
             ) {
                 frames.iterateMutableFrames { (frame: inout Frame) -> FrameArray.FrameIterationResult in
@@ -2079,7 +2083,7 @@ public struct IPProtocol: NetworkProtocol {
         @inline(__always)
         private static func processOutbound(
             _ instanceType: inout IPInstanceType,
-            lower: OutboundDatagramLinkage,
+            lower: LowerProtocol,
             selfReference: ProtocolInstanceReference,
             datagrams: inout FrameArray
         ) {
@@ -2117,6 +2121,11 @@ public struct IPProtocol: NetworkProtocol {
 
     static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
         IPProtocol().newProtocolInstance(context: context)!
+    }
+
+    static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
+        let reference = IPProtocol().newProtocolInstance(context: context)!
+        return (UpperLinkage(reference: reference), LowerLinkage(reference: reference))
     }
 
     #if !NETWORK_EMBEDDED

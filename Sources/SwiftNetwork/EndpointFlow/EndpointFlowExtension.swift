@@ -98,7 +98,7 @@ extension EndpointFlow {
                         parameters: self.parameters,
                         path: path,
                         context: context,
-                        lowerStreamProtocol: linkage
+                        lowerProtocol: linkage
                     )
                     self.flowProtocol = .stream(flow)
                     options.setLogID(
@@ -110,10 +110,9 @@ extension EndpointFlow {
                     if case .custom(let linkOptions) = stack.link,
                         linkOptions.identifier == BridgeDatagramProtocol.identifier
                     {
-                        let udpReference = UDPProtocol.instance(context: context)
-                        let ipReference = IPProtocol.instance(context: context)
-                        options.setProtocolInstance(udpReference)
-                        let linkage = OutboundDatagramLinkage(reference: udpReference)
+                        let (upper, lower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = UDPProtocol.instance(context: context)
+                        let (ipUpper, ipLower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = IPProtocol.instance(context: context)
+                        options.setProtocolInstance(upper.reference)
                         let flow = try DatagramEndpointFlowProtocol(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
@@ -121,7 +120,7 @@ extension EndpointFlow {
                             parameters: self.parameters,
                             path: path,
                             context: context,
-                            lowerDatagramProtocol: linkage
+                            lowerProtocol: lower
                         )
                         self.flowProtocol = .datagram(flow)
                         options.setLogID(
@@ -129,16 +128,16 @@ extension EndpointFlow {
                             parent: String(self.identifier),
                             protocolLogIDNumber: Int(self.identifier)
                         )
-                        try udpReference.attachLowerDatagramProtocol(
-                            ipReference,
+                        try upper.invokeAttachLowerProtocol(
+                            ipLower,
                             remote: effectiveRemoteEndpoint,
                             local: effectiveLocalEndpoint,
                             parameters: self.parameters,
                             path: path
                         )
-                        let reference = BridgeDatagramProtocol.instance(context: context)
-                        try ipReference.attachLowerDatagramProtocol(
-                            reference,
+                        let bridge: DefaultOutboundDatagramLinkage = BridgeDatagramProtocol.instance(context: context)
+                        try ipUpper.invokeAttachLowerProtocol(
+                            bridge,
                             remote: effectiveRemoteEndpoint,
                             local: effectiveLocalEndpoint,
                             parameters: self.parameters,
@@ -146,7 +145,7 @@ extension EndpointFlow {
                         )
                     } else {
                         let socketReference = SocketDatagramProtocol.instance(context: context)
-                        let linkage = OutboundDatagramLinkage(reference: socketReference)
+                        let linkage = DefaultOutboundDatagramLinkage(reference: socketReference)
                         let flow = try DatagramEndpointFlowProtocol(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
@@ -154,7 +153,7 @@ extension EndpointFlow {
                             parameters: self.parameters,
                             path: path,
                             context: context,
-                            lowerDatagramProtocol: linkage
+                            lowerProtocol: linkage
                         )
                         self.flowProtocol = .datagram(flow)
                         options.setLogID(
@@ -246,7 +245,7 @@ extension EndpointFlow {
                                     parameters: self.parameters,
                                     path: path,
                                     context: context,
-                                    lowerStreamProtocol: linkage
+                                    lowerProtocol: linkage
                                 )
                                 self.flowProtocol = .stream(flow)
                             } else {
@@ -276,7 +275,7 @@ extension EndpointFlow {
                             parameters: parameters,
                             path: path,
                             context: context,
-                            lowerStreamProtocol: linkage
+                            lowerProtocol: linkage
                         )
                         self.flowProtocol = .stream(flow)
                         options.setLogID(

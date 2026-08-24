@@ -294,7 +294,7 @@ extension StreamPerfTestHandler: UpperProtocolHandler {
 
     // UpperProtocolHandler conformance
     public func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,

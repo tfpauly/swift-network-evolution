@@ -34,7 +34,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
     public private(set) var context: NetworkContext
     public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
     public var eventManager = ProtocolEventManager()
-    public var upper = InboundDatagramLinkage()
+    public var upper = DefaultInboundDatagramLinkage()
     var log = NetworkLoggerState()
 
     private var socket: SystemSocket? = nil

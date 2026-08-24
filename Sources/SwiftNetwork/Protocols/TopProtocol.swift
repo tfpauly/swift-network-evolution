@@ -158,7 +158,7 @@ extension TopStreamProtocol where Self: ~Copyable {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol TopDatagramProtocol: ~Copyable, TopDatapathProtocol, InboundDatagramHandler
-where LowerProtocol == OutboundDatagramLinkage {
+where LowerProtocol: OutboundDatagramLinkage {
 
 }
 
@@ -214,9 +214,8 @@ extension TopProtocolHandler where Self: ~Copyable {
         #endif
     }
 
-    #if !NETWORK_EMBEDDED
     public mutating func attachLowerProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
+        _ lowerProtocol: LowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -225,15 +224,15 @@ extension TopProtocolHandler where Self: ~Copyable {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        self.lower = try lowerProtocol.attachUpperProtocol(
-            reference,
+        lower = lowerProtocol
+        try lowerProtocol.invokeAttachUpperProtocol(
+            asUpper,
             remote: remote,
             local: local,
             parameters: parameters,
             path: path
         )
     }
-    #endif
 
     public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
         do { try validate(lower: from, #function) } catch { return }
@@ -283,7 +282,7 @@ extension TopDatapathProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundDatagramLinkage {
+extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == DefaultOutboundDatagramLinkage {
     public mutating func attachLowerDatagramProtocol(
         _ lowerProtocol: ProtocolInstanceReference,
         remote: Endpoint?,

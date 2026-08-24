@@ -97,7 +97,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             udpOptions.setProtocolInstance(reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let udpLinkage = OutboundDatagramLinkage(reference: reference)
+            let udpLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             let upperHarness = DatagramUpperHarness(
                 identifier: "Client",
                 local: localEndpoint,
@@ -383,7 +383,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             clientOptions.setProtocolInstance(clientReference)
             clientParameters.defaultStack.transport = .udp(clientOptions)
 
-            let clientUDPLinkage = OutboundDatagramLinkage(reference: clientReference)
+            let clientUDPLinkage = DefaultOutboundDatagramLinkage(reference: clientReference)
             let clientUpperHarness = DatagramUpperHarness(
                 identifier: "Client",
                 local: clientEndpoint,
@@ -421,7 +421,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             serverOptions.setProtocolInstance(serverReference)
             serverParameters.defaultStack.transport = .udp(serverOptions)
 
-            let serverUDPLinkage = OutboundDatagramLinkage(reference: serverReference)
+            let serverUDPLinkage = DefaultOutboundDatagramLinkage(reference: serverReference)
             let serverUpperHarness = DatagramUpperHarness(
                 identifier: "Server",
                 local: serverEndpoint,
