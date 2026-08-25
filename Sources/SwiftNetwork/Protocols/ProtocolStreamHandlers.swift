@@ -65,14 +65,14 @@ extension AutomaticLowerStreamProcessing where Self: ~Copyable {
     /// Indicates to the lower protocol that stream data has been added to the send queue.
     ///
     /// Drains `lowerSendQueue` to the lower protocol.
-    public mutating func serviceLowerSendQueue() {
+    public mutating func serviceLowerSendQueue(state: inout NetworkContext.State) {
         guard !lowerSendQueue.isEmpty else { return }
-        try? lower.invokeSendStreamData(reference, streamData: lowerSendQueue.drainArray())
+        try? lower.invokeSendStreamData(state: &state, reference, streamData: lowerSendQueue.drainArray())
     }
 
     /// Indicates that stream data should be read from the lower protocol.
-    public mutating func resumeReadingInboundStreamData() {
-        _readInboundStreamData()
+    public mutating func resumeReadingInboundStreamData(state: inout NetworkContext.State) {
+        _readInboundStreamData(state: &state)
     }
 }
 
@@ -131,9 +131,9 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
     /// Indicates to the upper protocol that stream data has been added to the receive queue.
     ///
     /// Notifies the upper protocol that frames are available in `upperReceiveQueue`.
-    public func serviceUpperReceiveQueue() {
+    public func serviceUpperReceiveQueue(state: inout NetworkContext.State) {
         guard !upperReceiveQueue.isEmpty else { return }
-        upper.deliverInboundDataAvailableEvent(reference)
+        upper.deliverInboundDataAvailableEvent(state: &state, reference)
     }
 }
 
@@ -172,12 +172,17 @@ public protocol OutboundStreamHandler: ~Copyable, OutboundDataHandler where Uppe
     ) throws(NetworkError) -> OutboundStreamLinkage
 
     mutating func receiveStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         minimumBytes: Int,
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray?
-    mutating func getOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int
+    mutating func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> Int
     mutating func sendStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError)
@@ -200,6 +205,7 @@ public protocol OutboundStreamUnidirectionalAbortHandler: ~Copyable, OutboundStr
 @available(Network 0.1.0, *)
 public protocol OutboundStreamEarlyDataHandler: ~Copyable, OutboundStreamHandler {
     mutating func sendEarlyStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError)
@@ -209,11 +215,16 @@ public protocol OutboundStreamEarlyDataHandler: ~Copyable, OutboundStreamHandler
 
 @available(Network 0.1.0, *)
 extension AutomaticLowerStreamProcessing where Self: ~Copyable {
-    mutating func _readInboundStreamData() {
+    mutating func _readInboundStreamData(state: inout NetworkContext.State) {
         var readCount = 0
         repeat {
             do throws(NetworkError) {
-                let streamData = try lower.invokeReceiveStreamData(reference, minimumBytes: 1, maximumBytes: Int.max)
+                let streamData = try lower.invokeReceiveStreamData(
+                    state: &state,
+                    reference,
+                    minimumBytes: 1,
+                    maximumBytes: Int.max
+                )
                 if let streamData = consume streamData {
                     readCount = streamData.count
                     lowerReceiveQueue.add(frames: streamData)
@@ -224,12 +235,12 @@ extension AutomaticLowerStreamProcessing where Self: ~Copyable {
                 break
             }
             serviceLowerReceiveQueue()
-            serviceLowerSendQueue()
+            serviceLowerSendQueue(state: &state)
         } while readCount != 0
     }
 
-    mutating func handleInboundDataAvailableEvent() {
-        _readInboundStreamData()
+    mutating func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
+        _readInboundStreamData(state: &state)
     }
 }
 
@@ -286,32 +297,33 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable, Self: OutboundSt
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func receiveStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         minimumBytes: Int,
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray? {
         guard !isNone else { return nil }
-        return try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        return try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: return nil
             case .tcp(var instance):
-                return try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             case .tls(var instance):
-                return try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             #if !NETWORK_NO_SWIFT_QUIC
             case .quicStream(var instance):
-                return try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             case .quicCrypto(let instance):
-                return try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
             case .streamLowerHarness(var instance):
-                return try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 return try container.accessOutboundStreamHandler(at: index) { instance throws(NetworkError) in
-                    try instance.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+                    try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
                 }
             #endif
             default: fatalError("Protocol cannot accept receiveStreamData call")
@@ -319,24 +331,27 @@ extension ProtocolInstanceReference {
         }
     }
 
-    func getOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int {
+    func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> Int {
         guard !isNone else { return 0 }
-        return try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        return try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: return 0
-            case .tcp(var instance): return try instance.getOutboundStreamDataRoomAvailable(from)
-            case .tls(var instance): return try instance.getOutboundStreamDataRoomAvailable(from)
+            case .tcp(var instance): return try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
+            case .tls(var instance): return try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quicStream(let instance): return try instance.getOutboundStreamDataRoomAvailable(from)
-            case .quicCrypto(let instance): return try instance.getOutboundStreamDataRoomAvailable(from)
+            case .quicStream(let instance): return try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
+            case .quicCrypto(let instance): return try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .streamLowerHarness(var instance): return try instance.getOutboundStreamDataRoomAvailable(from)
+            case .streamLowerHarness(var instance): return try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 return try container.accessOutboundStreamHandler(at: index) { instance throws(NetworkError) in
-                    try instance.getOutboundStreamDataRoomAvailable(from)
+                    try instance.getOutboundStreamDataRoomAvailable(state: &state, from)
                 }
             #endif
             default: fatalError("Protocol cannot accept getOutboundStreamDataRoomAvailable call")
@@ -344,32 +359,36 @@ extension ProtocolInstanceReference {
         }
     }
 
-    func sendStreamData(_ from: ProtocolInstanceReference, streamData: consuming FrameArray) throws(NetworkError) {
+    func sendStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
         guard !isNone else {
             streamData.finalizeAllFramesAsFailed()
             return
         }
-        try self.handleCallFromUpperProtocol(streamData) { streamData throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &state, streamData) { state, streamData throws(NetworkError) in
             switch self.reference {
             case .none:
                 var streamData = streamData
                 streamData.finalizeAllFramesAsFailed()
                 return
-            case .tcp(var instance): try instance.sendStreamData(from, streamData: streamData)
-            case .tls(var instance): try instance.sendStreamData(from, streamData: streamData)
+            case .tcp(var instance): try instance.sendStreamData(state: &state, from, streamData: streamData)
+            case .tls(var instance): try instance.sendStreamData(state: &state, from, streamData: streamData)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quicStream(var instance): try instance.sendStreamData(from, streamData: streamData)
-            case .quicCrypto(let instance): try instance.sendStreamData(from, streamData: streamData)
+            case .quicStream(var instance): try instance.sendStreamData(state: &state, from, streamData: streamData)
+            case .quicCrypto(let instance): try instance.sendStreamData(state: &state, from, streamData: streamData)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .streamLowerHarness(var instance): try instance.sendStreamData(from, streamData: streamData)
+            case .streamLowerHarness(var instance): try instance.sendStreamData(state: &state, from, streamData: streamData)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 try container.accessOutboundStreamHandler(at: index, streamData) {
                     instance,
                     streamData throws(NetworkError) in
-                    try instance.sendStreamData(from, streamData: streamData)
+                    try instance.sendStreamData(state: &state, from, streamData: streamData)
                 }
             #endif
             default: fatalError("Protocol cannot accept sendStreamData call")
@@ -377,26 +396,30 @@ extension ProtocolInstanceReference {
         }
     }
 
-    func sendEarlyStreamData(_ from: ProtocolInstanceReference, streamData: consuming FrameArray) throws(NetworkError) {
+    func sendEarlyStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
         guard !isNone else {
             streamData.finalizeAllFramesAsFailed()
             return
         }
-        try self.handleCallFromUpperProtocol(streamData) { streamData throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &state, streamData) { state, streamData throws(NetworkError) in
             switch self.reference {
             case .none:
                 var streamData = streamData
                 streamData.finalizeAllFramesAsFailed()
                 return
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quicStream(var instance): try instance.sendEarlyStreamData(from, streamData: streamData)
+            case .quicStream(var instance): try instance.sendEarlyStreamData(state: &state, from, streamData: streamData)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 try container.accessOutboundStreamEarlyDataHandler(at: index, streamData) {
                     instance,
                     streamData throws(NetworkError) in
-                    try instance.sendEarlyStreamData(from, streamData: streamData)
+                    try instance.sendEarlyStreamData(state: &state, from, streamData: streamData)
                 }
             #endif
             // Sending early stream data not supported on the protocol
@@ -405,9 +428,13 @@ extension ProtocolInstanceReference {
         }
     }
 
-    func abortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
+    func abortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
         guard !isNone else { return }
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: return
             #if !NETWORK_NO_SWIFT_QUIC
@@ -425,9 +452,13 @@ extension ProtocolInstanceReference {
         }
     }
 
-    func abortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
+    func abortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
         guard !isNone else { return }
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: return
             #if !NETWORK_NO_SWIFT_QUIC

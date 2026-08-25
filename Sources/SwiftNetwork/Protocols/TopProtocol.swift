@@ -69,40 +69,79 @@ public protocol TopDatapathProtocol: ~Copyable, TopProtocolHandler where LowerPr
 @available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable {
     /// Requests that the lower protocol start connecting.
+    ///
+    /// This is an external entry point: call it from code outside the protocol stack, such as an
+    /// app or a unit test. If you already hold the context state, call the `state:`-taking
+    /// variant instead so the state isn't re-derived from the context.
     public func invokeConnect() {
-        fromExternal {
-            lower.invokeConnect(self.reference)
+        fromExternal { state in
+            invokeConnect(state: &state)
         }
+    }
+
+    /// Requests that the lower protocol start connecting, using an already-acquired context state.
+    public func invokeConnect(state: inout NetworkContext.State) {
+        lower.invokeConnect(state: &state, self.reference)
     }
 
     /// Requests that the lower protocol disconnect.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeDisconnect(error: NetworkError?) {
-        fromExternal {
-            lower.invokeDisconnect(self.reference, error: error)
+        fromExternal { state in
+            invokeDisconnect(state: &state, error: error)
         }
     }
 
+    /// Requests that the lower protocol disconnect, using an already-acquired context state.
+    public func invokeDisconnect(state: inout NetworkContext.State, error: NetworkError?) {
+        lower.invokeDisconnect(state: &state, self.reference, error: error)
+    }
+
     /// Detaches the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public mutating func invokeDetach() throws(NetworkError) {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeDetach(self.reference)
+        try fromExternal { state throws(NetworkError) in
+            try lower.invokeDetach(state: &state, self.reference)
         }
         lower = .init(reference: .init())
     }
 
+    /// Detaches the lower protocol, using an already-acquired context state.
+    public mutating func invokeDetach(state: inout NetworkContext.State) throws(NetworkError) {
+        try lower.invokeDetach(state: &state, self.reference)
+        lower = .init(reference: .init())
+    }
+
     /// Signals an application-level event to lower protocols.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal {
-            lower.invokeApplicationEvent(self.reference, event: event)
+        fromExternal { state in
+            invokeApplicationEvent(state: &state, event)
         }
     }
 
-    /// Accesses protocol metadata from a lower protocol.
-    public func invokeGetMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal {
-            lower.invokeGetMetadata(self.reference)
-        }
+    /// Signals an application-level event to lower protocols, using an already-acquired context state.
+    public func invokeApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {
+        lower.invokeApplicationEvent(state: &state, self.reference, event: event)
+    }
 
+    /// Accesses protocol metadata from a lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
+    public func invokeGetMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
+        fromExternal { state in
+            invokeGetMetadata(state: &state)
+        }
+    }
+
+    /// Accesses protocol metadata from a lower protocol, using an already-acquired context state.
+    public func invokeGetMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State
+    ) -> ProtocolMetadata<P>? {
+        lower.invokeGetMetadata(state: &state, self.reference)
     }
 }
 
@@ -126,31 +165,77 @@ where LowerProtocol == OutboundStreamLinkage {
 @available(Network 0.1.0, *)
 extension TopStreamProtocol where Self: ~Copyable {
     /// Receives stream data from the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeReceiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeReceiveStreamData(self.reference, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        try fromExternal { state throws(NetworkError) in
+            try invokeReceiveStreamData(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
         }
+    }
+
+    /// Receives stream data from the lower protocol, using an already-acquired context state.
+    public func invokeReceiveStreamData(
+        state: inout NetworkContext.State,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray? {
+        try lower.invokeReceiveStreamData(
+            state: &state,
+            self.reference,
+            minimumBytes: minimumBytes,
+            maximumBytes: maximumBytes
+        )
     }
 
     /// Returns the number of bytes of stream data you can send to the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeGetOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeGetOutboundStreamDataRoomAvailable(self.reference)
+        try fromExternal { state throws(NetworkError) in
+            try invokeGetOutboundStreamDataRoomAvailable(state: &state)
         }
+    }
+
+    /// Returns the number of bytes of stream data you can send to the lower protocol, using an
+    /// already-acquired context state.
+    public func invokeGetOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State
+    ) throws(NetworkError) -> Int {
+        try lower.invokeGetOutboundStreamDataRoomAvailable(state: &state, self.reference)
     }
 
     /// Sends stream data to the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeSendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
-        try fromExternal(streamData) { streamData throws(NetworkError) in
-            try lower.invokeSendStreamData(self.reference, streamData: streamData)
+        try fromExternal(streamData) { state, streamData throws(NetworkError) in
+            try invokeSendStreamData(state: &state, streamData)
         }
     }
 
+    /// Sends stream data to the lower protocol, using an already-acquired context state.
+    public func invokeSendStreamData(
+        state: inout NetworkContext.State,
+        _ streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        try lower.invokeSendStreamData(state: &state, self.reference, streamData: streamData)
+    }
+
     /// Sends early stream data to the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeSendEarlyStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
-        try fromExternal(streamData) { streamData throws(NetworkError) in
-            try lower.invokeSendEarlyStreamData(self.reference, streamData: streamData)
+        try fromExternal(streamData) { state, streamData throws(NetworkError) in
+            try invokeSendEarlyStreamData(state: &state, streamData)
         }
+    }
+
+    /// Sends early stream data to the lower protocol, using an already-acquired context state.
+    public func invokeSendEarlyStreamData(
+        state: inout NetworkContext.State,
+        _ streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        try lower.invokeSendEarlyStreamData(state: &state, self.reference, streamData: streamData)
     }
 }
 
@@ -166,10 +251,20 @@ where LowerProtocol: OutboundDatagramLinkage {
 @available(Network 0.1.0, *)
 extension TopDatagramProtocol where Self: ~Copyable, Self: ~Copyable {
     /// Receives datagrams from the lower protocol.
+    ///
+    /// This is an external entry point; see `invokeConnect()`.
     public func invokeReceiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeReceiveDatagrams(self.reference, maximumDatagramCount: maximumDatagramCount)
+        try fromExternal { state throws(NetworkError) in
+            try invokeReceiveDatagrams(state: &state, maximumDatagramCount: maximumDatagramCount)
         }
+    }
+
+    /// Receives datagrams from the lower protocol, using an already-acquired context state.
+    public func invokeReceiveDatagrams(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int
+    ) throws(NetworkError) -> FrameArray? {
+        try lower.invokeReceiveDatagrams(state: &state, self.reference, maximumDatagramCount: maximumDatagramCount)
     }
 
     /// Returns datagram memory you can write into, from the lower protocol.
@@ -177,22 +272,45 @@ extension TopDatagramProtocol where Self: ~Copyable, Self: ~Copyable {
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeGetDatagramsToSend(
-                self.reference,
+        try fromExternal { state throws(NetworkError) in
+            try invokeGetDatagramsToSend(
+                state: &state,
                 maximumDatagramCount: maximumDatagramCount,
                 minimumDatagramSize: minimumDatagramSize
             )
         }
     }
 
+    /// Returns datagram memory you can write into, using an already-acquired context state.
+    public func invokeGetDatagramsToSend(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int,
+        minimumDatagramSize: Int
+    ) throws(NetworkError) -> FrameArray? {
+        try lower.invokeGetDatagramsToSend(
+            state: &state,
+            self.reference,
+            maximumDatagramCount: maximumDatagramCount,
+            minimumDatagramSize: minimumDatagramSize
+        )
+    }
+
     /// Sends previously retrieved datagrams to the lower protocol.
     ///
     /// Sends datagrams previously retrieved with `invokeGetDatagramsToSend`.
     public func invokeSendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
-        try fromExternal(datagrams) { datagrams throws(NetworkError) in
-            try lower.invokeSendDatagrams(self.reference, datagrams: datagrams)
+        try fromExternal(datagrams) { state, datagrams throws(NetworkError) in
+            try invokeSendDatagrams(state: &state, datagrams)
         }
+    }
+
+    /// Sends previously retrieved datagrams to the lower protocol, using an already-acquired
+    /// context state.
+    public func invokeSendDatagrams(
+        state: inout NetworkContext.State,
+        _ datagrams: consuming FrameArray
+    ) throws(NetworkError) {
+        try lower.invokeSendDatagrams(state: &state, self.reference, datagrams: datagrams)
     }
 }
 
@@ -284,6 +402,7 @@ extension TopDatapathProtocol where Self: ~Copyable {
 @available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == DefaultOutboundDatagramLinkage {
     public mutating func attachLowerDatagramProtocol(
+        state: inout NetworkContext.State,
         _ lowerProtocol: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,
@@ -294,6 +413,7 @@ extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == DefaultOutb
             throw NetworkError.posix(EALREADY)
         }
         self.lower = try lowerProtocol.attachUpperDatagramProtocol(
+            state: &state,
             reference,
             remote: remote,
             local: local,

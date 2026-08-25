@@ -51,7 +51,7 @@ final class RecoveryTests: XCTestCase {
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))
             try? newPath.attachLowerProtocol(
-                lowerHarness.reference,
+                .init(reference: lowerHarness.reference),
                 remote: nil,
                 local: nil,
                 parameters: nil,

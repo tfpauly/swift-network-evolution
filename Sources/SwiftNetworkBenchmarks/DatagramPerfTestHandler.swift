@@ -40,7 +40,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
 
     // Public mutable state
     public var log = NetworkLoggerState()
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
     public var context: NetworkContext
     public var connected: Bool = false
@@ -67,6 +67,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)]"
+        self.reference = .init(custom: self)
     }
 
     public init?(
@@ -86,6 +87,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)]"
+        self.reference = .init(custom: self)
         do throws(NetworkError) {
             self.lowerProtocol = try lowerProtocol.invokeAttachUpperDatagramProtocol(
                 reference,
@@ -114,8 +116,8 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
     // Start the datagram handler
     public func start() {
         log("start")
-        fromExternal {
-            lowerProtocol.invokeConnect(reference)
+        fromExternal { state in
+            lowerProtocol.invokeConnect(state: &state, reference)
         }
     }
 
@@ -129,16 +131,16 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         log("stop")
         self.connected = false
         self.readAvailable = false
-        fromExternal {
-            lowerProtocol.invokeDisconnect(reference)
+        fromExternal { state in
+            lowerProtocol.invokeDisconnect(state: &state, reference)
         }
     }
 
     public func teardown() {
         log("teardown")
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lowerProtocol.invokeDetach(reference)
+                try lowerProtocol.invokeDetach(state: &state, reference)
                 lowerProtocol = .init(reference: .init())
             } catch {
                 log("Failed to detach lower protocol: \(error)")
@@ -184,9 +186,9 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
     }
 
     public func write(_ datagram: [UInt8]) -> Bool {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                let frames = try lowerProtocol.invokeGetDatagramsToSend(
+                let frames = try lowerProtocol.invokeGetDatagramsToSend(state: &state, 
                     reference,
                     maximumDatagramCount: 1,
                     minimumDatagramSize: datagram.count
@@ -206,7 +208,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
                     }
                     return false
                 }
-                try lowerProtocol.invokeSendDatagrams(reference, datagrams: frames)
+                try lowerProtocol.invokeSendDatagrams(state: &state, reference, datagrams: frames)
                 return true
             } catch {
                 return false
@@ -215,9 +217,9 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
     }
 
     public func read() -> [UInt8]? {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                let frames = try lowerProtocol.invokeReceiveDatagrams(reference, maximumDatagramCount: 1)
+                let frames = try lowerProtocol.invokeReceiveDatagrams(state: &state, reference, maximumDatagramCount: 1)
                 guard var frames = frames else {
                     log("Failed to receive datagrams")
                     return nil
@@ -249,6 +251,7 @@ extension DatagramPerfTestHandler: UpperProtocolHandler {
 
     // UpperProtocolHandler conformance
     public func attachLowerDatagramProtocol(
+        state: inout NetworkContext.State,
         _ lowerProtocol: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,

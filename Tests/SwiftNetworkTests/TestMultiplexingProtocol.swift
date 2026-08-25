@@ -65,9 +65,12 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     }
 
     public private(set) var context: NetworkContext
-    init(context: NetworkContext) { self.context = context }
+    init(context: NetworkContext) {
+        self.context = context
+        self.reference = .init(custom: self)
+    }
 
-    var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    var reference = ProtocolInstanceReference()
     var log = NetworkLoggerState()
     var eventManager = ProtocolEventManager()
 
@@ -149,7 +152,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
 
     func triggerNewFlowCreation() {
         log.debug("Multiplexing protocol creating a new inbound flow")
-        fromExternal {
+        fromExternal { _ in
             let newFlow = Flow(parent: self, inbound: true)
             multiplexedFlows[newFlow.identifier] = newFlow
             deliverNewInboundFlowEvent(newFlow.reference, flowMetadata: nil)
@@ -158,7 +161,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
 
     func triggerConnected() {
         log.debug("Multiplexing protocol triggering connected event")
-        fromExternal {
+        fromExternal { _ in
             delayConnected = false
             deliverConnectedEvent(flow: .allFlows)
         }

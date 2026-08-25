@@ -179,7 +179,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
 
     public typealias Path = QUICPath
 
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(quic: self) }
+    public var reference = ProtocolInstanceReference()
 
     public var log = NetworkLoggerState()
     var logPrefixer: LogPrefixer
@@ -428,6 +428,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
         self.timer = Timer(timerReference: timerReference, logPrefixer: self.logPrefixer)
         self.ecn = ECN()
         self.stats = Statistics()
+        self.reference = .init(quic: self)
     }
 
     public func setup(
@@ -5847,11 +5848,11 @@ extension QUICConnection {
             if pathIsIdle && !path.reportedIdleEvent {
                 // Need to report idle
                 path.reportedIdleEvent = true
-                path.lower.invokeApplicationEvent(path.reference, event: .connectionIdle)
+                path.lower.invokeApplicationEvent(state: &context.state, path.reference, event: .connectionIdle)
             } else if !pathIsIdle && path.reportedIdleEvent {
                 // Need to report non-idle
                 path.reportedIdleEvent = false
-                path.lower.invokeApplicationEvent(path.reference, event: .connectionReused)
+                path.lower.invokeApplicationEvent(state: &context.state, path.reference, event: .connectionReused)
             }
         }
     }
@@ -6231,8 +6232,11 @@ extension QUICConnection {
 @available(Network 0.1.0, *)
 public final class QUICConnection: ProtocolInstance, ProtocolInstanceContainer {
     public private(set) var context: NetworkContext
-    public init(context: NetworkContext) { self.context = context }
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public init(context: NetworkContext) {
+        self.context = context
+        self.reference = .init(custom: self)
+    }
+    public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
 }
 #endif

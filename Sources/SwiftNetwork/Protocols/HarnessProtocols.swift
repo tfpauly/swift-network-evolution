@@ -66,7 +66,11 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
 
     public fileprivate(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference { .init() }
+    public var reference = ProtocolInstanceReference()
+    func initializeReference() {
+        reference = .init()
+    }
+
     public var lower = LowerProtocol(reference: .init())
 
     public var eventManager = ProtocolEventManager()
@@ -92,6 +96,7 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
         self.parameters = parameters
         self.path = path
         log.logPrefix = "[UpperHarness:\(identifier)]"
+        initializeReference()
     }
 
     #if !NETWORK_EMBEDDED
@@ -111,6 +116,8 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
         self.parameters = parameters
         self.path = path
         self.lower = lowerProtocol
+        // Must be initialized before asUpper is used, since asUpper derives from reference.
+        initializeReference()
         do throws(NetworkError) {
             try lowerProtocol.invokeAttachUpperProtocol(
                 asUpper,
@@ -239,7 +246,7 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
-        lower.invokeGetMetrics(reference, requestedNetworkMetric: requestedNetworkMetric)
+        lower.invokeGetMetrics(state: &context.state, reference, requestedNetworkMetric: requestedNetworkMetric)
     }
 
     public func setApplicationError(_ applicationError: UInt64, applicationErrorReason: String) {
@@ -262,8 +269,8 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal {
-            lower.invokeApplicationEvent(reference, event: event)
+        fromExternal { state in
+            lower.invokeApplicationEvent(state: &state, reference, event: event)
         }
     }
 }
@@ -272,7 +279,9 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
 @available(Network 0.1.0, *)
 public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, TopDatagramProtocol {
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramUpperHarness: self) }
+    override func initializeReference() {
+        reference = .init(datagramUpperHarness: self)
+    }
 
     public convenience init?(
         identifier: String = "",
@@ -360,7 +369,9 @@ public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, 
 @available(Network 0.1.0, *)
 public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamProtocol {
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(streamUpperHarness: self) }
+    override func initializeReference() {
+        reference = .init(streamUpperHarness: self)
+    }
 
     public func handleInboundAbortedEvent(error: NetworkError?) {
         log.debug("Received inbound aborted event: \(error?.description ?? "no error")")
@@ -514,9 +525,9 @@ public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamPr
     }
 
     public func abortInbound(error: NetworkError?) {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeAbortInbound(reference, error: error)
+                try lower.invokeAbortInbound(state: &state, reference, error: error)
             } catch {
                 log.error("Failed to abort inbound: \(error)")
             }
@@ -524,9 +535,9 @@ public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamPr
     }
 
     public func abortOutbound(error: NetworkError?) {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeAbortOutbound(reference, error: error)
+                try lower.invokeAbortOutbound(state: &state, reference, error: error)
             } catch {
                 log.error("Failed to abort outbound: \(error)")
             }
@@ -543,7 +554,10 @@ where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference { .init() }
+    public var reference = ProtocolInstanceReference()
+    func initializeReference() {
+        reference = .init()
+    }
     public var upper = UpperProtocol(reference: .init())
 
     public var eventManager = ProtocolEventManager()
@@ -557,6 +571,7 @@ where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
     ) {
         log.logPrefix = "[LowerHarness:\(identifier)]"
         self.context = context
+        initializeReference()
     }
 
     public func flushPackets() {
@@ -626,7 +641,9 @@ where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
 public class DatagramLowerHarness: LowerHarness<DefaultOutboundDatagramLinkage>, BottomDatagramProtocol {
     public var maximumOutputSize = 1500
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramLowerHarness: self) }
+    override func initializeReference() {
+        reference = .init(datagramLowerHarness: self)
+    }
 
     public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
         let array = pendingInboundPackets.drainArray(maximumFrameCount: maximumDatagramCount)
@@ -656,7 +673,9 @@ public class DatagramLowerHarness: LowerHarness<DefaultOutboundDatagramLinkage>,
 @available(Network 0.1.0, *)
 public class StreamLowerHarness: LowerHarness<OutboundStreamLinkage>, BottomStreamProtocol {
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(streamLowerHarness: self) }
+    override func initializeReference() {
+        reference = .init(streamLowerHarness: self)
+    }
 
     public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
         pendingInboundPackets.drainArray(maximumByteCount: maximumBytes)
@@ -684,7 +703,10 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference { .init() }
+    public var reference = ProtocolInstanceReference()
+    func initializeReference() {
+        reference = .init()
+    }
     var lower = LowerProtocol(reference: .init())
     var asUpper: LinkageType { .init(reference: reference) }
 
@@ -771,9 +793,9 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
             upperHarness.teardown()
         }
         upperHarnesses.removeAll()
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeDetach(reference)
+                try lower.invokeDetach(state: &state, reference)
                 lower = .init(reference: .init())
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
@@ -795,6 +817,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
         self.remote = remote
         self.parameters = parameters
         self.path = path
+        initializeReference()
     }
 
     #if !NETWORK_EMBEDDED
@@ -813,6 +836,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
         self.remote = remote
         self.parameters = parameters
         self.path = path
+        initializeReference()
         // TODO: TFPDEBUG
 
 //        do throws(NetworkError) {
@@ -842,8 +866,8 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     }
 
     public func start() {
-        fromExternal {
-            lower.invokeConnect(reference)
+        fromExternal { state in
+            lower.invokeConnect(state: &state, reference)
         }
     }
 
@@ -853,8 +877,8 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     }
 
     public func stop(error: NetworkError? = nil) {
-        fromExternal {
-            lower.invokeDisconnect(reference, error: error)
+        fromExternal { state in
+            lower.invokeDisconnect(state: &state, reference, error: error)
         }
     }
 
@@ -863,14 +887,14 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal {
-            lower.invokeApplicationEvent(reference, event: event)
+        fromExternal { state in
+            lower.invokeApplicationEvent(state: &state, reference, event: event)
         }
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal {
-            guard let metadata = lower.invokeGetMetadata(reference) as? ProtocolMetadata<P> else {
+        fromExternal { state in
+            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
                 return nil
             }
             return metadata
@@ -878,8 +902,8 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
-        fromExternal {
-            lower.invokeGetMetrics(reference, requestedNetworkMetric: requestedNetworkMetric)
+        fromExternal { state in
+            lower.invokeGetMetrics(state: &state, reference, requestedNetworkMetric: requestedNetworkMetric)
         }
     }
 }
@@ -888,7 +912,9 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
 @available(Network 0.1.0, *)
 public class NewDatagramFlowHarness: NewFlowHarness<InboundDatagramFlowLinkage, DatagramUpperHarness> {
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(newDatagramFlowHarness: self) }
+    override func initializeReference() {
+        reference = .init(newDatagramFlowHarness: self)
+    }
 
     public convenience init?(
         identifier: String = "",
@@ -957,7 +983,9 @@ public class NewDatagramFlowHarness: NewFlowHarness<InboundDatagramFlowLinkage, 
 @available(Network 0.1.0, *)
 public class NewStreamFlowHarness: NewFlowHarness<InboundStreamFlowLinkage, StreamUpperHarness> {
 
-    override public var reference: ProtocolInstanceReference { ProtocolInstanceReference(newStreamFlowHarness: self) }
+    override func initializeReference() {
+        reference = .init(newStreamFlowHarness: self)
+    }
 
     public convenience init?(
         identifier: String = "",

@@ -135,14 +135,15 @@ public struct UDPProtocol: NetworkProtocol {
         // Only called by newProtocolInstance()
         fileprivate static func registerNewUDP(
             on context: NetworkContext,
+            state: inout NetworkContext.State
         ) -> ProtocolInstanceReference {
             let udp = UDPInstance(context: context)
-            let registeredIndex = context.state.registerUDPInstance(udp)
-            context.state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
-            context.state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
-                udp: &context.state.udpInstances[registeredIndex]
+            let registeredIndex = state.registerUDPInstance(udp)
+            state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
+            state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
+                udpIndex: registeredIndex, state: &state
             )
-            return context.state.udpInstances[registeredIndex].reference
+            return state.udpInstances[registeredIndex].reference
         }
 
         var passthroughEvents = true
@@ -314,9 +315,15 @@ public struct UDPProtocol: NetworkProtocol {
             }
         }
 
-        mutating func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+        mutating func receiveDatagrams(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int
+        ) throws(NetworkError) -> FrameArray? {
             repeat {
-                guard var frameArray = try invokeReceiveDatagrams(maximumDatagramCount: maximumDatagramCount),
+                guard var frameArray = try invokeReceiveDatagrams(
+                    state: &state,
+                    maximumDatagramCount: maximumDatagramCount
+                ),
                     frameArray.count > 0
                 else {
                     return nil
@@ -413,6 +420,7 @@ public struct UDPProtocol: NetworkProtocol {
         }
 
         mutating func getDatagramsToSend(
+            state: inout NetworkContext.State,
             maximumDatagramCount: Int,
             minimumDatagramSize: Int
         ) throws(NetworkError) -> FrameArray? {
@@ -423,6 +431,7 @@ public struct UDPProtocol: NetworkProtocol {
             }
 
             var outputFrames = try invokeGetDatagramsToSend(
+                state: &state,
                 maximumDatagramCount: maximumDatagramCount,
                 minimumDatagramSize: incrementByUDPHeaderLength(minimumDatagramSize)
             )
@@ -434,7 +443,10 @@ public struct UDPProtocol: NetworkProtocol {
             return outputFrames
         }
 
-        mutating func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+        mutating func sendDatagrams(
+            state: inout NetworkContext.State,
+            _ datagrams: consuming FrameArray
+        ) throws(NetworkError) {
             datagrams.iterateMutableFrames { frame in
                 recordStatsEvent(stat: .outboundPackets)
                 guard frame.unclaim(fromStart: UDPProtocol.headerLength) else {
@@ -517,7 +529,7 @@ public struct UDPProtocol: NetworkProtocol {
                 return .continueIterating
             }
 
-            return try invokeSendDatagrams(datagrams)
+            return try invokeSendDatagrams(state: &state, datagrams)
         }
 
         #if !NETWORK_EMBEDDED
@@ -545,7 +557,7 @@ public struct UDPProtocol: NetworkProtocol {
     public func newPerProtocolMetadata() -> UDPMetadata? { UDPMetadata() }
 
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        UDPInstance.registerNewUDP(on: context)
+        UDPInstance.registerNewUDP(on: context, state: &context.state)
     }
 
     static public let identifier = ProtocolIdentifier(name: "udp", level: .transport, mapping: .oneToOne)

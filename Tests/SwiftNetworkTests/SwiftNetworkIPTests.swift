@@ -949,7 +949,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let localEndpoint = Endpoint(address: IPv4Address(SwiftNetworkIPTests.localIPv4Address)!, port: 0)
             let remoteEndpoint = Endpoint(address: IPv4Address(SwiftNetworkIPTests.remoteIPv4Address)!, port: 0)
-            let ipLinkage = OutboundDatagramLinkage(reference: reference)
+            let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             guard
                 let upperHarness = DatagramUpperHarness(
                     identifier: "Client",
@@ -1069,7 +1069,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let localEndpoint = Endpoint(address: IPv6Address(SwiftNetworkIPTests.localIPv6Address)!, port: 0)
             let remoteEndpoint = Endpoint(address: IPv6Address(SwiftNetworkIPTests.remoteIPv6Address)!, port: 0)
-            let ipLinkage = OutboundDatagramLinkage(reference: reference)
+            let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             guard
                 let upperHarness = DatagramUpperHarness(
                     identifier: "Client",
@@ -1179,7 +1179,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let localEndpoint = localEndpoint
             let remoteEndpoint = remoteEndpoint
 
-            let ipLinkage = OutboundDatagramLinkage(reference: ipInstance)
+            let ipLinkage = DefaultOutboundDatagramLinkage(reference: ipInstance)
             guard
                 let upperHarness = DatagramUpperHarness(
                     identifier: "Client",

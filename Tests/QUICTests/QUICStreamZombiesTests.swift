@@ -29,7 +29,7 @@ final class QUICStreamZombieListTests: XCTestCase {
     func testAppend() {
         NetworkContext.implicitContext.async {
             let connection = QUICConnection(context: NetworkContext.implicitContext)
-            connection.fromExternal {
+            connection.fromExternal { _ in
                 let streamID: QUICStreamID = QUICStreamID(0)
                 self.zombieList.append(
                     logIDString: "QUICStreamZombieListTests:\(#function)",

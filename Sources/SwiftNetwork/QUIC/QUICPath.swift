@@ -131,11 +131,9 @@ public final class QUICPath: MultiplexingDatagramPath<QUICConnection>, Equatable
 
     static let slowInitialProbeInterval: NetworkDuration = .seconds(1)
 
-    @_optimize(speed)
-    override public var reference: ProtocolInstanceReference {
-        var reference = ProtocolInstanceReference(quicPath: self)
+    override func initializeReference() {
+        reference = .init(quicPath: self)
         reference.parentReference = parentProtocol.reference
-        return reference
     }
 
     private(set) var state: QUICPathState = QUICPathState()
@@ -626,7 +624,7 @@ public final class QUICPath: MultiplexingDatagramPath<QUICConnection>, Equatable
     }
 
     func tearDownLowerStack() {
-        try? lower.invokeDetach(self.reference)
+        try? lower.invokeDetach(state: &context.state, self.reference)
     }
 }
 

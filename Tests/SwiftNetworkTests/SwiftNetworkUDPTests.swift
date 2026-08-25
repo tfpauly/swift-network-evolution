@@ -240,7 +240,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             udpOptions.setProtocolInstance(reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let udpLinkage = OutboundDatagramLinkage(reference: reference)
+            let udpLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             guard
                 let upperHarness = DatagramUpperHarness(
                     identifier: "Client",

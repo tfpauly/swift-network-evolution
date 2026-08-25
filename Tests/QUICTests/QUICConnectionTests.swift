@@ -32,7 +32,7 @@ final class QUICConnectionTests: XCTestCase {
     func testCreateInboundStreams() throws {
         let zeroStreamID: QUICStreamID = QUICStreamID(0)
         NetworkContext.implicitContext.async {
-            self.connection.fromExternal {
+            self.connection.fromExternal { _ in
                 let _ = self.connection.createInboundStreams(streamID: zeroStreamID)
             }
         }

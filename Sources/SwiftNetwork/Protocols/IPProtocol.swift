@@ -348,14 +348,14 @@ public struct IPProtocol: NetworkProtocol {
         static let IPMaxFragmentCount: Int = 32
 
         // Only called by newProtocolInstance()
-        fileprivate static func registerNewIP(on context: NetworkContext) -> ProtocolInstanceReference {
+        fileprivate static func registerNewIP(on context: NetworkContext, state: inout NetworkContext.State) -> ProtocolInstanceReference {
             let ip = IPInstance(context: context)
-            let registeredIndex = context.state.registerIPInstance(ip)
-            context.state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
-            context.state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
-                ip: &context.state.ipInstances[registeredIndex]
+            let registeredIndex = state.registerIPInstance(ip)
+            state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
+            state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
+                ipIndex: registeredIndex, state: &state
             )
-            return context.state.ipInstances[registeredIndex].reference
+            return state.ipInstances[registeredIndex].reference
         }
 
         var passthroughEvents = true
@@ -926,6 +926,7 @@ public struct IPProtocol: NetworkProtocol {
 
             mutating func writeOutboundFrames(
                 _ frames: inout FrameArray,
+                state: inout NetworkContext.State,
                 lower: LowerProtocol,
                 selfReference: ProtocolInstanceReference
             ) {
@@ -981,6 +982,7 @@ public struct IPProtocol: NetworkProtocol {
                         let maxFragmentFrameSize = IPv4Instance.headerLength + fragmentRoom
                         guard
                             var allocatedFrames = try? lower.invokeGetDatagramsToSend(
+                                state: &state,
                                 selfReference,
                                 maximumDatagramCount: fragmentCount,
                                 minimumDatagramSize: maxFragmentFrameSize
@@ -1712,6 +1714,7 @@ public struct IPProtocol: NetworkProtocol {
 
             mutating func writeOutboundFrames(
                 _ frames: inout FrameArray,
+                state: inout NetworkContext.State,
                 lower: LowerProtocol,
                 selfReference: ProtocolInstanceReference
             ) {
@@ -1770,6 +1773,7 @@ public struct IPProtocol: NetworkProtocol {
                         let maxFragmentFrameSize = ipv6CompleteHeaderLength + fragmentRoom
                         guard
                             var allocatedFrames = try? lower.invokeGetDatagramsToSend(
+                                state: &state,
                                 selfReference,
                                 maximumDatagramCount: fragmentCount,
                                 minimumDatagramSize: maxFragmentFrameSize
@@ -2013,9 +2017,15 @@ public struct IPProtocol: NetworkProtocol {
             }
         }
 
-        mutating func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+        mutating func receiveDatagrams(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int
+        ) throws(NetworkError) -> FrameArray? {
             repeat {
-                let inboundFrames = try invokeReceiveDatagrams(maximumDatagramCount: maximumDatagramCount)
+                let inboundFrames = try invokeReceiveDatagrams(
+                    state: &state,
+                    maximumDatagramCount: maximumDatagramCount
+                )
                 guard var inboundFrames, !inboundFrames.isEmpty else {
                     return nil
                 }
@@ -2028,12 +2038,16 @@ public struct IPProtocol: NetworkProtocol {
             } while true
         }
 
-        func getDatagramsToSend(maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray?
-        {
+        func getDatagramsToSend(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int,
+            minimumDatagramSize: Int
+        ) throws(NetworkError) -> FrameArray? {
             switch self.instanceType {
             case .ipv4(let instance):
                 let minimumDatagramSize = instance.incrementByHeaderLength(minimumDatagramSize)
                 let outboundFrames = try invokeGetDatagramsToSend(
+                    state: &state,
                     maximumDatagramCount: maximumDatagramCount,
                     minimumDatagramSize: minimumDatagramSize
                 )
@@ -2043,6 +2057,7 @@ public struct IPProtocol: NetworkProtocol {
             case .ipv6(let instance):
                 let minimumDatagramSize = instance.incrementByHeaderLength(minimumDatagramSize)
                 let outboundFrames = try invokeGetDatagramsToSend(
+                    state: &state,
                     maximumDatagramCount: maximumDatagramCount,
                     minimumDatagramSize: minimumDatagramSize
                 )
@@ -2052,16 +2067,20 @@ public struct IPProtocol: NetworkProtocol {
             }
         }
 
-        mutating func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+        mutating func sendDatagrams(
+            state: inout NetworkContext.State,
+            _ datagrams: consuming FrameArray
+        ) throws(NetworkError) {
             let lower = self.lower
             let selfReference = self.effectiveSelfReference
             IPInstance.processOutbound(
                 &self.instanceType,
+                state: &state,
                 lower: lower,
                 selfReference: selfReference,
                 datagrams: &datagrams
             )
-            try invokeSendDatagrams(datagrams)
+            try invokeSendDatagrams(state: &state, datagrams)
         }
 
         @inline(__always)
@@ -2083,16 +2102,17 @@ public struct IPProtocol: NetworkProtocol {
         @inline(__always)
         private static func processOutbound(
             _ instanceType: inout IPInstanceType,
+            state: inout NetworkContext.State,
             lower: LowerProtocol,
             selfReference: ProtocolInstanceReference,
             datagrams: inout FrameArray
         ) {
             switch instanceType {
             case .ipv4(var instance):
-                instance.writeOutboundFrames(&datagrams, lower: lower, selfReference: selfReference)
+                instance.writeOutboundFrames(&datagrams, state: &state, lower: lower, selfReference: selfReference)
                 instanceType = .ipv4(instance)
             case .ipv6(var instance):
-                instance.writeOutboundFrames(&datagrams, lower: lower, selfReference: selfReference)
+                instance.writeOutboundFrames(&datagrams, state: &state, lower: lower, selfReference: selfReference)
                 instanceType = .ipv6(instance)
             }
         }
@@ -2108,7 +2128,7 @@ public struct IPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> IPOptions? { IPOptions(from: serializedBytes) }
     public func newPerProtocolMetadata() -> IPMetadata? { IPMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        IPInstance.registerNewIP(on: context)
+        IPInstance.registerNewIP(on: context, state: &context.state)
     }
 
     static let identifier = ProtocolIdentifier(name: "ip", level: .internet, mapping: .oneToOne)

@@ -324,7 +324,7 @@ final class QUICStreamLoad {
                         serverStream.stop()
                     }
                 }
-                serverStream.fromExternal {
+                serverStream.fromExternal { _ in
                     serverReadCompletion!(true)
                 }
 
@@ -359,7 +359,7 @@ final class QUICStreamLoad {
                         serverStreamToTeardown?.teardown()
                     }
                 }
-                clientStream.fromExternal {
+                clientStream.fromExternal { _ in
                     clientReadCompletion!(true)
                 }
             }

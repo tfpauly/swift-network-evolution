@@ -42,7 +42,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
 
     // Public mutable state
     public var log = NetworkLoggerState()
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
     public var context: NetworkContext
     public var streamID: UInt64
@@ -72,6 +72,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)][S\(streamID)]"
+        self.reference = .init(custom: self)
     }
 
     public init?(
@@ -93,6 +94,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)][S\(streamID)]"
+        self.reference = .init(custom: self)
         do throws(NetworkError) {
             self.lowerProtocol = try listenerProtocol.invokeAttachUpperStreamProtocolToNewFlow(
                 reference,
@@ -127,8 +129,8 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
     // Start the stream handler
     func start() {
         log("start")
-        fromExternal {
-            lowerProtocol.invokeConnect(reference)
+        fromExternal { state in
+            lowerProtocol.invokeConnect(state: &state, reference)
         }
     }
 
@@ -142,16 +144,16 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         log("stop")
         self.connected = false
         self.readAvailable = false
-        fromExternal {
-            lowerProtocol.invokeDisconnect(reference)
+        fromExternal { state in
+            lowerProtocol.invokeDisconnect(state: &state, reference)
         }
     }
 
     public func teardown() {
         log("teardown")
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lowerProtocol.invokeDetach(reference)
+                try lowerProtocol.invokeDetach(state: &state, reference)
                 lowerProtocol = .init(reference: .init())
             } catch {
                 log("Failed to detach lower protocol: \(error)")
@@ -204,8 +206,8 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
 
     // Get metadata about the stream from the internal QUIC stack
     final func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal {
-            guard let metadata = lowerProtocol.invokeGetMetadata(reference) as? ProtocolMetadata<P> else {
+        fromExternal { state in
+            guard let metadata = lowerProtocol.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
                 return nil
             }
             return metadata
@@ -215,9 +217,9 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
     // Write to the stream
     public func write(_ bytes: [UInt8]) -> Bool {
         log("write \(bytes.count) bytes")
-        return fromExternal {
+        return fromExternal { state in
             do throws(NetworkError) {
-                try lowerProtocol.invokeSendStreamData(
+                try lowerProtocol.invokeSendStreamData(state: &state, 
                     reference,
                     streamData: FrameArray(frame: Frame(copyBuffer: bytes))
                 )
@@ -232,10 +234,10 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
     // Read from the stream
     public func read() -> [UInt8]? {
         log("read")
-        return fromExternal {
+        return fromExternal { state in
             defer { self.readAvailable = false }
             do throws(NetworkError) {
-                let frames = try lowerProtocol.invokeReceiveStreamData(
+                let frames = try lowerProtocol.invokeReceiveStreamData(state: &state, 
                     reference,
                     minimumBytes: 1,
                     maximumBytes: Int.max

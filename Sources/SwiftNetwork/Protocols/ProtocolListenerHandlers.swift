@@ -141,7 +141,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> Linkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -177,7 +177,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> DatagramListenerLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -214,7 +214,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> StreamListenerLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -251,7 +251,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -288,7 +288,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> OutboundStreamLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -323,7 +323,7 @@ extension ProtocolInstanceReference {
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> Linkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -344,7 +344,7 @@ extension ProtocolInstanceReference {
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -366,7 +366,7 @@ extension ProtocolInstanceReference {
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> OutboundStreamLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -385,7 +385,7 @@ extension ProtocolInstanceReference {
     }
 
     func deliverEnqueuedInboundStreamData(flowReference: ProtocolInstanceReference) throws(NetworkError) {
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             #if !NETWORK_NO_SWIFT_QUIC
             case .quic(let instance):

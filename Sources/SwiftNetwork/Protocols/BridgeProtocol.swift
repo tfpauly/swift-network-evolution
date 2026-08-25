@@ -124,9 +124,12 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         var lower = DefaultOutboundDatagramLinkage()
 
         public private(set) var context: NetworkContext
-        init(context: NetworkContext) { self.context = context }
+        init(context: NetworkContext) {
+            self.context = context
+            self.reference = .init(custom: self)
+        }
         // TODO: TFPDEBUG Make this not use custom!
-        public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+        public var reference = ProtocolInstanceReference()
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         public let timerReference = TimerReference()
@@ -158,7 +161,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         func deliverInboundDataAvailableEvent() {
             if linkDelay == .zero {
                 self.async {
-                    self.upper.deliverInboundDataAvailableEvent(self.reference)
+                    self.upper.deliverInboundDataAvailableEvent(state: &self.context.state, self.reference)
                 }
             } else {
                 guard !timerSet else { return }
@@ -169,7 +172,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
 
         public func wakeup() {
             timerSet = false
-            self.upper.deliverInboundDataAvailableEvent(self.reference)
+            self.upper.deliverInboundDataAvailableEvent(state: &self.context.state, self.reference)
         }
 
         public func setup(
@@ -231,10 +234,8 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             }
         }
 
-        public func connect(_ from: ProtocolInstanceReference) {
-            fromExternal {
-                upper.deliverConnectedEvent(reference)
-            }
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+            upper.deliverConnectedEvent(state: &state, reference)
         }
 
         public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
@@ -250,7 +251,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
                     log.datapath("blocking \(maximumDatagramCount) datagrams to port: \(self.remoteEndpoint!.port)")
                     self.async {
                         self.log.datapath("unblocking outbound data")
-                        self.upper.deliverOutboundRoomAvailableEvent(self.reference)
+                        self.upper.deliverOutboundRoomAvailableEvent(state: &self.context.state, self.reference)
                     }
                     return nil
                 }
@@ -406,8 +407,11 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         var lower = OutboundStreamLinkage()
 
         public private(set) var context: NetworkContext
-        init(context: NetworkContext) { self.context = context }
-        public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+        init(context: NetworkContext) {
+            self.context = context
+            self.reference = .init(custom: self)
+        }
+        public var reference = ProtocolInstanceReference()
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         var localEndpoint: Endpoint?
@@ -446,10 +450,8 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             incomingFrames.finalizeAllFramesAsFailed()
         }
 
-        public func connect(_ from: ProtocolInstanceReference) {
-            fromExternal {
-                upper.deliverConnectedEvent(reference)
-            }
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+            upper.deliverConnectedEvent(state: &state, reference)
         }
 
         public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
@@ -469,7 +471,10 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             }
             remoteInstance.incomingFrames.add(frames: streamData)
             remoteInstance.async {
-                remoteInstance.upper.deliverInboundDataAvailableEvent(remoteInstance.reference)
+                remoteInstance.upper.deliverInboundDataAvailableEvent(
+                    state: &remoteInstance.context.state,
+                    remoteInstance.reference
+                )
             }
         }
 

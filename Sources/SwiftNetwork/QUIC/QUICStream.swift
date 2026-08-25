@@ -425,11 +425,9 @@ public final class QUICStreamInstance: MultiplexedStreamFlow<QUICConnection>,
     var logPrefix: String = ""
     var streamMetadata = QUICStreamProtocol.QUICStreamMetadata()
 
-    @_optimize(speed)
-    override public var reference: ProtocolInstanceReference {
-        var reference = ProtocolInstanceReference(quicStream: self)
+    override func initializeReference() {
+        reference = .init(quicStream: self)
         reference.parentReference = parentProtocol.reference
-        return reference
     }
 
     var flowControlState = FlowControlState(isStream: true)

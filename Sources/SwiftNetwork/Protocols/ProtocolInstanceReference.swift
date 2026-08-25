@@ -41,7 +41,7 @@ struct ProtocolInstanceReference2: Hashable {
 
     init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
         self.context = context
-        self.eventStateIndex = eventManager.register(with: context)
+        self.eventStateIndex = eventManager.register(with: context, state: &context.state)
     }
 
     var isNone: Bool {
@@ -57,9 +57,6 @@ public struct ProtocolInstanceReference: Hashable {
     // TODO: Definitions get registered on the context; they are themselves static lets
     // TODO: Or it is a ProtocolIdentifier index, and the identifier is registered, since that isn't as strongly typed.
     // TODO: Then how do we go from that to the actual calls? Those are on the linkages, and the linkages know the real types.
-
-    // TODO: Are these per context, or truly global?
-    let protocolIdentifierIndex: NetworkStateIndex?
 
     // TODO: Who holds the arrays of protocols? Can be per context or global
     /*
@@ -129,7 +126,7 @@ public struct ProtocolInstanceReference: Hashable {
     var parentReference: ProtocolInstanceReference? {
         get {
             guard let _parentReference else { return nil }
-            return ProtocolInstanceReference(_parentReference, context, _parentProtocolEventStateIndex, protocolIdentifierIndex)
+            return ProtocolInstanceReference(_parentReference, context, _parentProtocolEventStateIndex)
         }
         set {
             _parentReference = newValue?.reference
@@ -141,119 +138,111 @@ public struct ProtocolInstanceReference: Hashable {
         _ reference: _ProtocolInstanceReference,
         _ context: NetworkContext,
         _ protocolEventStateIndex: NetworkStateIndex?,
-        _ protocolIdentifierIndex: NetworkStateIndex?
     ) {
         self.reference = reference
         self.context = context
         self._protocolEventStateIndex = protocolEventStateIndex
-        self.protocolIdentifierIndex = protocolIdentifierIndex
     }
 
     public init() {
         self.reference = .none
         self.context = NetworkContext.implicitContext
         self._protocolEventStateIndex = nil
-        self.protocolIdentifierIndex = nil
     }
 
     init(tcp instance: TCPProtocol.Instance) {
         self.reference = .tcp(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: context)
-        self.protocolIdentifierIndex = self.context.protocolIdentifierIndex(for: TCPProtocol.identifier)
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
-    init(udp instance: inout UDPProtocol.Instance) {
-        guard let index = instance.udpInstanceIndex else {
+    init(udpIndex: NetworkStateIndex, state: inout NetworkContext.State) {
+        guard let index = state.udpInstances[udpIndex].udpInstanceIndex else {
             self = .init()
             return
         }
         self.reference = .udp(index)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        self.protocolIdentifierIndex = self.context.protocolIdentifierIndex(for: UDPProtocol.identifier)
+        self.context = state.udpInstances[udpIndex].context
+        if let contextIndex = state.udpInstances[udpIndex].eventManager.contextIndex {
+            self._protocolEventStateIndex = contextIndex
+        } else {
+            let registeredIndex = state.registerProtocolEventState()
+            state.udpInstances[udpIndex].eventManager.context = self.context
+            state.udpInstances[udpIndex].eventManager.contextIndex = registeredIndex
+            self._protocolEventStateIndex = registeredIndex
+        }
     }
 
-    init(ip instance: inout IPProtocol.Instance) {
-        guard let index = instance.ipInstanceIndex else {
+    init(ipIndex: NetworkStateIndex, state: inout NetworkContext.State) {
+        guard let index = state.ipInstances[ipIndex].ipInstanceIndex else {
             self = .init()
             return
         }
         self.reference = .ip(index)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        self.protocolIdentifierIndex = self.context.protocolIdentifierIndex(for: IPProtocol.identifier)
+        self.context = state.ipInstances[ipIndex].context
+        if let contextIndex = state.ipInstances[ipIndex].eventManager.contextIndex {
+            self._protocolEventStateIndex = contextIndex
+        } else {
+            let registeredIndex = state.registerProtocolEventState()
+            state.ipInstances[ipIndex].eventManager.context = self.context
+            state.ipInstances[ipIndex].eventManager.contextIndex = registeredIndex
+            self._protocolEventStateIndex = registeredIndex
+        }
     }
 
     init(tls instance: SwiftTLSProtocol.Instance) {
         self.reference = .tls(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        self.protocolIdentifierIndex = self.context.protocolIdentifierIndex(for: SwiftTLSProtocol.identifier)
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(tlsEncryptionLevel instance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance.EncryptionLevelHandler) {
         self.reference = .tlsEncryptionLevel(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(streamEndpointFlow instance: StreamEndpointFlowProtocol) {
         self.reference = .streamEndpointFlow(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(datagramEndpointFlow instance: DatagramEndpointFlowProtocol) {
         self.reference = .datagramEndpointFlow(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     #if !NETWORK_NO_SWIFT_QUIC
     init(quic instance: QUICProtocol.Instance) {
         self.reference = .quic(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        self.protocolIdentifierIndex = self.context.protocolIdentifierIndex(for: QUICProtocol.identifier)
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(quicStream instance: QUICStreamInstance) {
         self.reference = .quicStream(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(quicDatagram instance: QUICDatagramFlow) {
         self.reference = .quicDatagram(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(quicPath instance: QUICPath) {
         self.reference = .quicPath(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(quicCrypto instance: QUICCrypto) {
         self.reference = .quicCrypto(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
     #endif
 
@@ -261,49 +250,37 @@ public struct ProtocolInstanceReference: Hashable {
     init(streamUpperHarness instance: StreamUpperHarness) {
         self.reference = .streamUpperHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(datagramUpperHarness instance: DatagramUpperHarness) {
         self.reference = .datagramUpperHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(datagramLowerHarness instance: DatagramLowerHarness) {
         self.reference = .datagramLowerHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(streamLowerHarness instance: StreamLowerHarness) {
         self.reference = .streamLowerHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(newStreamFlowHarness instance: NewStreamFlowHarness) {
         self.reference = .newStreamFlowHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
 
     init(newDatagramFlowHarness instance: NewDatagramFlowHarness) {
         self.reference = .newDatagramFlowHarness(instance)
         self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context)
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
+        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
     }
     #endif
 
@@ -314,20 +291,16 @@ public struct ProtocolInstanceReference: Hashable {
         var eventStateIndex: NetworkStateIndex? = nil
         container.accessInstance(at: index) { instance in
             context = instance.context
-            eventStateIndex = instance.eventManager.register(with: instance.context)
+            eventStateIndex = instance.eventManager.register(with: instance.context, state: &instance.context.state)
         }
         self.context = context
         self._protocolEventStateIndex = eventStateIndex
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
     }
     #else
     public init(custom: AnyObject, index: Int? = nil) {
         self.reference = .none
         self.context = NetworkContext.implicitContext
         self._protocolEventStateIndex = nil
-        // TODO: Set protocolIdentifierIndex
-        self.protocolIdentifierIndex = nil
     }
     #endif
 

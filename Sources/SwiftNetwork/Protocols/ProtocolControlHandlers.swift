@@ -132,15 +132,27 @@ public protocol LowerProtocolHandler<UpperProtocol>: ~Copyable, ProtocolInstance
         path: PathProperties?
     ) throws(NetworkError)
 
-    mutating func detach(_ from: ProtocolInstanceReference) throws(NetworkError)
+    mutating func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError)
 
-    mutating func connect(_ from: ProtocolInstanceReference)
-    mutating func disconnect(_ from: ProtocolInstanceReference, error: NetworkError?)
+    mutating func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    mutating func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
 
-    mutating func handleApplicationEvent(_ from: ProtocolInstanceReference, event: ApplicationEvent)
+    mutating func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    )
 
-    func getMetadata<P: NetworkProtocol>(_ from: ProtocolInstanceReference) -> ProtocolMetadata<P>?
+    func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>?
     func getMetrics(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics?
@@ -148,82 +160,100 @@ public protocol LowerProtocolHandler<UpperProtocol>: ~Copyable, ProtocolInstance
 
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
-    func connect(_ from: ProtocolInstanceReference) {
+    func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         guard !isNone else { return }
-        self.handleCallFromUpperProtocol {
+        self.handleCallFromUpperProtocol(state: &state) { state in
             switch self.reference {
             case .none: return
-            case .udp(let index): context.state.udpInstances[index].connect(from)
-            case .ip(let index): context.state.ipInstances[index].connect(from)
-            case .tcp(var instance): instance.connect(from)
-            case .tls(var instance): instance.connect(from)
+            case .udp(let index):
+                state.withUDPInstance(index) { instance, state in instance.connect(state: &state, from) }
+            case .ip(let index):
+                state.withIPInstance(index) { instance, state in instance.connect(state: &state, from) }
+            case .tcp(var instance): instance.connect(state: &state, from)
+            case .tls(var instance): instance.connect(state: &state, from)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(let instance): instance.connect(from)
-            case .quicStream(let instance): instance.connect(from)
-            case .quicDatagram(let instance): instance.connect(from)
-            case .quicCrypto(let instance): instance.connect(from)
+            case .quic(let instance): instance.connect(state: &state, from)
+            case .quicStream(let instance): instance.connect(state: &state, from)
+            case .quicDatagram(let instance): instance.connect(state: &state, from)
+            case .quicCrypto(let instance): instance.connect(state: &state, from)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(let instance): instance.connect(from)
-            case .streamLowerHarness(let instance): instance.connect(from)
+            case .datagramLowerHarness(let instance): instance.connect(state: &state, from)
+            case .streamLowerHarness(let instance): instance.connect(state: &state, from)
             #endif
             #if !NETWORK_EMBEDDED
-            case .custom(let container, let index): return container.accessLower(at: index) { $0.connect(from) }
+            case .custom(let container, let index): return container.accessLower(at: index) { $0.connect(state: &state, from) }
             #endif
             default: fatalError("Protocol cannot accept connect call")
             }
         }
     }
 
-    func disconnect(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
         guard !isNone else { return }
-        self.handleCallFromUpperProtocol {
+        self.handleCallFromUpperProtocol(state: &state) { state in
             switch self.reference {
             case .none: return
-            case .udp(let index): context.state.udpInstances[index].disconnect(from, error: error)
-            case .ip(let index): context.state.ipInstances[index].disconnect(from, error: error)
-            case .tcp(var instance): instance.disconnect(from, error: error)
-            case .tls(var instance): instance.disconnect(from, error: error)
+            case .udp(let index):
+                state.withUDPInstance(index) { instance, state in
+                    instance.disconnect(state: &state, from, error: error)
+                }
+            case .ip(let index):
+                state.withIPInstance(index) { instance, state in
+                    instance.disconnect(state: &state, from, error: error)
+                }
+            case .tcp(var instance): instance.disconnect(state: &state, from, error: error)
+            case .tls(var instance): instance.disconnect(state: &state, from, error: error)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(let instance): instance.disconnect(from, error: error)
-            case .quicStream(let instance): instance.disconnect(from, error: error)
-            case .quicDatagram(let instance): instance.disconnect(from, error: error)
-            case .quicCrypto(let instance): instance.disconnect(from, error: error)
+            case .quic(let instance): instance.disconnect(state: &state, from, error: error)
+            case .quicStream(let instance): instance.disconnect(state: &state, from, error: error)
+            case .quicDatagram(let instance): instance.disconnect(state: &state, from, error: error)
+            case .quicCrypto(let instance): instance.disconnect(state: &state, from, error: error)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(let instance): instance.disconnect(from, error: error)
-            case .streamLowerHarness(let instance): instance.disconnect(from, error: error)
+            case .datagramLowerHarness(let instance): instance.disconnect(state: &state, from, error: error)
+            case .streamLowerHarness(let instance): instance.disconnect(state: &state, from, error: error)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
-                return container.accessLower(at: index) { $0.disconnect(from, error: error) }
+                return container.accessLower(at: index) { $0.disconnect(state: &state, from, error: error) }
             #endif
             default: fatalError("Protocol cannot accept disconnect call")
             }
         }
     }
 
-    func handleApplicationEvent(_ from: ProtocolInstanceReference, event: ApplicationEvent) {
-        self.handleCallFromUpperProtocol {
+    func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+        self.handleCallFromUpperProtocol(state: &state) { state in
             switch self.reference {
             case .none: return
-            case .udp(let index): context.state.udpInstances[index].handleApplicationEvent(from, event: event)
-            case .ip(let index): context.state.ipInstances[index].handleApplicationEvent(from, event: event)
-            case .tcp(var instance): instance.handleApplicationEvent(from, event: event)
-            case .tls(var instance): instance.handleApplicationEvent(from, event: event)
+            case .udp(let index):
+                state.withUDPInstance(index) { instance, state in
+                    instance.handleApplicationEvent(state: &state, from, event: event)
+                }
+            case .ip(let index):
+                state.withIPInstance(index) { instance, state in
+                    instance.handleApplicationEvent(state: &state, from, event: event)
+                }
+            case .tcp(var instance): instance.handleApplicationEvent(state: &state, from, event: event)
+            case .tls(var instance): instance.handleApplicationEvent(state: &state, from, event: event)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(let instance): instance.handleApplicationEvent(from, event: event)
-            case .quicStream(let instance): instance.handleApplicationEvent(from, event: event)
-            case .quicDatagram(let instance): instance.handleApplicationEvent(from, event: event)
-            case .quicCrypto(let instance): instance.handleApplicationEvent(from, event: event)
+            case .quic(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
+            case .quicStream(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
+            case .quicDatagram(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
+            case .quicCrypto(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(let instance): instance.handleApplicationEvent(from, event: event)
-            case .streamLowerHarness(let instance): instance.handleApplicationEvent(from, event: event)
+            case .datagramLowerHarness(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
+            case .streamLowerHarness(let instance): instance.handleApplicationEvent(state: &state, from, event: event)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
-                return container.accessLower(at: index) { $0.handleApplicationEvent(from, event: event) }
+                return container.accessLower(at: index) { $0.handleApplicationEvent(state: &state, from, event: event) }
             #endif
             default: fatalError("Protocol cannot accept handleApplicationEvent call")
             }
@@ -239,11 +269,11 @@ extension ProtocolInstanceReference {
     ) throws(NetworkError) {
         // TODO: TFPDEBUG
         /*
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.state.udpInstances[index].attachUpperProtocol(
+                try state.udpInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,
@@ -251,7 +281,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                try context.state.ipInstances[index].attachUpperProtocol(
+                try state.ipInstances[index].attachUpperProtocol(
                     upperProtocol,
                     remote: remote,
                     local: local,
@@ -351,7 +381,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> OutboundStreamLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .tcp(var instance):
@@ -416,34 +446,42 @@ extension ProtocolInstanceReference {
     }
 
     func attachUpperDatagramProtocol(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+        try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                return try context.state.udpInstances[index].attachUpperDatagramProtocol(
-                    from,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
+                return try state.withUDPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.attachUpperDatagramProtocol(
+                        state: &state,
+                        from,
+                        remote: remote,
+                        local: local,
+                        parameters: parameters,
+                        path: path
+                    )
+                }
             case .ip(let index):
-                return try context.state.ipInstances[index].attachUpperDatagramProtocol(
-                    from,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
+                return try state.withIPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.attachUpperDatagramProtocol(
+                        state: &state,
+                        from,
+                        remote: remote,
+                        local: local,
+                        parameters: parameters,
+                        path: path
+                    )
+                }
             #if !NETWORK_NO_SWIFT_QUIC
             case .quicDatagram(let instance):
                 return try instance.attachUpperDatagramProtocol(
+                    state: &state,
                     from,
                     remote: remote,
                     local: local,
@@ -454,6 +492,7 @@ extension ProtocolInstanceReference {
             #if !NETWORK_NO_TESTING_HARNESS
             case .datagramLowerHarness(var instance):
                 return try instance.attachUpperDatagramProtocol(
+                    state: &state,
                     from,
                     remote: remote,
                     local: local,
@@ -465,6 +504,7 @@ extension ProtocolInstanceReference {
             case .custom(let container, let index):
                 return try container.accessOutboundDatagramHandler(at: index) { instance throws(NetworkError) in
                     try instance.attachUpperDatagramProtocol(
+                        state: &state,
                         from,
                         remote: remote,
                         local: local,
@@ -488,11 +528,11 @@ extension ProtocolInstanceReference {
         // TODO: TFPDEBUG
 
         /*
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.state.udpInstances[index].attachLowerProtocol(
+                try state.udpInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -500,7 +540,7 @@ extension ProtocolInstanceReference {
                     path: path
                 )
             case .ip(let index):
-                try context.state.ipInstances[index].attachLowerProtocol(
+                try state.ipInstances[index].attachLowerProtocol(
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -622,27 +662,34 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .udp(let index):
-                try context.state.udpInstances[index].attachLowerDatagramProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
+                try state.withUDPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.attachLowerDatagramProtocol(
+                        state: &state,
+                        lowerProtocol,
+                        remote: remote,
+                        local: local,
+                        parameters: parameters,
+                        path: path
+                    )
+                }
             case .ip(let index):
-                try context.state.ipInstances[index].attachLowerDatagramProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
+                try state.withIPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.attachLowerDatagramProtocol(
+                        state: &state,
+                        lowerProtocol,
+                        remote: remote,
+                        local: local,
+                        parameters: parameters,
+                        path: path
+                    )
+                }
             case .tcp(var instance):
                 try instance.attachLowerDatagramProtocol(
+                    state: &state,
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -651,6 +698,7 @@ extension ProtocolInstanceReference {
                 )
             case .datagramEndpointFlow(let instance):
                 try instance.attachLowerDatagramProtocol(
+                    state: &state,
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -660,6 +708,7 @@ extension ProtocolInstanceReference {
             #if !NETWORK_NO_SWIFT_QUIC
             case .quicPath(let instance):
                 try instance.attachLowerDatagramProtocol(
+                    state: &state,
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -670,6 +719,7 @@ extension ProtocolInstanceReference {
             #if !NETWORK_NO_TESTING_HARNESS
             case .datagramUpperHarness(var instance):
                 try instance.attachLowerDatagramProtocol(
+                    state: &state,
                     lowerProtocol,
                     remote: remote,
                     local: local,
@@ -681,6 +731,7 @@ extension ProtocolInstanceReference {
             case .custom(let container, let index):
                 try container.accessInboundDatagramHandler(at: index) { instance throws(NetworkError) in
                     try instance.attachLowerDatagramProtocol(
+                        state: &state,
                         lowerProtocol,
                         remote: remote,
                         local: local,
@@ -701,7 +752,7 @@ extension ProtocolInstanceReference {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .tls(var instance):
@@ -769,7 +820,7 @@ extension ProtocolInstanceReference {
         listener: StreamListenerLinkage,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) {
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             case .tls(var instance):
@@ -801,7 +852,7 @@ extension ProtocolInstanceReference {
         // TODO: TFPDEBUG
 
         /*
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -840,7 +891,7 @@ extension ProtocolInstanceReference {
     ) throws(NetworkError) {
         // TODO: TFPDEBUG
         /*
-        try self.fromExternal { () throws(NetworkError) in
+        try self.fromExternal(state: &context.state) { state throws(NetworkError) in
             switch self.reference {
             case .none: fatalError("Cannot attach to empty protocol")
             #if !NETWORK_NO_SWIFT_QUIC
@@ -871,62 +922,103 @@ extension ProtocolInstanceReference {
          */
     }
 
-    public func detach(_ from: ProtocolInstanceReference) throws(NetworkError) {
+    public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
         guard !isNone else { return }
-        return try self.handleCallFromUpperProtocol { () throws(NetworkError) in
+
+        // Reclaiming arena storage has to happen *after* handleCallFromUpperProtocol returns.
+        // That bracket holds the instance's protocol event state across the call and touches it
+        // again on the way out (finishCallFromUpperProtocol / drainPendingEvents), so removing
+        // either the event state or the instance itself from inside the closure would pull the
+        // slot out from under the unwind. Record what to reclaim and do it below.
+        enum Reclaim {
+            case none
+            case udp(NetworkStateIndex)
+            case ip(NetworkStateIndex)
+        }
+        var reclaim = Reclaim.none
+
+        try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
             switch self.reference {
             case .none: return
             case .udp(let index):
-                try context.state.udpInstances[index].detach(from)
-
-                // TODO: TFPDEBUG Better generic way to fully release/unregister protocol? How does a protocol outlast all upper linkages... maybe that *must* be a class type or must register. This would cover the async in the deinit of the event manager.
-                context.state.unregisterUDPInstance(index)
+                try state.withUDPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.detach(state: &state, from)
+                }
+                reclaim = .udp(index)
             case .ip(let index):
-                try context.state.ipInstances[index].detach(from)
-                context.state.unregisterIPInstance(index)
-            case .tcp(var instance): try instance.detach(from)
-            case .tls(var instance): try instance.detach(from)
+                try state.withIPInstance(index) { instance, state throws(NetworkError) in
+                    try instance.detach(state: &state, from)
+                }
+                reclaim = .ip(index)
+            case .tcp(var instance): try instance.detach(state: &state, from)
+            case .tls(var instance): try instance.detach(state: &state, from)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(var instance): try instance.detach(from)
-            case .quicStream(var instance): try instance.detach(from)
-            case .quicDatagram(var instance): try instance.detach(from)
-            case .quicCrypto(let instance): try instance.detach(from)
+            case .quic(var instance): try instance.detach(state: &state, from)
+            case .quicStream(var instance): try instance.detach(state: &state, from)
+            case .quicDatagram(var instance): try instance.detach(state: &state, from)
+            case .quicCrypto(let instance): try instance.detach(state: &state, from)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance): try instance.detach(from)
-            case .streamLowerHarness(var instance): try instance.detach(from)
+            case .datagramLowerHarness(var instance): try instance.detach(state: &state, from)
+            case .streamLowerHarness(var instance): try instance.detach(state: &state, from)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 try container.accessLower(at: index) { instance throws(NetworkError) in
-                    try instance.detach(from)
+                    try instance.detach(state: &state, from)
                 }
             #endif
             default: fatalError("Protocol cannot accept detach call")
             }
         }
+
+        // The bracket is closed, so the event state is no longer in use and both it and the
+        // instance can be released.
+        switch reclaim {
+        case .none:
+            break
+        case .udp(let index):
+            state.withUDPInstance(index) { instance, state in
+                instance.eventManager.unregister(state: &state)
+            }
+            state.unregisterUDPInstance(index)
+        case .ip(let index):
+            state.withIPInstance(index) { instance, state in
+                instance.eventManager.unregister(state: &state)
+            }
+            state.unregisterIPInstance(index)
+        }
     }
 
-    public func getMetadata<P: NetworkProtocol>(_ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-        self.handleCallFromUpperProtocol {
+    public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        self.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
             switch self.reference {
             case .none: return nil
-            case .udp(let index): return context.state.udpInstances[index].getMetadata(from)
-            case .ip(let index): return context.state.ipInstances[index].getMetadata(from)
-            case .tcp(let instance): return instance.getMetadata(from)
-            case .tls(let instance): return instance.getMetadata(from)
+            case .udp(let index):
+                return state.withUDPInstance(index) { instance, state -> ProtocolMetadata<P>? in
+                    instance.getMetadata(state: &state, from)
+                }
+            case .ip(let index):
+                return state.withIPInstance(index) { instance, state -> ProtocolMetadata<P>? in
+                    instance.getMetadata(state: &state, from)
+                }
+            case .tcp(let instance): return instance.getMetadata(state: &state, from)
+            case .tls(let instance): return instance.getMetadata(state: &state, from)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(let instance): return instance.getMetadata(from)
-            case .quicStream(let instance): return instance.getMetadata(from)
-            case .quicDatagram(let instance): return instance.getMetadata(from)
-            case .quicCrypto(let instance): return instance.getMetadata(from)
+            case .quic(let instance): return instance.getMetadata(state: &state, from)
+            case .quicStream(let instance): return instance.getMetadata(state: &state, from)
+            case .quicDatagram(let instance): return instance.getMetadata(state: &state, from)
+            case .quicCrypto(let instance): return instance.getMetadata(state: &state, from)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(let instance): return instance.getMetadata(from)
-            case .streamLowerHarness(let instance): return instance.getMetadata(from)
+            case .datagramLowerHarness(let instance): return instance.getMetadata(state: &state, from)
+            case .streamLowerHarness(let instance): return instance.getMetadata(state: &state, from)
             #endif
             #if !NETWORK_EMBEDDED
-            case .custom(let container, let index): return container.accessLower(at: index) { $0.getMetadata(from) }
+            case .custom(let container, let index): return container.accessLower(at: index) { $0.getMetadata(state: &state, from) }
             #endif
             default: fatalError("Protocol cannot accept getMetadata call")
             }
@@ -934,37 +1026,42 @@ extension ProtocolInstanceReference {
     }
 
     public func getMetrics(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
-        self.handleCallFromUpperProtocol {
+        self.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
             switch self.reference {
             case .none: return nil
             case .udp(let index):
-                return context.state.udpInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return state.withUDPInstance(index) { instance, state -> NetworkMetrics? in
+                    instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+                }
             case .ip(let index):
-                return context.state.ipInstances[index].getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
-            case .tcp(let instance): return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
-            case .tls(let instance): return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return state.withIPInstance(index) { instance, state -> NetworkMetrics? in
+                    instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+                }
+            case .tcp(let instance): return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .tls(let instance): return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(let instance): return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+            case .quic(let instance): return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .quicStream(let instance):
-                return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .quicDatagram(let instance):
-                return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .quicCrypto(let instance):
-                return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
             case .datagramLowerHarness(let instance):
-                return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .streamLowerHarness(let instance):
-                return instance.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                return instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 return container.accessLower(at: index) {
-                    $0.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+                    $0.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
                 }
             #endif
             default: fatalError("Protocol cannot accept getMetrics call")

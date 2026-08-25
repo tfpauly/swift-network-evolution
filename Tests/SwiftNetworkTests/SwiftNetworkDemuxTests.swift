@@ -137,7 +137,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
 
             let demux = DemuxProtocol.instance(context: context)
 
-            let demuxLinkage = OutboundDatagramLinkage(reference: demux)
+            let demuxLinkage = DefaultOutboundDatagramLinkage(reference: demux)
 
             let upperHarness = DatagramUpperHarness(
                 identifier: "Default",

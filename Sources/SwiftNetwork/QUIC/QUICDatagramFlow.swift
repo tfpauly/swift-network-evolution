@@ -31,10 +31,9 @@ public final class QUICDatagramFlow: MultiplexedDatagramFlow<QUICConnection> {
     private(set) var contextID: UInt64?
     var applicationMarkedIdle: Bool = false
 
-    override public var reference: ProtocolInstanceReference {
-        var reference = ProtocolInstanceReference(quicDatagram: self)
+    override func initializeReference() {
+        reference = .init(quicDatagram: self)
         reference.parentReference = parentProtocol.reference
-        return reference
     }
 
     var usableDatagramSize: Int {

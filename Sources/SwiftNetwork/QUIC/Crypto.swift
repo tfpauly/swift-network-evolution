@@ -53,6 +53,9 @@ internal import CryptoKit
 final class QUICCrypto {
     var eventManager = ProtocolEventManager()
 
+    // Set in start(with:), once parentConnection (which provides the context) is available.
+    var reference = ProtocolInstanceReference()
+
     var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance
 
     var outboundCryptoInitialOffset: Int = 0
@@ -104,6 +107,8 @@ final class QUICCrypto {
         tlsOptions inputTLSOptions: SwiftTLSProtocol.Options
     ) -> Bool {
         self.parentConnection = parentConnection
+        // Build the reference now that the context (via parentConnection) is available.
+        self.reference = .init(quicCrypto: self)
 
         initialReassemblyQueue.log = NetworkLoggerState("[TLS-Initial]")
         handshakeReassemblyQueue.log = NetworkLoggerState("[TLS-Handshake]")
@@ -155,7 +160,7 @@ final class QUICCrypto {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
         }
-        self.tlsLinkage.invokeConnect(reference)
+        self.tlsLinkage.invokeConnect(state: &parentConnection.context.state, reference)
         return true
     }
 
@@ -164,7 +169,7 @@ final class QUICCrypto {
             // Already stopped, ignore
             return
         }
-        try? self.tlsLinkage.invokeDetach(reference)
+        try? self.tlsLinkage.invokeDetach(state: &context.state, reference)
         tlsLinkage = .init()
 
         initialInboundData.finalizeAllFramesAsFailed()
@@ -363,12 +368,10 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         set { tlsLinkage = newValue }
     }
 
-    var reference: ProtocolInstanceReference { ProtocolInstanceReference(quicCrypto: self) }
-
     func handleConnectedEvent() {
         guard let parentConnection else { return }
         parentConnection.log.info("Connected: TLS finished")
-        parentConnection.fromExternal {
+        parentConnection.fromExternal { _ in
             parentConnection.reportReady()
         }
     }
@@ -397,7 +400,11 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         }
     }
 
-    func handleApplicationEvent(_ from: ProtocolInstanceReference, event: ApplicationEvent) {
+    func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
     }
 
     func appendInput(
@@ -437,7 +444,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
             wakeUp = true
         }
         if wakeUp {
-            linkage.deliverInboundDataAvailableEvent(reference)
+            linkage.deliverInboundDataAvailableEvent(state: &context.state, reference)
         }
         return true
     }
@@ -446,7 +453,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         _ cryptoFrame: consuming FrameCrypto,
         for packetNumberSpace: PacketNumberSpace
     ) -> Bool {
-        fromExternal(cryptoFrame) { cryptoFrame in
+        fromExternal(cryptoFrame) { _, cryptoFrame in
             switch packetNumberSpace {
             case .initial:
                 return appendInput(
@@ -499,20 +506,25 @@ extension QUICCrypto: OutboundStreamHandler {
         asLower
     }
 
-    func detach(_ from: ProtocolInstanceReference) throws(NetworkError) {}
+    func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {}
 
-    func connect(_ from: ProtocolInstanceReference) {
-        InboundStreamLinkage(reference: from).deliverConnectedEvent(reference)
+    func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        InboundStreamLinkage(reference: from).deliverConnectedEvent(state: &state, reference)
     }
 
-    func disconnect(_ from: ProtocolInstanceReference, error: NetworkError?) {}
+    func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {}
     func handleNetworkProtocolEvent(
         _ from: ProtocolInstanceReference,
         event: NetworkProtocolEvent
     ) {}
-    func getMetadata<P>(_ from: ProtocolInstanceReference) -> ProtocolMetadata<P>?
+    func getMetadata<P>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>?
     where P: NetworkProtocol { nil }
     func getMetrics(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
@@ -535,6 +547,7 @@ extension QUICCrypto: OutboundStreamHandler {
     }
 
     func receiveStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         minimumBytes: Int,
         maximumBytes: Int
@@ -553,6 +566,7 @@ extension QUICCrypto: OutboundStreamHandler {
     }
 
     func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) -> Int {
         guard let _ = levelForReference(from) else {
@@ -562,6 +576,7 @@ extension QUICCrypto: OutboundStreamHandler {
     }
 
     func sendStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError) {

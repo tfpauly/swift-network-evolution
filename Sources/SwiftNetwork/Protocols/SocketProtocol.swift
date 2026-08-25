@@ -32,7 +32,7 @@ import Dispatch
 public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInstanceContainer {
 
     public private(set) var context: NetworkContext
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
     public var upper = DefaultInboundDatagramLinkage()
     var log = NetworkLoggerState()
@@ -51,6 +51,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 
     init(context: NetworkContext) {
         self.context = context
+        self.reference = .init(custom: self)
     }
 
     deinit {
@@ -271,8 +272,8 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 
             if receivedAny {
                 inputUnacknowledged = true
-                fromExternal {
-                    upper.deliverInboundDataAvailableEvent(reference)
+                fromExternal { state in
+                    upper.deliverInboundDataAvailableEvent(state: &state, reference)
                 }
                 // If the upper protocol consumed data synchronously during the
                 // notification (via receiveDatagrams clearing inputUnacknowledged),
@@ -313,8 +314,8 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 
     private func triggerOutboundRoomAvailable() {
         // Notify upper protocol that output room is available
-        fromExternal {
-            upper.deliverOutboundRoomAvailableEvent(reference)
+        fromExternal { state in
+            upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
         }
     }
 
@@ -411,7 +412,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceContainer {
 
     public private(set) var context: NetworkContext
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
     public var upper = InboundStreamLinkage()
     var log = NetworkLoggerState()
@@ -450,6 +451,7 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
 
     init(context: NetworkContext) {
         self.context = context
+        self.reference = .init(custom: self)
     }
 
     deinit {
@@ -790,8 +792,8 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
             }
 
             if receivedAny {
-                fromExternal {
-                    upper.deliverInboundDataAvailableEvent(reference)
+                fromExternal { state in
+                    upper.deliverInboundDataAvailableEvent(state: &state, reference)
                 }
             }
             // Backpressure on buffered volume: suspend whenever we're over the
@@ -858,8 +860,8 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
     }
 
     private func triggerOutboundRoomAvailable() {
-        fromExternal {
-            upper.deliverOutboundRoomAvailableEvent(reference)
+        fromExternal { state in
+            upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
         }
     }
 

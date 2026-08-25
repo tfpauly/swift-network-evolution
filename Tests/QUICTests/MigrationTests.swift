@@ -60,7 +60,7 @@ final class MigrationTests: XCTestCase {
             path.changeState(to: .probing)
             path.changeState(to: .validated)
         }
-        try? path.attachLowerProtocol(lower.reference, remote: nil, local: nil, parameters: nil, path: nil)
+        try? path.attachLowerProtocol(.init(reference: lower.reference), remote: nil, local: nil, parameters: nil, path: nil)
         try? connection.remoteCIDs.insert(
             sequenceNumber: sequenceNumber,
             connectionID: dcid,

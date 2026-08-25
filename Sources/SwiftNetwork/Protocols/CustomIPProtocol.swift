@@ -75,8 +75,11 @@ public struct CustomIPProtocol: NetworkProtocol {
         var lower = LowerProtocol()
 
         private(set) var context: NetworkContext
-        init(context: NetworkContext) { self.context = context }
-        var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+        init(context: NetworkContext) {
+            self.context = context
+            self.reference = .init(custom: self)
+        }
+        var reference = ProtocolInstanceReference()
         var passthroughEvents = false
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
@@ -89,10 +92,19 @@ public struct CustomIPProtocol: NetworkProtocol {
         ) throws(NetworkError) {
             throw NetworkError.posix(ENOTSUP)
         }
-        func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? { nil }
-        func getDatagramsToSend(maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray?
-        { nil }
-        func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {}
+        func receiveDatagrams(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int
+        ) throws(NetworkError) -> FrameArray? { nil }
+        func getDatagramsToSend(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int,
+            minimumDatagramSize: Int
+        ) throws(NetworkError) -> FrameArray? { nil }
+        func sendDatagrams(
+            state: inout NetworkContext.State,
+            _ datagrams: consuming FrameArray
+        ) throws(NetworkError) {}
         #if !NETWORK_EMBEDDED
         var metadata: AbstractProtocolMetadata? { nil }
         #endif

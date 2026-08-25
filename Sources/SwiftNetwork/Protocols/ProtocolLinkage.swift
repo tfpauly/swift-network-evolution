@@ -33,9 +33,14 @@ extension ProtocolLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol UpperProtocolLinkage: ProtocolLinkage where PairedLinkage: LowerProtocolLinkage {
-    func deliverConnectedEvent(_ from: ProtocolInstanceReference)
-    func deliverDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?)
+    func deliverConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func deliverDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
     func deliverNetworkProtocolEvent(
+        state: inout NetworkContext.State,
         originalReference: ProtocolInstanceReference,
         selfReference: ProtocolInstanceReference,
         event: NetworkProtocolEvent
@@ -51,18 +56,24 @@ public protocol UpperProtocolLinkage: ProtocolLinkage where PairedLinkage: Lower
 
 @available(Network 0.1.0, *)
 extension UpperProtocolLinkage {
-    public func deliverConnectedEvent(_ from: ProtocolInstanceReference) {
-        from.deliverEventToUpperProtocol(event: .connected(from, self.reference))
+    public func deliverConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        from.deliverEventToUpperProtocol(state: &state, event: .connected(from, self.reference))
     }
-    public func deliverDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
-        from.deliverEventToUpperProtocol(event: .disconnected(from, self.reference, error: error))
+    public func deliverDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        from.deliverEventToUpperProtocol(state: &state, event: .disconnected(from, self.reference, error: error))
     }
     public func deliverNetworkProtocolEvent(
+        state: inout NetworkContext.State,
         originalReference: ProtocolInstanceReference,
         selfReference: ProtocolInstanceReference,
         event: NetworkProtocolEvent
     ) {
         selfReference.deliverEventToUpperProtocol(
+            state: &state,
             event: .networkProtocolEvent(originalReference, self.reference, event: event)
         )
     }
@@ -86,17 +97,23 @@ extension UpperProtocolLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol InboundDataLinkage: UpperProtocolLinkage where PairedLinkage: OutboundDataLinkage {
-    func deliverInboundDataAvailableEvent(_ from: ProtocolInstanceReference)
-    func deliverOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference)
+    func deliverInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func deliverOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
 }
 
 @available(Network 0.1.0, *)
 extension InboundDataLinkage {
-    public func deliverInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
-        from.deliverEventToUpperProtocol(event: .inboundDataAvailable(from, self.reference))
+    public func deliverInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
+        from.deliverEventToUpperProtocol(state: &state, event: .inboundDataAvailable(from, self.reference))
     }
-    public func deliverOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference) {
-        from.deliverEventToUpperProtocol(event: .outboundRoomAvailable(from, self.reference))
+    public func deliverOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
+        from.deliverEventToUpperProtocol(state: &state, event: .outboundRoomAvailable(from, self.reference))
     }
 }
 
@@ -119,6 +136,7 @@ extension InboundFlowLinkage {
         flowMetadata: AbstractProtocolMetadata?
     ) {
         from.deliverEventToUpperProtocol(
+            state: &from.context.state,
             event: .newInboundFlow(from, self.reference, flowReference: flowReference, flowMetadata: flowMetadata)
         )
     }
@@ -181,9 +199,9 @@ public protocol OutboundDataLinkage: LowerProtocolLinkage where PairedLinkage: I
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: UpperProtocolLinkage {
-    var isConnected: Bool { get }
-    func invokeConnect(_ from: ProtocolInstanceReference)
-    func invokeDisconnect(_ from: ProtocolInstanceReference, error: NetworkError?)
+    func isConnected(state: inout NetworkContext.State) -> Bool
+    func invokeConnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func invokeDisconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?)
     func invokeAttachUpperProtocol(
         _ upperProtocol: PairedLinkage,
         remote: Endpoint?,
@@ -191,42 +209,64 @@ public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: Upper
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError)
-    func invokeDetach(_ from: ProtocolInstanceReference) throws(NetworkError)
-    func invokeApplicationEvent(_ from: ProtocolInstanceReference, event: ApplicationEvent)
-    func invokeGetMetadata<P: NetworkProtocol>(_ from: ProtocolInstanceReference) -> ProtocolMetadata<P>?
+    func invokeDetach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError)
+    func invokeApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    )
+    func invokeGetMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>?
 }
 
 @available(Network 0.1.0, *)
 extension LowerProtocolLinkage {
-    public var isConnected: Bool {
-        reference.isConnected
+    public func isConnected(state: inout NetworkContext.State) -> Bool {
+        reference.isConnected(state: &state)
     }
 
-    public func invokeConnect(_ from: ProtocolInstanceReference) {
-        reference.connect(from)
+    public func invokeConnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        reference.connect(state: &state, from)
     }
 
-    public func invokeDisconnect(_ from: ProtocolInstanceReference, error: NetworkError? = nil) {
-        reference.disconnect(from, error: error)
+    public func invokeDisconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError? = nil
+    ) {
+        reference.disconnect(state: &state, from, error: error)
     }
 
-    public func invokeDetach(_ from: ProtocolInstanceReference) throws(NetworkError) {
-        try reference.detach(from)
+    public func invokeDetach(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) {
+        try reference.detach(state: &state, from)
     }
 
-    public func invokeApplicationEvent(_ from: ProtocolInstanceReference, event: ApplicationEvent) {
-        reference.handleApplicationEvent(from, event: event)
+    public func invokeApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+        reference.handleApplicationEvent(state: &state, from, event: event)
     }
 
-    public func invokeGetMetadata<P: NetworkProtocol>(_ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-        reference.getMetadata(from)
+    public func invokeGetMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        reference.getMetadata(state: &state, from)
     }
 
     public func invokeGetMetrics(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
-        reference.getMetrics(from, requestedNetworkMetric: requestedNetworkMetric)
+        reference.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
     }
 }
 
@@ -247,17 +287,20 @@ public protocol OutboundDatagramLinkage: OutboundDataLinkage where PairedLinkage
     ) throws(NetworkError) -> Self
 
     func invokeReceiveDatagrams(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int
     ) throws(NetworkError) -> FrameArray?
 
     func invokeGetDatagramsToSend(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray?
 
     func invokeSendDatagrams(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         datagrams: consuming FrameArray
     ) throws(NetworkError)
@@ -272,10 +315,10 @@ public struct InboundStreamLinkage: InboundDataLinkage {
     public init() { self.reference = .init() }
 
     public func deliverInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
-        from.deliverEventToUpperProtocol(event: .inboundAborted(from, self.reference, error: error))
+        from.deliverEventToUpperProtocol(state: &from.context.state, event: .inboundAborted(from, self.reference, error: error))
     }
     public func deliverOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
-        from.deliverEventToUpperProtocol(event: .outboundAborted(from, self.reference, error: error))
+        from.deliverEventToUpperProtocol(state: &from.context.state, event: .outboundAborted(from, self.reference, error: error))
     }
 
     public func invokeAttachLowerProtocol(
@@ -294,23 +337,37 @@ public struct InboundStreamLinkage: InboundDataLinkage {
 public protocol OutboundStreamTypeLinkage: OutboundDataLinkage {
 
     func invokeReceiveStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         minimumBytes: Int,
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray?
-    func invokeGetOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int
+    func invokeGetOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> Int
     func invokeSendStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError)
 
     func invokeSendEarlyStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError)
 
-    func invokeAbortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError)
-    func invokeAbortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError)
+    func invokeAbortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError)
+    func invokeAbortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError)
 }
 
 
@@ -343,35 +400,48 @@ public struct OutboundStreamLinkage: OutboundStreamTypeLinkage {
     }
 
     public func invokeReceiveStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         minimumBytes: Int,
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray? {
-        try reference.receiveStreamData(from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        try reference.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
     }
-    public func invokeGetOutboundStreamDataRoomAvailable(_ from: ProtocolInstanceReference) throws(NetworkError) -> Int
-    {
-        try reference.getOutboundStreamDataRoomAvailable(from)
+    public func invokeGetOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> Int {
+        try reference.getOutboundStreamDataRoomAvailable(state: &state, from)
     }
     public func invokeSendStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError) {
-        try reference.sendStreamData(from, streamData: streamData)
+        try reference.sendStreamData(state: &state, from, streamData: streamData)
     }
 
     public func invokeSendEarlyStreamData(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         streamData: consuming FrameArray
     ) throws(NetworkError) {
-        try reference.sendEarlyStreamData(from, streamData: streamData)
+        try reference.sendEarlyStreamData(state: &state, from, streamData: streamData)
     }
 
-    public func invokeAbortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
-        try reference.abortInbound(from, error: error)
+    public func invokeAbortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        try reference.abortInbound(state: &state, from, error: error)
     }
-    public func invokeAbortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) throws(NetworkError) {
-        try reference.abortOutbound(from, error: error)
+    public func invokeAbortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        try reference.abortOutbound(state: &state, from, error: error)
     }
 }
 

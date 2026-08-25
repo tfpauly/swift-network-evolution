@@ -61,17 +61,23 @@ extension ProtocolInstance where Self: ~Copyable {
     /// Enters a protocol's execution state from an external source.
     ///
     /// Call this on the context, and call it before the protocol invokes any calls to other protocols.
-    public func fromExternal<R, E: Error>(_ block: () throws(E) -> R) throws(E) -> R {
-        try reference.fromExternal(block)
+    /// The block receives the context state, which must be threaded into any calls made to other
+    /// protocols so that the state is never re-derived from the context class.
+    public func fromExternal<R, E: Error>(
+        _ block: (inout NetworkContext.State) throws(E) -> R
+    ) throws(E) -> R {
+        try reference.fromExternal(state: &context.state, block)
     }
-    public func fromExternal<R: ~Copyable, E: Error>(_ block: () throws(E) -> R) throws(E) -> R {
-        try reference.fromExternal(block)
+    public func fromExternal<R: ~Copyable, E: Error>(
+        _ block: (inout NetworkContext.State) throws(E) -> R
+    ) throws(E) -> R {
+        try reference.fromExternal(state: &context.state, block)
     }
     public func fromExternal<R, T: ~Copyable, E: Error>(
         _ value: consuming T,
-        _ block: (consuming T) throws(E) -> R
+        _ block: (inout NetworkContext.State, consuming T) throws(E) -> R
     ) throws(E) -> R {
-        try reference.fromExternal(value, block)
+        try reference.fromExternal(state: &context.state, value, block)
     }
 }
 
@@ -461,8 +467,6 @@ extension ProtocolInstanceContainer {
 }
 @available(Network 0.1.0, *)
 extension ProtocolInstanceContainer where Self: ProtocolInstance {
-    var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
-
     public func accessInstance<R, E: Error>(
         at index: Int?,
         _ body: (inout any ProtocolInstance) throws(E) -> R

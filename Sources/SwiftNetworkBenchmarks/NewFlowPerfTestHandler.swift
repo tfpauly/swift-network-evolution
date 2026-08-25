@@ -36,7 +36,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     // Public mutable state
     public var eventManager = ProtocolEventManager()
     public var log = NetworkLoggerState("[NewFlowHandler]")
-    public var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    public var reference = ProtocolInstanceReference()
     public var context: NetworkContext
     public var streams: [StreamPerfTestHandler] = []
     public var connectedHandler: ((Bool) -> Void)?
@@ -67,6 +67,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
         self.path = path
         self.logger = logger
         self.context = parameters.context
+        self.reference = .init(custom: self)
         do throws(NetworkError) {
             self.lowerProtocol = try streamListenerProtocol.invokeAttachNewStreamFlowProtocol(
                 self.reference,
@@ -97,8 +98,8 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     // Start the new flow handler
     func start() {
         log("start")
-        fromExternal {
-            self.lowerProtocol.invokeConnect(reference)
+        fromExternal { state in
+            self.lowerProtocol.invokeConnect(state: &state, reference)
         }
     }
 
@@ -110,16 +111,16 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     // Stop the new flow handler
     func stop() {
         log("stop")
-        fromExternal {
-            self.lowerProtocol.invokeDisconnect(reference)
+        fromExternal { state in
+            self.lowerProtocol.invokeDisconnect(state: &state, reference)
         }
     }
 
     // Teardown the new flow handler
     public func teardown() {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lowerProtocol.invokeDetach(reference)
+                try lowerProtocol.invokeDetach(state: &state, reference)
                 self.lowerProtocol = .init(reference: .init())
             } catch {
                 log("Failed to detach lower protocol: \(error)")

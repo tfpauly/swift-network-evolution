@@ -69,7 +69,10 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     fileprivate(set) var context: NetworkContext
 
-    var reference: ProtocolInstanceReference { ProtocolInstanceReference(custom: self) }
+    var reference = ProtocolInstanceReference()
+    func initializeReference() {
+        reference = .init(custom: self)
+    }
     var lower = LowerProtocol(reference: .init())
     var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
 
@@ -95,6 +98,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.remote = remote
         self.parameters = parameters
         self.path = path
+        initializeReference()
     }
 
     init(
@@ -113,6 +117,8 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.parameters = parameters
         self.path = path
         self.lower = lowerProtocol
+        // Must be initialized before asUpper is used, since asUpper derives from reference.
+        initializeReference()
         try lowerProtocol.invokeAttachUpperProtocol(
             asUpper,
             remote: remote,
@@ -189,14 +195,14 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func start() {
         log.debug("Starting flow")
-        fromExternal {
-            lower.invokeConnect(reference)
+        fromExternal { state in
+            lower.invokeConnect(state: &state, reference)
         }
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal {
-            lower.invokeApplicationEvent(reference, event: event)
+        fromExternal { state in
+            lower.invokeApplicationEvent(state: &state, reference, event: event)
         }
     }
 
@@ -207,16 +213,16 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func stop() {
         log.debug("Stopping flow")
-        fromExternal {
-            lower.invokeDisconnect(reference)
+        fromExternal { state in
+            lower.invokeDisconnect(state: &state, reference)
         }
     }
 
     public func teardown() {
         log.debug("Tearing down flow")
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeDetach(reference)
+                try lower.invokeDetach(state: &state, reference)
                 lower = .init(reference: .init())
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
@@ -226,8 +232,8 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
-        fromExternal {
-            lower.invokeDisconnect(reference, error: error)
+        fromExternal { state in
+            lower.invokeDisconnect(state: &state, reference, error: error)
         }
     }
 
@@ -248,8 +254,8 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal {
-            guard let metadata = lower.invokeGetMetadata(reference) as? ProtocolMetadata<P> else {
+        fromExternal { state in
+            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
                 return nil
             }
             return metadata
@@ -267,9 +273,12 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 @available(Network 0.1.0, *)
 final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
 
-    override var reference: ProtocolInstanceReference { ProtocolInstanceReference(datagramEndpointFlow: self) }
+    override func initializeReference() {
+        reference = .init(datagramEndpointFlow: self)
+    }
 
     func attachLowerDatagramProtocol(
+        state: inout NetworkContext.State,
         _ lowerProtocol: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,
@@ -306,11 +315,10 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
     }
 
     func write(_ datagram: consuming Frame) -> Bool {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
                 let length = datagram.unclaimedLength
-                let frames = try lower.invokeGetDatagramsToSend(
-                    reference,
+                let frames = try lower.invokeGetDatagramsToSend(state: &state, reference,
                     maximumDatagramCount: 1,
                     minimumDatagramSize: length
                 )
@@ -330,7 +338,7 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
                     datagram.finalize(success: true)
                     return false
                 }
-                try lower.invokeSendDatagrams(reference, datagrams: frames)
+                try lower.invokeSendDatagrams(state: &state, reference, datagrams: frames)
                 return true
             } catch {
                 return false
@@ -339,9 +347,9 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
     }
 
     func read() -> [UInt8]? {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                let frames = try lower.invokeReceiveDatagrams(reference, maximumDatagramCount: 1)
+                let frames = try lower.invokeReceiveDatagrams(state: &state, reference, maximumDatagramCount: 1)
                 guard var frames = frames else {
                     log.debug("Failed to receive datagrams")
                     return nil
@@ -370,21 +378,23 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 @available(Network 0.1.0, *)
 final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkage>, InboundStreamHandler {
 
-    override var reference: ProtocolInstanceReference { ProtocolInstanceReference(streamEndpointFlow: self) }
+    override func initializeReference() {
+        reference = .init(streamEndpointFlow: self)
+    }
 
     func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
     func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
 
     override public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeAbortOutbound(reference, error: error)
-                try lower.invokeAbortInbound(reference, error: error)
+                try lower.invokeAbortOutbound(state: &state, reference, error: error)
+                try lower.invokeAbortInbound(state: &state, reference, error: error)
             } catch {
                 log.error("Failed to abort stream: \(error)")
             }
-            lower.invokeDisconnect(reference, error: error)
+            lower.invokeDisconnect(state: &state, reference, error: error)
         }
     }
 
@@ -456,14 +466,14 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
     }
 
     private func invokeSendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
-        try fromExternal(streamData) { streamData throws(NetworkError) in
-            try lower.invokeSendStreamData(self.reference, streamData: streamData)
+        try fromExternal(streamData) { state, streamData throws(NetworkError) in
+            try lower.invokeSendStreamData(state: &state, self.reference, streamData: streamData)
         }
     }
 
     func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
-        try fromExternal { () throws(NetworkError) in
-            try lower.invokeGetOutboundStreamDataRoomAvailable(self.reference)
+        try fromExternal { state throws(NetworkError) in
+            try lower.invokeGetOutboundStreamDataRoomAvailable(state: &state, self.reference)
         }
     }
 
@@ -477,11 +487,10 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
     }
 
     func read(minimumBytes: Int, maximumBytes: Int) -> [UInt8]? {
-        fromExternal {
+        fromExternal { state in
             do throws(NetworkError) {
                 guard
-                    var frames = try lower.invokeReceiveStreamData(
-                        reference,
+                    var frames = try lower.invokeReceiveStreamData(state: &state, reference,
                         minimumBytes: minimumBytes,
                         maximumBytes: maximumBytes
                     )

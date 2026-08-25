@@ -67,6 +67,23 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
         }
     }
 
+    // Moves an element out of the array, leaving its slot temporarily empty. Pair every
+    // `take` with a `restore` for the same index.
+    //
+    // This exists so a caller can hold the element and the enclosing storage as two
+    // independent borrows: reaching an element via `subscript` holds an exclusive access to
+    // the whole array, which would conflict with also passing that storage along.
+    @inlinable
+    mutating func take(index: NetworkStateIndex) -> Element {
+        elements[index.index].take()!
+    }
+
+    // Puts an element back into a slot previously emptied by `take`.
+    @inlinable
+    mutating func restore(index: NetworkStateIndex, _ element: consuming Element) {
+        elements[index.index] = consume element
+    }
+
     var count: Int { elements.count - gaps.count }
 
     var isEmpty: Bool { count == 0 }

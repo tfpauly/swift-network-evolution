@@ -161,6 +161,82 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         internal mutating func unregisterIPInstance(_ index: NetworkStateIndex) {
             ipInstances.remove(index: index)
         }
+
+        // MARK: Arena element access
+        //
+        // Reaching an arena element through `subscript` holds an exclusive access to that
+        // arena for the duration of the call. A call that both reaches an element *and*
+        // needs the enclosing state passed along would be an overlapping access.
+        //
+        // These helpers move the element out of its slot first, so the element and the
+        // state can be borrowed independently, then put it back.
+        //
+        // The element's slot is empty for the duration of `body`, so `body` must not reach
+        // this same instance again by index. That would be a re-entrant call into the same
+        // protocol instance, which the event manager already prevents.
+        internal mutating func withUDPInstance<R: ~Copyable, E: Error>(
+            _ index: NetworkStateIndex,
+            _ body: (inout UDPProtocol.Instance, inout State) throws(E) -> R
+        ) throws(E) -> R {
+            var instance = udpInstances.take(index: index)
+            do {
+                let result = try body(&instance, &self)
+                udpInstances.restore(index: index, consume instance)
+                return result
+            } catch {
+                udpInstances.restore(index: index, consume instance)
+                throw error
+            }
+        }
+
+        internal mutating func withIPInstance<R: ~Copyable, E: Error>(
+            _ index: NetworkStateIndex,
+            _ body: (inout IPProtocol.Instance, inout State) throws(E) -> R
+        ) throws(E) -> R {
+            var instance = ipInstances.take(index: index)
+            do {
+                let result = try body(&instance, &self)
+                ipInstances.restore(index: index, consume instance)
+                return result
+            } catch {
+                ipInstances.restore(index: index, consume instance)
+                throw error
+            }
+        }
+
+        // Variants that forward a non-copyable value into the body, for calls like
+        // `sendDatagrams` that consume their payload.
+        internal mutating func withUDPInstance<R: ~Copyable, T: ~Copyable, E: Error>(
+            _ index: NetworkStateIndex,
+            _ value: consuming T,
+            _ body: (inout UDPProtocol.Instance, inout State, consuming T) throws(E) -> R
+        ) throws(E) -> R {
+            var instance = udpInstances.take(index: index)
+            do {
+                let result = try body(&instance, &self, value)
+                udpInstances.restore(index: index, consume instance)
+                return result
+            } catch {
+                udpInstances.restore(index: index, consume instance)
+                throw error
+            }
+        }
+
+        internal mutating func withIPInstance<R: ~Copyable, T: ~Copyable, E: Error>(
+            _ index: NetworkStateIndex,
+            _ value: consuming T,
+            _ body: (inout IPProtocol.Instance, inout State, consuming T) throws(E) -> R
+        ) throws(E) -> R {
+            var instance = ipInstances.take(index: index)
+            do {
+                let result = try body(&instance, &self, value)
+                ipInstances.restore(index: index, consume instance)
+                return result
+            } catch {
+                ipInstances.restore(index: index, consume instance)
+                throw error
+            }
+        }
     }
     var state: State
 
@@ -239,18 +315,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         false
     }
     #endif
-
-    // MARK: - Storage of Per-Protocol Event Manager States
-
-    private var protocolIdentifiers = NetworkProtocolRegistrar()
-
-    internal func protocolIdentifierIndex(for protocolIdentifier: ProtocolIdentifier) -> NetworkStateIndex {
-        return protocolIdentifiers.register(protocol: protocolIdentifier)
-    }
-
-    internal func protocolIdentifierIndex<P: NetworkProtocol>(for protocolDefinition: ProtocolDefinition<P>) -> NetworkStateIndex {
-        return protocolIdentifiers.register(protocol: protocolDefinition.identifier)
-    }
 }
 
 // MARK: - Globals
