@@ -19,8 +19,6 @@ struct ProtocolInstanceReference2: Hashable {
 
     var parentEventStateIndex: NetworkStateIndex?
 
-    var context: NetworkContext
-
     func protocolEventStateIndex(allowParent: Bool = true) -> NetworkStateIndex? {
         if let parentEventStateIndex { return parentEventStateIndex }
         return eventStateIndex
@@ -35,12 +33,10 @@ struct ProtocolInstanceReference2: Hashable {
     }
 
     init() {
-        context = NetworkContext.implicitContext
         eventStateIndex = nil
     }
 
     init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
-        self.context = context
         self.eventStateIndex = eventManager.register(with: context, state: &context.state)
     }
 

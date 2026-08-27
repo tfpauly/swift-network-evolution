@@ -54,8 +54,17 @@ public protocol ProtocolInstance: ~Copyable {
 extension ProtocolInstance where Self: ~Copyable {
 
     /// Schedules an asynchronous block from within a protocol implementation.
+    ///
+    /// This is an external entry point: call it from code outside the protocol stack. If you
+    /// already hold the context state, call the `state:`-taking variant instead so the state
+    /// isn't re-derived from the context.
     public func async(_ block: @escaping () -> Void) {
-        reference.async(block)
+        reference.async(state: &context.state, block)
+    }
+
+    /// Schedules an asynchronous block, using an already-acquired context state.
+    public func async(state: inout NetworkContext.State, _ block: @escaping () -> Void) {
+        reference.async(state: &state, block)
     }
 
     /// Enters a protocol's execution state from an external source.
@@ -96,12 +105,36 @@ public protocol TimerSchedulable: ~Copyable, ProtocolInstance {
 
 @available(Network 0.1.0, *)
 extension TimerSchedulable {
+    /// Schedules a timer wakeup.
+    ///
+    /// This is an external entry point; see `async(_:)`.
     public func scheduleWakeup(milliseconds: UInt64) {
-        reference.scheduleWakeup(milliseconds: milliseconds, timerReference: timerReference)
+        reference.scheduleWakeup(
+            state: &context.state,
+            milliseconds: milliseconds,
+            timerReference: timerReference
+        )
     }
 
+    /// Schedules a timer wakeup, using an already-acquired context state.
+    public func scheduleWakeup(state: inout NetworkContext.State, milliseconds: UInt64) {
+        reference.scheduleWakeup(
+            state: &state,
+            milliseconds: milliseconds,
+            timerReference: timerReference
+        )
+    }
+
+    /// Unschedules a timer wakeup.
+    ///
+    /// This is an external entry point; see `async(_:)`.
     public func unscheduleWakeup() {
-        reference.unscheduleWakeup(timerReference: timerReference)
+        reference.unscheduleWakeup(state: &context.state, timerReference: timerReference)
+    }
+
+    /// Unschedules a timer wakeup, using an already-acquired context state.
+    public func unscheduleWakeup(state: inout NetworkContext.State) {
+        reference.unscheduleWakeup(state: &state, timerReference: timerReference)
     }
 }
 
@@ -347,6 +380,13 @@ public protocol ProtocolInstanceContainer: AnyObject {
         at index: Int?,
         _ body: (inout any OutboundStreamUnidirectionalAbortHandler) throws(E) -> R
     ) throws(E) -> R
+
+    /// Releases the protocol event state for the instance at `index`.
+    ///
+    /// The framework calls this during detach, once the enclosing call bracket has closed.
+    /// Containers that hold more than one instance should override this to unregister the
+    /// event manager belonging to `index`.
+    func unregisterEventManager(at index: Int?, state: inout NetworkContext.State)
     #endif
 }
 
@@ -464,6 +504,9 @@ extension ProtocolInstanceContainer {
     ) throws(E) -> R {
         fatalError("Unimplemented container function")
     }
+    public func unregisterEventManager(at index: Int?, state: inout NetworkContext.State) {
+        fatalError("Unimplemented container function")
+    }
 }
 @available(Network 0.1.0, *)
 extension ProtocolInstanceContainer where Self: ProtocolInstance {
@@ -473,6 +516,17 @@ extension ProtocolInstanceContainer where Self: ProtocolInstance {
     ) throws(E) -> R {
         var selfAccess: (any ProtocolInstance) = self
         return try body(&selfAccess)
+    }
+
+    /// Releases this instance's protocol event state.
+    ///
+    /// `Self` is concrete here, so the event manager is reached directly rather than through
+    /// an existential.
+    public func unregisterEventManager(at index: Int?, state: inout NetworkContext.State) {
+        // Containers are classes, so mutating through a local binding of the reference still
+        // updates the shared instance. `self` itself is immutable in a non-mutating method.
+        var instance = self
+        instance.eventManager.unregister(state: &state)
     }
 }
 @available(Network 0.1.0, *)

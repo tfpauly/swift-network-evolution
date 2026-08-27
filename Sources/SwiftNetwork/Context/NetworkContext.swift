@@ -492,7 +492,7 @@ extension NetworkContext.State {
         globals.queue
     }
 
-    fileprivate func async(_ block: @escaping () -> Void) {
+    func async(_ block: @escaping () -> Void) {
         scheduler.runImmediate(block)
     }
 
@@ -536,7 +536,7 @@ extension NetworkContext {
 
 @available(Network 0.1.0, *)
 extension NetworkContext.State {
-    fileprivate func resetTimer(for reference: TimerReference, to time: NetworkContext.FutureTime) {
+    func resetTimer(for reference: TimerReference, to time: NetworkContext.FutureTime) {
         switch time {
         case .unschedule:
             scheduler.unschedule(reference: reference)

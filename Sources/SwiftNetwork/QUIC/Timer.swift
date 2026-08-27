@@ -146,7 +146,15 @@ final class Timer: PrefixedLoggable {
             log.debug("Stopping timer")
             timerCancelled = true
             wakeup = .idle
-            reference?.unscheduleWakeup(timerReference: timerReference)
+            // Timer callbacks originate outside the stack, so acquire the state from the
+            // reference's own context here rather than threading it through every QUIC
+            // timer call site.
+            if let reference {
+                reference.unscheduleWakeup(
+                    state: &reference.context.state,
+                    timerReference: timerReference
+                )
+            }
         }
         if final {
             entries.removeAll()
@@ -218,7 +226,13 @@ final class Timer: PrefixedLoggable {
         log.datapath(
             "arming timer for the next \(delta) (now \(now)), new deadline \(nextDeadline) old deadline \(oldDeadline)"
         )
-        reference?.scheduleWakeup(milliseconds: UInt64(delta.milliseconds), timerReference: timerReference)
+        if let reference {
+            reference.scheduleWakeup(
+                state: &reference.context.state,
+                milliseconds: UInt64(delta.milliseconds),
+                timerReference: timerReference
+            )
+        }
     }
 
     private func find(_ identifier: TimerID) -> Int? {

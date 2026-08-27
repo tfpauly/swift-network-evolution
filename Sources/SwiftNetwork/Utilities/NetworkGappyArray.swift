@@ -32,8 +32,8 @@ struct NetworkStateIndex: Hashable {
         self.index = index
         self.generation = generation
     }
-    fileprivate func indexWithNextGeneration() -> Self {
-        .init(index: index, generation: generation &+ 1)
+    fileprivate func indexWithGeneration(_ generation: UInt64) -> Self {
+        .init(index: index, generation: generation)
     }
     var rawValue: Int { index }
 }
@@ -55,6 +55,7 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
     // Free indices in elements array
     fileprivate var gaps = NetworkPriorityQueue<GapRecord>()
 
+    // Increments once for every element that is added
     private var generation: UInt64 = 0
 
     @inlinable
@@ -103,8 +104,9 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
     }
 
     mutating func insert(_ element: consuming Element) -> NetworkStateIndex {
+        generation += 1
         if let gap = gaps.pop() {
-            let gapIndex = gap.index.indexWithNextGeneration()
+            let gapIndex = gap.index.indexWithGeneration(generation)
             elements[gapIndex.index] = consume element
             return gapIndex
         }
@@ -113,7 +115,7 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
         return NetworkStateIndex(index: newIndex, generation: generation)
     }
 
-    internal mutating func cleanupGapsIfNecessary(incrementedGeneration: Bool) {
+    internal mutating func cleanupGapsIfNecessary() {
         let count = elements.count
         guard count > 0, elements[count - 1] == nil else {
             // Cannot cleanup gaps at the end
@@ -134,20 +136,13 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
             gaps.removeFirst { $0.index.index == count - 1 }
             elements.removeLast()
         }
-
-        if !incrementedGeneration {
-            self.generation &+= 1
-        }
     }
 
     mutating func remove(index: NetworkStateIndex) {
-        var incrementedGeneration = false
-        defer { cleanupGapsIfNecessary(incrementedGeneration: incrementedGeneration) }
+        defer { cleanupGapsIfNecessary() }
         if index.index == elements.count - 1 {
             // Removing last element
             elements.removeLast()
-            self.generation &+= 1
-            incrementedGeneration = true
             return
         }
 
@@ -156,39 +151,3 @@ struct NetworkGappyArray<Element: ~Copyable>: ~Copyable {
         gaps.push(GapRecord(index))
     }
 }
-
-
-// TODO: Have a registrar (held by the context) that knows about the available linkages?
-// TODO: Or do we push the registrars into the linkage type definitions... like a linkage family, with associated types for supporting datagrams, streams, messages, etc.
-
-// TODO: Be able to register a function to get back to the definition?
-@available(Network 0.1.0, *)
-struct NetworkProtocolRegistrar: ~Copyable {
-
-    // Count of protocols, only grows
-    private let protocolCount = NetworkMutex<Int>(1)
-    private var nextProtocolIndex: NetworkStateIndex {
-        var index: Int = 0
-        protocolCount.withLock {
-            index = $0
-            $0 += 1
-        }
-        return NetworkStateIndex(index: index, generation: 0)
-    }
-
-    private var registeredProtocols = Dictionary<ProtocolIdentifier, NetworkStateIndex>()
-
-    var count: Int { registeredProtocols.count }
-
-    var isEmpty: Bool { count == 0 }
-
-    mutating func register(protocol protocolIdentifier: ProtocolIdentifier) -> NetworkStateIndex {
-        if let existingIndex = registeredProtocols[protocolIdentifier] {
-            return existingIndex
-        }
-        let newIndex = nextProtocolIndex
-        registeredProtocols[protocolIdentifier] = newIndex
-        return newIndex
-    }
-}
-

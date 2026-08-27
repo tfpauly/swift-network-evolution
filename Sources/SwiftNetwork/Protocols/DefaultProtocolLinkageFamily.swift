@@ -19,6 +19,7 @@ class DefaultProtocolLinkageFamily: DatagramProtocolLinkageFamily {
     typealias LowerDatagram = DefaultOutboundDatagramLinkage
 
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInnerInstance<UpperDatagram, LowerDatagram>>()
+    internal var ipInstances = NetworkGappyArray<IPProtocol.IPInnerInstance<UpperDatagram, LowerDatagram>>()
 
 }
 
@@ -329,6 +330,8 @@ open class BaseNetworkProtocolStorage {
                 switch protocolType {
                 case .udp(let index):
                     return try storage.udpInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+                case .ip(let index):
+                    return try storage.ipInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
                 default:
                     return nil
                 }
@@ -340,6 +343,8 @@ open class BaseNetworkProtocolStorage {
                 switch protocolType {
                 case .udp(let index):
                     return try storage.udpInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+                case .ip(let index):
+                    return try storage.ipInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
                 default:
                     return nil
                 }
@@ -351,6 +356,8 @@ open class BaseNetworkProtocolStorage {
                 switch protocolType {
                 case .udp(let index):
                     try storage.udpInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+                case .ip(let index):
+                    try storage.ipInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
                 default:
                     return
                 }
@@ -366,6 +373,7 @@ open class BaseNetworkProtocolStorage {
             reference2.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].connect(state: &state, from)
+                case .ip(let index): storage.ipInstances[index].connect(state: &state, from)
                 default: fatalError("Protocol cannot accept connect call")
                 }
             }
@@ -376,6 +384,7 @@ open class BaseNetworkProtocolStorage {
             reference2.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].disconnect(state: &state, from, error: error)
+                case .ip(let index): storage.ipInstances[index].disconnect(state: &state, from, error: error)
                 default: fatalError("Protocol cannot accept disconnect call")
                 }
             }
@@ -386,6 +395,7 @@ open class BaseNetworkProtocolStorage {
             try reference2.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
                 switch protocolType {
                 case .udp(let index): try storage.udpInstances[index].detach(state: &state, from)
+                case .ip(let index): try storage.ipInstances[index].detach(state: &state, from)
                 default: fatalError("Protocol cannot accept detach call")
                 }
             }
@@ -395,6 +405,7 @@ open class BaseNetworkProtocolStorage {
             reference2.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].handleApplicationEvent(state: &state, from, event: event)
+                case .ip(let index): storage.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
                 default: fatalError("Protocol cannot accept handleApplicationEvent call")
                 }
             }
@@ -404,6 +415,7 @@ open class BaseNetworkProtocolStorage {
             return reference2.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
                 switch protocolType {
                 case .udp(let index): return storage.udpInstances[index].getMetadata(state: &state, from)
+                case .ip(let index): return storage.ipInstances[index].getMetadata(state: &state, from)
                 default: fatalError("Protocol cannot accept getMetadata call")
                 }
             }
@@ -417,6 +429,7 @@ open class BaseNetworkProtocolStorage {
             return reference2.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
                 switch protocolType {
                 case .udp(let index): return storage.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+                case .ip(let index): return storage.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
                 default: fatalError("Protocol cannot accept getMetrics call")
                 }
             }
@@ -457,11 +470,11 @@ open class BaseNetworkProtocolStorage {
         }
     }
 
+    // TODO: TFPDEBUG Move this to an inner non-copyable struct to avoid taking references
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>>()
 
     func createUDPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
         let instance = UDPProtocol.UDPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>(context: context)
-
 
         let instanceIndex = udpInstances.insert(instance)
         udpInstances[instanceIndex].udpInstanceIndex = instanceIndex
@@ -471,6 +484,21 @@ open class BaseNetworkProtocolStorage {
         let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .udp(instanceIndex))
 
         return (inbound, outbound)
+    }
 
+    // TODO: TFPDEBUG Move this to an inner non-copyable struct to avoid taking references
+    internal var ipInstances = NetworkGappyArray<IPProtocol.IPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>>()
+
+    func createIPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
+        let instance = IPProtocol.IPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>(context: context)
+
+        let instanceIndex = ipInstances.insert(instance)
+        ipInstances[instanceIndex].ipInstanceIndex = instanceIndex
+
+        let reference = ProtocolInstanceReference2(context: self.context, eventManager: &ipInstances[instanceIndex].eventManager)
+        let inbound = BaseInboundDatagramLinkage(reference: reference, storage: self, protocolType: .ip(instanceIndex))
+        let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .ip(instanceIndex))
+
+        return (inbound, outbound)
     }
 }

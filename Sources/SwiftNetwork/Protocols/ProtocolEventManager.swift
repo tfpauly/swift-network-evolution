@@ -421,7 +421,7 @@ extension NetworkContext.State {
         event: consuming ProtocolEventManagerState.PendingEvent,
         drain: Bool = true
     ) {
-        self.softAssert()
+        softAssert()
         if event.isConnected {
             switch protocolEventStates[index].connectedState {
             case .initial: protocolEventStates[index].connectedState = .connected
@@ -448,7 +448,7 @@ extension NetworkContext.State {
         parentIndex: NetworkStateIndex?,
         newUpper: ProtocolInstanceReference
     ) {
-        self.softAssert()
+        softAssert()
         if let parentIndex {
             var foundEvents = false
             while let event = protocolEventStates[index].unassignedPendingEventsToDeliverToUpperProtocol.popFirst() {
@@ -471,12 +471,12 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         event: consuming ProtocolEventManagerState.PendingEvent
     ) {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].enqueuePendingEventForUpperProtocol(event)
     }
 
     fileprivate mutating func discardPendingEventsForUpperProtocol(index: NetworkStateIndex) {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].discardPendingEventsForUpperProtocol()
     }
 
@@ -484,7 +484,7 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         event: consuming ProtocolEventManagerState.PendingEvent
     ) {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].addEventFromLowerProtocol(event: event)
     }
 
@@ -492,7 +492,7 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         _ body: (inout NetworkContext.State) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].startCallFromUpperProtocol()
         defer {
             protocolEventStates[index].finishCallFromUpperProtocol()
@@ -505,7 +505,7 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         _ body: (inout NetworkContext.State) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].startCallFromUpperProtocol()
         defer {
             protocolEventStates[index].finishCallFromUpperProtocol()
@@ -519,7 +519,7 @@ extension NetworkContext.State {
         _ value: consuming T,
         _ body: (inout NetworkContext.State, consuming T) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         protocolEventStates[index].startCallFromUpperProtocol()
         defer {
             protocolEventStates[index].finishCallFromUpperProtocol()
@@ -532,7 +532,7 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         _ body: (inout NetworkContext.State) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         let startedExternalCall = protocolEventStates[index].startExternalCall()
         defer {
             if startedExternalCall {
@@ -547,7 +547,7 @@ extension NetworkContext.State {
         index: NetworkStateIndex,
         _ body: (inout NetworkContext.State) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         let startedExternalCall = protocolEventStates[index].startExternalCall()
         defer {
             if startedExternalCall {
@@ -563,7 +563,7 @@ extension NetworkContext.State {
         _ value: consuming T,
         _ body: (inout NetworkContext.State, consuming T) throws(E) -> R
     ) throws(E) -> R {
-        self.softAssert()
+        softAssert()
         let startedExternalCall = protocolEventStates[index].startExternalCall()
         defer {
             if startedExternalCall {
@@ -594,7 +594,7 @@ extension NetworkContext.State {
     }
 
     fileprivate mutating func connectRequested(index: NetworkStateIndex) {
-        self.softAssert()
+        softAssert()
         if protocolEventStates[index].connectCallState == .initial {
             // Connect can't be called yet, but remember that it has been requested
             protocolEventStates[index].connectCallState = .connectRequested
@@ -602,7 +602,7 @@ extension NetworkContext.State {
     }
 
     fileprivate mutating func canCallConnect(index: NetworkStateIndex, requested: Bool) -> Bool {
-        self.softAssert()
+        softAssert()
         guard
             (protocolEventStates[index].connectCallState == .initial && requested)
                 || protocolEventStates[index].connectCallState == .connectRequested,
@@ -619,7 +619,7 @@ extension NetworkContext.State {
     }
 
     fileprivate mutating func canCallDisconnect(index: NetworkStateIndex) -> Bool {
-        self.softAssert()
+        softAssert()
         guard protocolEventStates[index].connectCallState != .disconnectCalled,
             protocolEventStates[index].connectedState != .disconnected
         else {
@@ -630,9 +630,36 @@ extension NetworkContext.State {
     }
 
     fileprivate mutating func isConnected(index: NetworkStateIndex) -> Bool {
-        self.softAssert()
+        softAssert()
         return protocolEventStates[index].connectedState == .connected
     }
+
+    fileprivate func async(context: NetworkContext, index: NetworkStateIndex, _ block: @escaping () -> Void) {
+        softAssert()
+        self.async {
+            context.state.runAsync(index: index, block)
+        }
+    }
+
+    fileprivate func scheduleWakeup(
+        context: NetworkContext,
+        index: NetworkStateIndex,
+        timerReference: TimerReference,
+        referenceToWakeup: ProtocolInstanceReference,
+        milliseconds: UInt64
+    ) {
+        softAssert()
+        resetTimer(
+            for: timerReference,
+            to: .milliseconds(
+                milliseconds,
+                {
+                    context.state.runTimerWakeup(index: index, referenceToWakeup: referenceToWakeup)
+                }
+            )
+        )
+    }
+
 }
 
 @available(Network 0.1.0, *)
@@ -644,7 +671,7 @@ extension NetworkContext {
     }
 
     fileprivate func async(index: NetworkStateIndex, _ block: @escaping () -> Void) {
-        self.softAssert()
+        softAssert()
         self.async {
             self.state.runAsync(index: index, block)
         }
@@ -656,8 +683,8 @@ extension NetworkContext {
         referenceToWakeup: ProtocolInstanceReference,
         milliseconds: UInt64
     ) {
-        self.softAssert()
-        self.resetTimer(
+        softAssert()
+        resetTimer(
             for: timerReference,
             to: .milliseconds(
                 milliseconds,
@@ -795,9 +822,9 @@ extension ProtocolInstanceReference {
         return try state.fromExternal(index: protocolEventStateIndex, value, body)
     }
 
-    public func async(_ block: @escaping () -> Void) {
+    public func async(state: inout NetworkContext.State, _ block: @escaping () -> Void) {
         let protocolEventStateIndex = protocolEventStateIndex!
-        context.async(index: protocolEventStateIndex, block)
+        state.async(context: context, index: protocolEventStateIndex, block)
     }
 
     func timerWakeup() {
@@ -815,11 +842,13 @@ extension ProtocolInstanceReference {
     }
 
     func scheduleWakeup(
+        state: inout NetworkContext.State,
         milliseconds: UInt64,
         timerReference: TimerReference
     ) {
         let protocolEventStateIndex = protocolEventStateIndex!
-        context.scheduleWakeup(
+        state.scheduleWakeup(
+            context: context,
             index: protocolEventStateIndex,
             timerReference: timerReference,
             referenceToWakeup: self,
@@ -827,9 +856,9 @@ extension ProtocolInstanceReference {
         )
     }
 
-    func unscheduleWakeup(timerReference: TimerReference) {
-        context.state.assert()
-        self.context.resetTimer(for: timerReference, to: .unschedule)
+    func unscheduleWakeup(state: inout NetworkContext.State, timerReference: TimerReference) {
+        state.assert()
+        state.resetTimer(for: timerReference, to: .unschedule)
     }
 }
 
@@ -939,9 +968,9 @@ extension ProtocolInstanceReference2 {
         return try state.fromExternal(index: protocolEventStateIndex, value, body)
     }
 
-    public func async(_ block: @escaping () -> Void) {
+    public func async(context: NetworkContext, state: inout NetworkContext.State, _ block: @escaping () -> Void) {
         let protocolEventStateIndex = protocolEventStateIndex!
-        context.async(index: protocolEventStateIndex, block)
+        state.async(context: context, index: protocolEventStateIndex, block)
     }
 
     func timerWakeup() {
@@ -959,17 +988,17 @@ extension ProtocolInstanceReference2 {
 //        }
     }
 
-    public func scheduleWakeup(milliseconds: UInt64,
+    public func scheduleWakeup(state: inout NetworkContext.State,
+                               milliseconds: UInt64,
                                timerReference: TimerReference) {
-        // TODO: TFPDEBUG Fix this
+        // TODO: TFPDEBUG For now we don't have the right type to pass to referenceToWakeup, ignore
 
 //        let protocolEventStateIndex = protocolEventStateIndex!
 //        context.scheduleWakeup(index: protocolEventStateIndex, referenceToWakeup: self, milliseconds: milliseconds)
     }
 
-    public func unscheduleWakeup(timerReference: TimerReference) {
-        context.state.assert()
-        self.context.resetTimer(for: timerReference, to: .unschedule)
+    public func unscheduleWakeup(state: inout NetworkContext.State, timerReference: TimerReference) {
+        state.assert()
+        state.resetTimer(for: timerReference, to: .unschedule)
     }
 }
-

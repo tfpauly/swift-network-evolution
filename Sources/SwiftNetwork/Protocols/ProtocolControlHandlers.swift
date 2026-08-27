@@ -925,15 +925,34 @@ extension ProtocolInstanceReference {
     public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
         guard !isNone else { return }
 
-        // Reclaiming arena storage has to happen *after* handleCallFromUpperProtocol returns.
-        // That bracket holds the instance's protocol event state across the call and touches it
-        // again on the way out (finishCallFromUpperProtocol / drainPendingEvents), so removing
-        // either the event state or the instance itself from inside the closure would pull the
-        // slot out from under the unwind. Record what to reclaim and do it below.
+        // Releasing the protocol event state -- and any arena storage for the instance -- has to
+        // happen *after* handleCallFromUpperProtocol returns. That bracket holds the instance's
+        // event state across the call and touches it again on the way out
+        // (finishCallFromUpperProtocol / drainPendingEvents), so releasing it from inside the
+        // closure would pull the slot out from under the unwind. Record what to reclaim here and
+        // do it below.
+        //
+        // The payloads are the same concrete instance types the reference enum holds, so
+        // reclaiming doesn't go through an existential.
         enum Reclaim {
             case none
             case udp(NetworkStateIndex)
             case ip(NetworkStateIndex)
+            case tcp(TCPProtocol.Instance)
+            case tls(SwiftTLSProtocol.Instance)
+            #if !NETWORK_NO_SWIFT_QUIC
+            case quic(QUICProtocol.Instance)
+            case quicStream(QUICStreamInstance)
+            case quicDatagram(QUICDatagramFlow)
+            case quicCrypto(QUICCrypto)
+            #endif
+            #if !NETWORK_NO_TESTING_HARNESS
+            case datagramLowerHarness(DatagramLowerHarness)
+            case streamLowerHarness(StreamLowerHarness)
+            #endif
+            #if !NETWORK_EMBEDDED
+            case custom(container: any ProtocolInstanceContainer, index: Int?)
+            #endif
         }
         var reclaim = Reclaim.none
 
@@ -950,30 +969,47 @@ extension ProtocolInstanceReference {
                     try instance.detach(state: &state, from)
                 }
                 reclaim = .ip(index)
-            case .tcp(var instance): try instance.detach(state: &state, from)
-            case .tls(var instance): try instance.detach(state: &state, from)
+            case .tcp(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .tcp(instance)
+            case .tls(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .tls(instance)
             #if !NETWORK_NO_SWIFT_QUIC
-            case .quic(var instance): try instance.detach(state: &state, from)
-            case .quicStream(var instance): try instance.detach(state: &state, from)
-            case .quicDatagram(var instance): try instance.detach(state: &state, from)
-            case .quicCrypto(let instance): try instance.detach(state: &state, from)
+            case .quic(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .quic(instance)
+            case .quicStream(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .quicStream(instance)
+            case .quicDatagram(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .quicDatagram(instance)
+            case .quicCrypto(let instance):
+                try instance.detach(state: &state, from)
+                reclaim = .quicCrypto(instance)
             #endif
             #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance): try instance.detach(state: &state, from)
-            case .streamLowerHarness(var instance): try instance.detach(state: &state, from)
+            case .datagramLowerHarness(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .datagramLowerHarness(instance)
+            case .streamLowerHarness(var instance):
+                try instance.detach(state: &state, from)
+                reclaim = .streamLowerHarness(instance)
             #endif
             #if !NETWORK_EMBEDDED
             case .custom(let container, let index):
                 try container.accessLower(at: index) { instance throws(NetworkError) in
                     try instance.detach(state: &state, from)
                 }
+                reclaim = .custom(container: container, index: index)
             #endif
             default: fatalError("Protocol cannot accept detach call")
             }
         }
 
-        // The bracket is closed, so the event state is no longer in use and both it and the
-        // instance can be released.
+        // The bracket is closed, so the event state is no longer in use and can be released,
+        // along with any arena storage for the instance.
         switch reclaim {
         case .none:
             break
@@ -987,6 +1023,30 @@ extension ProtocolInstanceReference {
                 instance.eventManager.unregister(state: &state)
             }
             state.unregisterIPInstance(index)
+        case .tcp(let instance):
+            instance.eventManager.unregister(state: &state)
+        case .tls(let instance):
+            instance.eventManager.unregister(state: &state)
+        #if !NETWORK_NO_SWIFT_QUIC
+        case .quic(let instance):
+            instance.eventManager.unregister(state: &state)
+        case .quicStream(let instance):
+            instance.eventManager.unregister(state: &state)
+        case .quicDatagram(let instance):
+            instance.eventManager.unregister(state: &state)
+        case .quicCrypto(let instance):
+            instance.eventManager.unregister(state: &state)
+        #endif
+        #if !NETWORK_NO_TESTING_HARNESS
+        case .datagramLowerHarness(let instance):
+            instance.eventManager.unregister(state: &state)
+        case .streamLowerHarness(let instance):
+            instance.eventManager.unregister(state: &state)
+        #endif
+        #if !NETWORK_EMBEDDED
+        case .custom(let container, let index):
+            container.unregisterEventManager(at: index, state: &state)
+        #endif
         }
     }
 
