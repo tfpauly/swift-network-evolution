@@ -29,10 +29,11 @@ internal import os
 /// Conform to `BottomStreamProtocol` or `BottomDatagramProtocol`.
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol BottomProtocolHandler: ~Copyable, OutboundDataHandler {
+public protocol BottomProtocolHandler<LinkageFamily>: ~Copyable, OutboundDataHandler {
+    associatedtype LinkageFamily: DataLinkageFamily
 
     /// The type of upper protocol (toward the app) that you can attach.
-    var upper: UpperProtocol { get set }
+    var upper: LinkageFamily.Upper { get set }
 
     /// Sets up a protocol instance with parameters and endpoints.
     ///
@@ -191,7 +192,7 @@ extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol: InboundDat
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol BottomStreamProtocol: ~Copyable, BottomProtocolHandler, OutboundStreamHandler
-where UpperProtocol == InboundStreamLinkage {
+where LinkageFamily: StreamLinkageFamily, LinkageFamily.Upper == UpperProtocol {
 
     /// Returns received stream data to the upper protocol.
     ///
@@ -213,7 +214,7 @@ where UpperProtocol == InboundStreamLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol BottomDatagramProtocol: ~Copyable, BottomProtocolHandler, OutboundDatagramHandler
-where UpperProtocol == DefaultInboundDatagramLinkage {
+where LinkageFamily: DatagramLinkageFamily, LinkageFamily.Upper == UpperProtocol {
 
     /// Returns received datagrams to the upper protocol.
     ///
@@ -238,7 +239,7 @@ where UpperProtocol == DefaultInboundDatagramLinkage {
 
 @available(Network 0.1.0, *)
 extension BottomProtocolHandler where Self: ~Copyable {
-    var asLower: UpperProtocol.PairedLinkage { .init(reference: reference) }
+    var asLower: LinkageFamily.Lower { .init(reference: reference) }
 
     public func handleApplicationEvent(
         state: inout NetworkContext.State,
@@ -262,7 +263,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
     }
 
     public mutating func attachUpperProtocol(
-        _ upperProtocol: UpperProtocol,
+        _ upperProtocol: LinkageFamily.Upper,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -388,7 +389,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultInboundDatagramLinkage {
+extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: DatagramLinkageFamily {
     public mutating func attachUpperDatagramProtocol(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -396,11 +397,11 @@ extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultI
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
+    ) throws(NetworkError) -> LinkageFamily.Lower {
         guard upper.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        upper = UpperProtocol(reference: from)
+        upper = LinkageFamily.Upper(reference: from)
 
         do {
             try self.setup(remote: remote, local: local, parameters: parameters, path: path)
@@ -414,7 +415,7 @@ extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultI
 }
 
 @available(Network 0.1.0, *)
-extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol == InboundStreamLinkage {
+extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: StreamLinkageFamily, LinkageFamily.Upper == UpperProtocol {
     public mutating func attachUpperStreamProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,

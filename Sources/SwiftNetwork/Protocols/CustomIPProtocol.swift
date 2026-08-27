@@ -77,7 +77,7 @@ public struct CustomIPProtocol: NetworkProtocol {
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init(custom: self)
+            self.reference = .init()
         }
         var reference = ProtocolInstanceReference()
         var passthroughEvents = false

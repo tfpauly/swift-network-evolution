@@ -117,16 +117,18 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance: BottomDatagramProtocol, ProtocolInstanceContainer, TimerSchedulable {
+    public final class BridgeInstance: BottomDatagramProtocol, ProtocolInstanceContainer, TimerSchedulable {        
+        public typealias LinkageFamily = BaseNetworkProtocolStorage.BaseDatagramLinkageFamily
+        public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = DefaultInboundDatagramLinkage()
-        var lower = DefaultOutboundDatagramLinkage()
+        public var upper = LinkageFamily.Upper(reference: .init())
+        var lower = LinkageFamily.Lower(reference: .init())
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init(custom: self)
+            self.reference = .init()
         }
         // TODO: TFPDEBUG Make this not use custom!
         public var reference = ProtocolInstanceReference()
@@ -402,6 +404,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
     }
 
     public final class BridgeInstance: BottomStreamProtocol, ProtocolInstanceContainer {
+        public typealias LinkageFamily = DefaultStreamLinkageFamily
+        public typealias UpperProtocol = LinkageFamily.Upper
+
         var maximumOutputSize = 1500
         public var upper = InboundStreamLinkage()
         var lower = OutboundStreamLinkage()
@@ -409,7 +414,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init(custom: self)
+            self.reference = .init()
         }
         public var reference = ProtocolInstanceReference()
         var log = NetworkLoggerState()

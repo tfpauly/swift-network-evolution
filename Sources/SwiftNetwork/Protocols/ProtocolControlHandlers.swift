@@ -31,6 +31,7 @@ public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance
     mutating func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent)
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func handleConnectedEvent(_ from: ProtocolInstanceReference) {
@@ -115,8 +116,8 @@ extension ProtocolInstanceReference {
         default: fatalError("Protocol cannot accept handleNetworkProtocolEvent call")
         }
     }
-
 }
+ */
 
 /// A protocol closer to the network, with a linkage to an upper protocol toward the app.
 @_spi(ProtocolProvider)
@@ -158,6 +159,7 @@ public protocol LowerProtocolHandler<UpperProtocol>: ~Copyable, ProtocolInstance
     ) -> NetworkMetrics?
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -1129,3 +1131,4 @@ extension ProtocolInstanceReference {
         }
     }
 }
+*/

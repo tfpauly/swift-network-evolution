@@ -19,6 +19,7 @@ public protocol InboundDataHandler: ~Copyable, UpperProtocolHandler {
     mutating func handleOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference)
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func handleInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
@@ -73,6 +74,7 @@ extension ProtocolInstanceReference {
         }
     }
 }
+*/
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)

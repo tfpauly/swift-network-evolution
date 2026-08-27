@@ -67,7 +67,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)]"
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
 
     public init?(
@@ -87,7 +87,7 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)]"
-        self.reference = .init(custom: self)
+        self.reference = .init()
         do throws(NetworkError) {
             self.lowerProtocol = try lowerProtocol.invokeAttachUpperDatagramProtocol(
                 reference,

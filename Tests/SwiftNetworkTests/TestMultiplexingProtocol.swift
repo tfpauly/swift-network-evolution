@@ -44,9 +44,13 @@ final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol>
 final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     DatagramListenerHandler, HomogeneousManyToManyProtocolHandler, ProtocolInstanceContainer
 {
-    typealias UpperProtocol = InboundDatagramFlowLinkage
+    func attachNewDatagramFlowProtocol(_ from: SwiftNetwork.ProtocolInstanceReference, remote: SwiftNetwork.Endpoint?, local: SwiftNetwork.Endpoint?, parameters: SwiftNetwork.Parameters?, path: SwiftNetwork.PathProperties?) throws(SwiftNetwork.NetworkError) -> any SwiftNetwork.DatagramListenerLinkage {
+        throw NetworkError.posix(1)
+    }
+    
+    typealias UpperProtocol = DefaultInboundDatagramFlowLinkage
 
-    var inboundFlowLinkage = UpperProtocol.init()
+    var inboundFlowLinkage = UpperProtocol(reference: .init())
     var asListener: UpperProtocol.PairedLinkage { .init(reference: reference) }
 
     var delayConnected = false
@@ -67,7 +71,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     public private(set) var context: NetworkContext
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
 
     var reference = ProtocolInstanceReference()

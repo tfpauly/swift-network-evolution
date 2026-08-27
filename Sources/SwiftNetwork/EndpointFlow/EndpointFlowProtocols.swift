@@ -71,7 +71,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     var reference = ProtocolInstanceReference()
     func initializeReference() {
-        reference = .init(custom: self)
+        reference = .init()
     }
     var lower = LowerProtocol(reference: .init())
     var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
@@ -274,7 +274,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
 
     override func initializeReference() {
-        reference = .init(datagramEndpointFlow: self)
+        reference = .init()
     }
 
     func attachLowerDatagramProtocol(
@@ -295,7 +295,7 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: DatagramListenerLinkage
+        listenerProtocol: DefaultDatagramListenerLinkage
     ) throws(NetworkError) {
         self.init(
             identifier: identifier,
@@ -379,7 +379,7 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkage>, InboundStreamHandler {
 
     override func initializeReference() {
-        reference = .init(streamEndpointFlow: self)
+        reference = .init()
     }
 
     func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}

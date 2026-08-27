@@ -12,22 +12,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-@available(Network 0.1.0, *)
-class DefaultProtocolLinkageFamily: DatagramProtocolLinkageFamily {
-
-    typealias UpperDatagram = DefaultInboundDatagramLinkage
-    typealias LowerDatagram = DefaultOutboundDatagramLinkage
-
-    internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInnerInstance<UpperDatagram, LowerDatagram>>()
-    internal var ipInstances = NetworkGappyArray<IPProtocol.IPInnerInstance<UpperDatagram, LowerDatagram>>()
-
-}
 
 // TODO: TFPDEBUG Should a linkage throw/abort if it is created with a reference for a protocol
 // it doesn't understand?
 // TODO: TFPDEBUG does the reference even need to know about the protocol type at all? Can that just
 // be the linkages? If the reference is to a class type, it can just hold a ref count.
 // TODO: TFPDEBUG Reference maybe can just be the tuple of context and event manager index + parent.
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct DefaultDatagramLinkageFamily: DatagramLinkageFamily {
+    public typealias Upper = DefaultInboundDatagramLinkage
+    public typealias Lower = DefaultOutboundDatagramLinkage
+    public typealias Listener = DefaultDatagramListenerLinkage
+    public typealias InboundFlow = DefaultInboundDatagramFlowLinkage
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct DefaultStreamLinkageFamily: StreamLinkageFamily {
+    public typealias Upper = InboundStreamLinkage
+    public typealias Lower = OutboundStreamLinkage
+    public typealias Listener = StreamListenerLinkage
+    public typealias InboundFlow = InboundStreamFlowLinkage
+}
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -44,6 +52,7 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
+        /*
         try reference.fromExternal(state: &reference.context.state) { state throws(NetworkError) in
             switch reference.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -100,6 +109,7 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
             default: fatalError("Protocol cannot accept attachLowerProtocol call")
             }
         }
+         */
     }
 }
 
@@ -164,6 +174,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
         path: PathProperties?
     ) throws(NetworkError) {
         // TODO: TFPDEBUG avoid switching on reference.reference
+        /*
         try reference.handleCallFromUpperProtocol(state: &reference.context.state) { state throws(NetworkError) in
             switch reference.reference {
             case .none: fatalError("Cannot attach to empty protocol")
@@ -206,6 +217,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
         }
+         */
     }
 
     // TODO: TFPDEBUG Remove this one
@@ -219,7 +231,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
 
         // TODO: TFPDEBUG Need to call handleCallFromUpperProtocol, get context
 
-
+/*
         // This is an entry point from outside the stack, so acquire the context state here
         // and thread it inward.
         try reference.attachUpperDatagramProtocol(
@@ -230,6 +242,8 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
             parameters: parameters,
             path: path
         )
+ */
+        return .init(reference: from)
     }
 
     public func invokeReceiveDatagrams(
@@ -237,7 +251,8 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int
     ) throws(NetworkError) -> FrameArray? {
-        try reference.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+//        try reference.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+        return nil
     }
     public func invokeGetDatagramsToSend(
         state: inout NetworkContext.State,
@@ -245,28 +260,110 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
-        try reference.getDatagramsToSend(
-            state: &state,
-            from,
-            maximumDatagramCount: maximumDatagramCount,
-            minimumDatagramSize: minimumDatagramSize
-        )
+//        try reference.getDatagramsToSend(
+//            state: &state,
+//            from,
+//            maximumDatagramCount: maximumDatagramCount,
+//            minimumDatagramSize: minimumDatagramSize
+//        )
+        return nil
     }
     public func invokeSendDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
-        try reference.sendDatagrams(state: &state, from, datagrams: datagrams)
+//        try reference.sendDatagrams(state: &state, from, datagrams: datagrams)
+    }
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
+    public typealias PairedLinkage = DefaultDatagramListenerLinkage
+    public typealias DataLinkage = DefaultOutboundDatagramLinkage
+    private(set) public var reference: ProtocolInstanceReference
+    public init(reference: ProtocolInstanceReference) { self.reference = reference }
+    public init() { self.reference = .init() }
+
+    public func invokeAttachLowerProtocol(
+        _ lowerProtocol: PairedLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        // TODO: TFPDEBUG, concrete calls
+    }
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
+    public typealias PairedLinkage = DefaultInboundDatagramFlowLinkage
+    private(set) public var reference: ProtocolInstanceReference
+    public init(reference: ProtocolInstanceReference) { self.reference = reference }
+    public init() { self.reference = .init() }
+
+    public func invokeAttachUpperProtocol(
+        _ upperProtocol: PairedLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        // TODO: TFPDEBUG, concrete calls
+    }
+
+    public func invokeAttachNewDatagramFlowProtocol(
+        _ from: ProtocolInstanceReference,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) -> Self {
+//        try reference.attachNewDatagramFlowProtocol(
+//            from,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
+        return .init(reference: from)
+    }
+
+    public func invokeAttachUpperDatagramProtocolToNewFlow(
+        _ from: ProtocolInstanceReference,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
+//        try reference.attachUpperDatagramProtocolToNewFlow(
+//            from,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
+        return .init(reference: from)
+    }
+
+    public func invokeAttachUpperDatagramProtocolToExistingFlow(
+        _ from: ProtocolInstanceReference,
+        flowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
+//        try reference.attachUpperDatagramProtocolToExistingFlow(
+//            from,
+//            flowReference: flowReference
+//        )
+        return .init(reference: from)
     }
 }
 
 
 
 
-
-/// Playground
-///
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 open class BaseNetworkProtocolStorage {
@@ -283,6 +380,13 @@ open class BaseNetworkProtocolStorage {
         self.context = context
     }
 
+    public struct BaseDatagramLinkageFamily: DatagramLinkageFamily {
+        public typealias Upper = BaseInboundDatagramLinkage
+        public typealias Lower = BaseOutboundDatagramLinkage
+        public typealias Listener = BaseDatagramListenerLinkage
+        public typealias InboundFlow = BaseInboundDatagramFlowLinkage
+    }
+
     public struct BaseInboundDatagramLinkage: InboundDatagramLinkage {
         public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
 
@@ -290,31 +394,28 @@ open class BaseNetworkProtocolStorage {
         
         public typealias PairedLinkage = BaseOutboundDatagramLinkage
 
-        // TODO: TFPDEBUG REMOVE
+        // TODO: TFPDEBUG Remove this
         public init(reference: ProtocolInstanceReference) {
-            reference2 = .init()
-            storage = .init(context: reference.context)
-            protocolType = .unknown
+            self.reference = reference
+            self.storage = .init(context: .implicitContext)
+            self.protocolType = .unknown
         }
-        public let reference = ProtocolInstanceReference()
 
-        init(reference: ProtocolInstanceReference2, storage: BaseNetworkProtocolStorage, protocolType: ProtocolType) {
-            self.reference2 = reference
+        init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorage, protocolType: ProtocolType) {
+            self.reference = reference
             self.storage = storage
             self.protocolType = protocolType
         }
         
-        let reference2: ProtocolInstanceReference2
+        public let reference: ProtocolInstanceReference
         public let storage: BaseNetworkProtocolStorage
         let protocolType: ProtocolType
 
         public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-            // TODO: TFPDEBUG switch to reference2, include other fields?
             lhs.reference == rhs.reference
         }
 
         public func hash(into hasher: inout Hasher) {
-            // TODO: TFPDEBUG switch to reference2, include other fields?
             hasher.combine(reference)
         }
     }
@@ -326,7 +427,7 @@ open class BaseNetworkProtocolStorage {
 
         // TODO: TFPDEBUG: Is it the responsibility of every "subclass" of linkage to call into handleCallFromUpperProtocol? Can we make that more automatic?
         public func invokeReceiveDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
-            return try reference2.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
+            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
                 switch protocolType {
                 case .udp(let index):
                     return try storage.udpInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
@@ -339,7 +440,7 @@ open class BaseNetworkProtocolStorage {
         }
         
         public func invokeGetDatagramsToSend(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray? {
-            return try reference2.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
+            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
                 switch protocolType {
                 case .udp(let index):
                     return try storage.udpInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
@@ -352,7 +453,7 @@ open class BaseNetworkProtocolStorage {
         }
         
         public func invokeSendDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, datagrams: consuming FrameArray) throws(NetworkError) {
-            try reference2.handleCallFromUpperProtocol(state: &state, datagrams) { state, datagrams throws(NetworkError) in
+            try reference.handleCallFromUpperProtocol(state: &state, datagrams) { state, datagrams throws(NetworkError) in
                 switch protocolType {
                 case .udp(let index):
                     try storage.udpInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
@@ -365,12 +466,12 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func isConnected(state: inout NetworkContext.State) -> Bool {
-            reference2.isConnected(state: &state)
+            reference.isConnected(state: &state)
         }
 
         public func invokeConnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-            guard !reference2.isNone else { return }
-            reference2.handleCallFromUpperProtocol(state: &state) { state in
+            guard !reference.isNone else { return }
+            reference.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].connect(state: &state, from)
                 case .ip(let index): storage.ipInstances[index].connect(state: &state, from)
@@ -380,8 +481,8 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeDisconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError? = nil) {
-            guard !reference2.isNone else { return }
-            reference2.handleCallFromUpperProtocol(state: &state) { state in
+            guard !reference.isNone else { return }
+            reference.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].disconnect(state: &state, from, error: error)
                 case .ip(let index): storage.ipInstances[index].disconnect(state: &state, from, error: error)
@@ -391,8 +492,8 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeDetach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-            guard !reference2.isNone else { return }
-            try reference2.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
+            guard !reference.isNone else { return }
+            try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
                 switch protocolType {
                 case .udp(let index): try storage.udpInstances[index].detach(state: &state, from)
                 case .ip(let index): try storage.ipInstances[index].detach(state: &state, from)
@@ -402,7 +503,7 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
-            reference2.handleCallFromUpperProtocol(state: &state) { state in
+            reference.handleCallFromUpperProtocol(state: &state) { state in
                 switch protocolType {
                 case .udp(let index): storage.udpInstances[index].handleApplicationEvent(state: &state, from, event: event)
                 case .ip(let index): storage.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
@@ -412,7 +513,7 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeGetMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-            return reference2.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
+            return reference.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
                 switch protocolType {
                 case .udp(let index): return storage.udpInstances[index].getMetadata(state: &state, from)
                 case .ip(let index): return storage.ipInstances[index].getMetadata(state: &state, from)
@@ -426,7 +527,7 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference,
             requestedNetworkMetric: RequestedNetworkMetrics
         ) -> NetworkMetrics? {
-            return reference2.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
+            return reference.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
                 switch protocolType {
                 case .udp(let index): return storage.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
                 case .ip(let index): return storage.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
@@ -441,34 +542,88 @@ open class BaseNetworkProtocolStorage {
         
         public typealias PairedLinkage = BaseInboundDatagramLinkage
 
-        // TODO: TFPDEBUG REMOVE
+        // TODO: TFPDEBUG Remove this
         public init(reference: ProtocolInstanceReference) {
-            reference2 = .init()
-            storage = .init(context: reference.context)
-            protocolType = .unknown
+            self.reference = reference
+            self.storage = .init(context: .implicitContext)
+            self.protocolType = .unknown
         }
-        public let reference = ProtocolInstanceReference()
 
-        init(reference: ProtocolInstanceReference2, storage: BaseNetworkProtocolStorage, protocolType: ProtocolType) {
-            self.reference2 = reference
+        init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorage, protocolType: ProtocolType) {
+            self.reference = reference
             self.storage = storage
             self.protocolType = protocolType
         }
 
-        let reference2: ProtocolInstanceReference2
+        public let reference: ProtocolInstanceReference
         public let storage: BaseNetworkProtocolStorage
         let protocolType: ProtocolType
 
         public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-            // TODO: TFPDEBUG switch to reference2, include other fields?
             lhs.reference == rhs.reference
         }
 
         public func hash(into hasher: inout Hasher) {
-            // TODO: TFPDEBUG switch to reference2, include other fields?
             hasher.combine(reference)
         }
     }
+
+    public struct BaseDatagramListenerLinkage: DatagramListenerLinkage {
+        public typealias PairedLinkage = BaseInboundDatagramFlowLinkage
+
+        public let reference: ProtocolInstanceReference
+
+        public init(reference: ProtocolInstanceReference) {
+            self.reference = reference
+        }
+
+        public func invokeAttachUpperProtocol(_ upperProtocol: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+
+        }
+
+        public func invokeAttachUpperDatagramProtocolToNewFlow(
+            _ from: ProtocolInstanceReference,
+            remote: Endpoint?,
+            local: Endpoint?,
+            parameters: Parameters?,
+            path: PathProperties?
+        ) throws(NetworkError) -> PairedLinkage.DataLinkage {
+            throw NetworkError.posix(1)
+        }
+
+        public func invokeAttachNewDatagramFlowProtocol(
+            _ from: ProtocolInstanceReference,
+            remote: Endpoint?,
+            local: Endpoint?,
+            parameters: Parameters?,
+            path: PathProperties?
+        ) throws(NetworkError) -> Self {
+            throw NetworkError.posix(1)
+        }
+
+        public func invokeAttachUpperDatagramProtocolToExistingFlow(
+            _ from: ProtocolInstanceReference,
+            flowReference: ProtocolInstanceReference
+        ) throws(NetworkError) -> PairedLinkage.DataLinkage {
+            throw NetworkError.posix(1)
+        }
+    }
+
+    public struct BaseInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
+        public typealias DataLinkage = BaseOutboundDatagramLinkage
+        public typealias PairedLinkage = BaseDatagramListenerLinkage
+
+        public let reference: ProtocolInstanceReference
+
+        public init(reference: ProtocolInstanceReference) {
+            self.reference = reference
+        }
+
+        public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+
+        }
+    }
+
 
     // TODO: TFPDEBUG Move this to an inner non-copyable struct to avoid taking references
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>>()
@@ -479,7 +634,7 @@ open class BaseNetworkProtocolStorage {
         let instanceIndex = udpInstances.insert(instance)
         udpInstances[instanceIndex].udpInstanceIndex = instanceIndex
 
-        let reference = ProtocolInstanceReference2(context: self.context, eventManager: &udpInstances[instanceIndex].eventManager)
+        let reference = ProtocolInstanceReference(context: self.context, eventManager: &udpInstances[instanceIndex].eventManager)
         let inbound = BaseInboundDatagramLinkage(reference: reference, storage: self, protocolType: .udp(instanceIndex))
         let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .udp(instanceIndex))
 
@@ -495,7 +650,7 @@ open class BaseNetworkProtocolStorage {
         let instanceIndex = ipInstances.insert(instance)
         ipInstances[instanceIndex].ipInstanceIndex = instanceIndex
 
-        let reference = ProtocolInstanceReference2(context: self.context, eventManager: &ipInstances[instanceIndex].eventManager)
+        let reference = ProtocolInstanceReference(context: self.context, eventManager: &ipInstances[instanceIndex].eventManager)
         let inbound = BaseInboundDatagramLinkage(reference: reference, storage: self, protocolType: .ip(instanceIndex))
         let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .ip(instanceIndex))
 

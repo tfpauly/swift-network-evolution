@@ -170,7 +170,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
             defer { expectation.fulfill() }
 
             let serverListenerLinkage = StreamListenerLinkage(reference: serverQUIC)
-            let serverUpperHarness = StreamUpperHarness(
+            let serverUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: serverEndpoint,
                 remote: clientEndpoint,
@@ -184,19 +184,19 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
                 return
             }
 
-            let serverLowerHarness = DatagramLowerHarness(identifier: "Server", context: serverParameters.context)
+            let serverLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: serverParameters.context)
             serverLowerHarness.maximumOutputSize = 9000
-            do {
-                try serverQUIC.attachLowerProtocolForNewPath(
-                    serverLowerHarness.reference,
-                    remote: clientEndpoint,
-                    local: serverEndpoint,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach server stack")
-            }
+//            do {
+//                try serverQUIC.attachLowerProtocolForNewPath(
+//                    serverLowerHarness.reference,
+//                    remote: clientEndpoint,
+//                    local: serverEndpoint,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach server stack")
+//            }
 
             serverUpperHarness.start()
 

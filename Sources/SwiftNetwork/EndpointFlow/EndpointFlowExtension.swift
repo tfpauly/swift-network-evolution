@@ -186,43 +186,43 @@ extension EndpointFlow {
                     )
                     self.flowProtocol = .stream(flow)
 
-                    if case .custom(let linkOptions) = stack.link,
-                        linkOptions.identifier == BridgeDatagramProtocol.identifier
-                    {
-                        let udpReference = UDPProtocol.instance(context: context)
-                        let ipReference = IPProtocol.instance(context: context)
-                        try quicReference.attachLowerDatagramProtocolForNewPath(
-                            udpReference,
-                            remote: effectiveRemoteEndpoint,
-                            local: effectiveLocalEndpoint,
-                            parameters: self.parameters,
-                            path: path
-                        )
-                        try udpReference.attachLowerDatagramProtocol(
-                            ipReference,
-                            remote: effectiveRemoteEndpoint,
-                            local: effectiveLocalEndpoint,
-                            parameters: self.parameters,
-                            path: path
-                        )
-                        let reference = BridgeDatagramProtocol.instance(context: context)
-                        try ipReference.attachLowerDatagramProtocol(
-                            reference,
-                            remote: effectiveRemoteEndpoint,
-                            local: effectiveLocalEndpoint,
-                            parameters: self.parameters,
-                            path: path
-                        )
-                    } else {
-                        let socketReference = SocketDatagramProtocol.instance(context: context)
-                        try quicReference.attachLowerDatagramProtocolForNewPath(
-                            socketReference,
-                            remote: effectiveRemoteEndpoint,
-                            local: effectiveLocalEndpoint,
-                            parameters: self.parameters,
-                            path: path
-                        )
-                    }
+//                    if case .custom(let linkOptions) = stack.link,
+//                        linkOptions.identifier == BridgeDatagramProtocol.identifier
+//                    {
+//                        let udpReference = UDPProtocol.instance(context: context)
+//                        let ipReference = IPProtocol.instance(context: context)
+//                        try quicReference.attachLowerDatagramProtocolForNewPath(
+//                            udpReference,
+//                            remote: effectiveRemoteEndpoint,
+//                            local: effectiveLocalEndpoint,
+//                            parameters: self.parameters,
+//                            path: path
+//                        )
+//                        try udpReference.attachLowerDatagramProtocol(
+//                            ipReference,
+//                            remote: effectiveRemoteEndpoint,
+//                            local: effectiveLocalEndpoint,
+//                            parameters: self.parameters,
+//                            path: path
+//                        )
+//                        let reference = BridgeDatagramProtocol.instance(context: context)
+//                        try ipReference.attachLowerDatagramProtocol(
+//                            reference,
+//                            remote: effectiveRemoteEndpoint,
+//                            local: effectiveLocalEndpoint,
+//                            parameters: self.parameters,
+//                            path: path
+//                        )
+//                    } else {
+//                        let socketReference = SocketDatagramProtocol.instance(context: context)
+//                        try quicReference.attachLowerDatagramProtocolForNewPath(
+//                            socketReference,
+//                            remote: effectiveRemoteEndpoint,
+//                            local: effectiveLocalEndpoint,
+//                            parameters: self.parameters,
+//                            path: path
+//                        )
+//                    }
                 #endif
                 default:
                     Logger.connection.error("Unsupported transport protocol")
@@ -284,27 +284,27 @@ extension EndpointFlow {
                             protocolLogIDNumber: Int(self.identifier)
                         )
                         if let link = stack.link {
-                            switch link {
-                            case .custom(let options):
-                                // TODO: It'd be nice if we could do this w/o checking for specific protocols here,
-                                // but we're not there quite yet
-                                if options.identifier == BridgeStreamProtocol.identifier {
-                                    let bridgeReference = BridgeStreamProtocol.instance(context: context)
-                                    try reference.attachLowerStreamProtocol(
-                                        bridgeReference,
-                                        remote: effectiveRemoteEndpoint,
-                                        local: effectiveLocalEndpoint,
-                                        parameters: self.parameters,
-                                        path: path
-                                    )
-                                } else {
-                                    Logger.connection.error("Unknown link protocol")
-                                    throw NetworkError.posix(EINVAL)
-                                }
-                            default:
-                                Logger.connection.error("Unknown link protocol")
-                                throw NetworkError.posix(EINVAL)
-                            }
+//                            switch link {
+//                            case .custom(let options):
+//                                // TODO: It'd be nice if we could do this w/o checking for specific protocols here,
+//                                // but we're not there quite yet
+//                                if options.identifier == BridgeStreamProtocol.identifier {
+//                                    let bridgeReference = BridgeStreamProtocol.instance(context: context)
+//                                    try reference.attachLowerStreamProtocol(
+//                                        bridgeReference,
+//                                        remote: effectiveRemoteEndpoint,
+//                                        local: effectiveLocalEndpoint,
+//                                        parameters: self.parameters,
+//                                        path: path
+//                                    )
+//                                } else {
+//                                    Logger.connection.error("Unknown link protocol")
+//                                    throw NetworkError.posix(EINVAL)
+//                                }
+//                            default:
+//                                Logger.connection.error("Unknown link protocol")
+//                                throw NetworkError.posix(EINVAL)
+//                            }
                         }
                     default:
                         Logger.connection.error("Unsupported application protocol")

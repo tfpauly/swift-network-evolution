@@ -264,7 +264,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init(tls: self)
+            self.reference = .init()
         }
 
         func setup(
@@ -448,8 +448,8 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                     // The context comes from parentInstance, so the reference can only be
                     // built once a parent has been assigned.
                     guard let parentInstance else { return }
-                    reference = .init(tlsEncryptionLevel: self)
-                    reference.parentReference = parentInstance.handle.reference
+                    reference = .init()
+                    reference.setParentReference(parentInstance.handle.reference)
                 }
             }
             public var context: NetworkContext { parentInstance!.handle.context }

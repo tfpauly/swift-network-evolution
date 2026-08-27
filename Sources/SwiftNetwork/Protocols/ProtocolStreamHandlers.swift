@@ -294,6 +294,7 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable, Self: OutboundSt
     }
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func receiveStreamData(
@@ -520,3 +521,4 @@ extension ProtocolInstanceReference {
         }
     }
 }
+*/

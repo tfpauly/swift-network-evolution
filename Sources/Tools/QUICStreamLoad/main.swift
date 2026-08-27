@@ -71,9 +71,9 @@ final class QUICStreamLoad {
         var handshakeDuration = NetworkDuration.zero
         var streamRoundTripDurations = [NetworkDuration]()
 
-        var clientInput: NewStreamFlowHarness? = nil
+        var clientInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
         var clientListenerLinkage: StreamListenerLinkage? = nil
-        var serverInput: NewStreamFlowHarness? = nil
+        var serverInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
 
         group.enter()
         var clientParameters = Parameters()
@@ -128,7 +128,7 @@ final class QUICStreamLoad {
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
             clientListenerLinkage = StreamListenerLinkage(reference: clientQUIC)
-            clientInput = NewStreamFlowHarness(
+            clientInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: ipv4Client,
                 remote: ipv4Server,
@@ -142,33 +142,33 @@ final class QUICStreamLoad {
                 return
             }
 
-            do {
-                try clientQUIC.attachLowerDatagramProtocolForNewPath(
-                    clientUDP,
-                    remote: ipv4Server,
-                    local: ipv4Client,
-                    parameters: clientParameters,
-                    path: path
-                )
-                try clientUDP.attachLowerDatagramProtocol(
-                    clientIP,
-                    remote: ipv4Server,
-                    local: ipv4Client,
-                    parameters: clientParameters,
-                    path: path
-                )
-                try clientIP.attachLowerDatagramProtocol(
-                    clientOutput,
-                    remote: ipv4Server,
-                    local: ipv4Client,
-                    parameters: clientParameters,
-                    path: path
-                )
-            } catch {
-                loggingHandle.log("Failed to attach client IP to lower protocol")
-                group.leave()
-                return
-            }
+//            do {
+//                try clientQUIC.attachLowerDatagramProtocolForNewPath(
+//                    clientUDP,
+//                    remote: ipv4Server,
+//                    local: ipv4Client,
+//                    parameters: clientParameters,
+//                    path: path
+//                )
+//                try clientUDP.attachLowerDatagramProtocol(
+//                    clientIP,
+//                    remote: ipv4Server,
+//                    local: ipv4Client,
+//                    parameters: clientParameters,
+//                    path: path
+//                )
+//                try clientIP.attachLowerDatagramProtocol(
+//                    clientOutput,
+//                    remote: ipv4Server,
+//                    local: ipv4Client,
+//                    parameters: clientParameters,
+//                    path: path
+//                )
+//            } catch {
+//                loggingHandle.log("Failed to attach client IP to lower protocol")
+//                group.leave()
+//                return
+//            }
             // Server
             let serverIP = IPProtocol.instance(context: clientParameters.context)
             let serverIPOptions = IPProtocol.options()
@@ -204,7 +204,7 @@ final class QUICStreamLoad {
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
             let serverListenerLinkage = StreamListenerLinkage(reference: serverQUIC)
-            serverInput = NewStreamFlowHarness(
+            serverInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: ipv4Server,
                 remote: ipv4Client,
@@ -218,34 +218,34 @@ final class QUICStreamLoad {
                 return
             }
 
-            do {
-                try serverQUIC.attachLowerDatagramProtocolForNewPath(
-                    serverUDP,
-                    remote: ipv4Client,
-                    local: ipv4Server,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-
-                try serverUDP.attachLowerDatagramProtocol(
-                    serverIP,
-                    remote: ipv4Client,
-                    local: ipv4Server,
-                    parameters: clientParameters,
-                    path: path
-                )
-                try serverIP.attachLowerDatagramProtocol(
-                    serverOutput,
-                    remote: ipv4Client,
-                    local: ipv4Server,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-            } catch {
-                loggingHandle.log("Failed to attach server IP to lower protocol")
-                group.leave()
-                return
-            }
+//            do {
+//                try serverQUIC.attachLowerDatagramProtocolForNewPath(
+//                    serverUDP,
+//                    remote: ipv4Client,
+//                    local: ipv4Server,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//
+//                try serverUDP.attachLowerDatagramProtocol(
+//                    serverIP,
+//                    remote: ipv4Client,
+//                    local: ipv4Server,
+//                    parameters: clientParameters,
+//                    path: path
+//                )
+//                try serverIP.attachLowerDatagramProtocol(
+//                    serverOutput,
+//                    remote: ipv4Client,
+//                    local: ipv4Server,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//            } catch {
+//                loggingHandle.log("Failed to attach server IP to lower protocol")
+//                group.leave()
+//                return
+//            }
             serverInput.start { connected in
                 handshakeDuration = handshakeStart.duration(to: .now)
                 group.leave()
@@ -273,7 +273,7 @@ final class QUICStreamLoad {
             let streamStart = NetworkClock.Instant.now
 
             let myIndex = index
-            let clientStream = StreamUpperHarness(
+            let clientStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client\(myIndex)",
                 local: ipv4Client,
                 remote: ipv4Server,
@@ -289,7 +289,7 @@ final class QUICStreamLoad {
 
             clientStream.start()
 
-            var serverStreamToTeardown: StreamUpperHarness? = nil
+            var serverStreamToTeardown: StreamUpperHarness<DefaultStreamLinkageFamily>? = nil
 
             // Get new server stream
             serverInput.waitForNewFlow {

@@ -12,8 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+@_spi(Essentials)
 @available(Network 0.1.0, *)
-struct ProtocolInstanceReference2: Hashable {
+public struct ProtocolInstanceReference: Hashable {
 
     let eventStateIndex: NetworkStateIndex?
 
@@ -28,282 +29,19 @@ struct ProtocolInstanceReference2: Hashable {
         protocolEventStateIndex()
     }
 
-    mutating func setParentReference(_ parentReference: ProtocolInstanceReference2) {
+    public mutating func setParentReference(_ parentReference: ProtocolInstanceReference) {
         parentEventStateIndex = parentReference.eventStateIndex
     }
 
-    init() {
+    public init() {
         eventStateIndex = nil
     }
 
-    init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
+    public init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
         self.eventStateIndex = eventManager.register(with: context, state: &context.state)
     }
 
-    var isNone: Bool {
+    public var isNone: Bool {
         eventStateIndex == nil
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct ProtocolInstanceReference: Hashable {
-
-    // TODO: Make this a tuple of Protocol Definition Index and Protocol Instance Index
-    // TODO: Definitions get registered on the context; they are themselves static lets
-    // TODO: Or it is a ProtocolIdentifier index, and the identifier is registered, since that isn't as strongly typed.
-    // TODO: Then how do we go from that to the actual calls? Those are on the linkages, and the linkages know the real types.
-
-    // TODO: Who holds the arrays of protocols? Can be per context or global
-    /*
-    let protocolInstanceIndex: NetworkStateIndex
-*/
-    enum _ProtocolInstanceReference {
-        case none
-        case udp(_ instance: NetworkStateIndex)
-        case ip(_ instance: NetworkStateIndex)
-        case tcp(_ instance: TCPProtocol.Instance)
-        case tls(_ instance: SwiftTLSProtocol.Instance)
-        case streamEndpointFlow(_ instance: StreamEndpointFlowProtocol)
-        case datagramEndpointFlow(_ instance: DatagramEndpointFlowProtocol)
-
-        case tlsEncryptionLevel(_ instance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance.EncryptionLevelHandler)
-        #if !NETWORK_NO_SWIFT_QUIC
-        case quic(_ instance: QUICProtocol.Instance)
-        case quicStream(_ instance: QUICStreamInstance)
-        case quicDatagram(_ instance: QUICDatagramFlow)
-        case quicPath(_ instance: QUICPath)
-        case quicCrypto(_ instance: QUICCrypto)
-        #endif
-        #if !NETWORK_NO_TESTING_HARNESS
-        case streamUpperHarness(_ instance: StreamUpperHarness)
-        case datagramUpperHarness(_ instance: DatagramUpperHarness)
-        case datagramLowerHarness(_ instance: DatagramLowerHarness)
-        case streamLowerHarness(_ instance: StreamLowerHarness)
-        case newStreamFlowHarness(_ instance: NewStreamFlowHarness)
-        case newDatagramFlowHarness(_ instance: NewDatagramFlowHarness)
-        #endif
-        #if !NETWORK_EMBEDDED
-        case custom(container: any ProtocolInstanceContainer, index: Int?)
-        #endif
-    }
-
-    public static func == (lhs: ProtocolInstanceReference, rhs: ProtocolInstanceReference) -> Bool {
-        (lhs._protocolEventStateIndex == rhs._protocolEventStateIndex
-            && lhs._parentProtocolEventStateIndex == rhs._parentProtocolEventStateIndex)
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        if let _protocolEventStateIndex {
-            hasher.combine(_protocolEventStateIndex)
-        }
-        if let _parentProtocolEventStateIndex {
-            hasher.combine(_parentProtocolEventStateIndex)
-        }
-    }
-
-    let reference: _ProtocolInstanceReference
-    var context: NetworkContext
-
-    let _protocolEventStateIndex: NetworkStateIndex?
-
-    func protocolEventStateIndex(allowParent: Bool = true) -> NetworkStateIndex? {
-        if let _parentProtocolEventStateIndex { return _parentProtocolEventStateIndex }
-        return _protocolEventStateIndex
-    }
-
-    var protocolEventStateIndex: NetworkStateIndex? {
-        protocolEventStateIndex()
-    }
-
-    var _parentReference: _ProtocolInstanceReference?
-    var _parentProtocolEventStateIndex: NetworkStateIndex?
-
-    var parentReference: ProtocolInstanceReference? {
-        get {
-            guard let _parentReference else { return nil }
-            return ProtocolInstanceReference(_parentReference, context, _parentProtocolEventStateIndex)
-        }
-        set {
-            _parentReference = newValue?.reference
-            _parentProtocolEventStateIndex = newValue?._protocolEventStateIndex
-        }
-    }
-
-    private init(
-        _ reference: _ProtocolInstanceReference,
-        _ context: NetworkContext,
-        _ protocolEventStateIndex: NetworkStateIndex?,
-    ) {
-        self.reference = reference
-        self.context = context
-        self._protocolEventStateIndex = protocolEventStateIndex
-    }
-
-    public init() {
-        self.reference = .none
-        self.context = NetworkContext.implicitContext
-        self._protocolEventStateIndex = nil
-    }
-
-    init(tcp instance: TCPProtocol.Instance) {
-        self.reference = .tcp(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(udpIndex: NetworkStateIndex, state: inout NetworkContext.State) {
-        guard let index = state.udpInstances[udpIndex].udpInstanceIndex else {
-            self = .init()
-            return
-        }
-        self.reference = .udp(index)
-        self.context = state.udpInstances[udpIndex].context
-        if let contextIndex = state.udpInstances[udpIndex].eventManager.contextIndex {
-            self._protocolEventStateIndex = contextIndex
-        } else {
-            let registeredIndex = state.registerProtocolEventState()
-            state.udpInstances[udpIndex].eventManager.context = self.context
-            state.udpInstances[udpIndex].eventManager.contextIndex = registeredIndex
-            self._protocolEventStateIndex = registeredIndex
-        }
-    }
-
-    init(ipIndex: NetworkStateIndex, state: inout NetworkContext.State) {
-        guard let index = state.ipInstances[ipIndex].ipInstanceIndex else {
-            self = .init()
-            return
-        }
-        self.reference = .ip(index)
-        self.context = state.ipInstances[ipIndex].context
-        if let contextIndex = state.ipInstances[ipIndex].eventManager.contextIndex {
-            self._protocolEventStateIndex = contextIndex
-        } else {
-            let registeredIndex = state.registerProtocolEventState()
-            state.ipInstances[ipIndex].eventManager.context = self.context
-            state.ipInstances[ipIndex].eventManager.contextIndex = registeredIndex
-            self._protocolEventStateIndex = registeredIndex
-        }
-    }
-
-    init(tls instance: SwiftTLSProtocol.Instance) {
-        self.reference = .tls(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(tlsEncryptionLevel instance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance.EncryptionLevelHandler) {
-        self.reference = .tlsEncryptionLevel(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(streamEndpointFlow instance: StreamEndpointFlowProtocol) {
-        self.reference = .streamEndpointFlow(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(datagramEndpointFlow instance: DatagramEndpointFlowProtocol) {
-        self.reference = .datagramEndpointFlow(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    #if !NETWORK_NO_SWIFT_QUIC
-    init(quic instance: QUICProtocol.Instance) {
-        self.reference = .quic(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(quicStream instance: QUICStreamInstance) {
-        self.reference = .quicStream(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(quicDatagram instance: QUICDatagramFlow) {
-        self.reference = .quicDatagram(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(quicPath instance: QUICPath) {
-        self.reference = .quicPath(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(quicCrypto instance: QUICCrypto) {
-        self.reference = .quicCrypto(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-    #endif
-
-    #if !NETWORK_NO_TESTING_HARNESS
-    init(streamUpperHarness instance: StreamUpperHarness) {
-        self.reference = .streamUpperHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(datagramUpperHarness instance: DatagramUpperHarness) {
-        self.reference = .datagramUpperHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(datagramLowerHarness instance: DatagramLowerHarness) {
-        self.reference = .datagramLowerHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(streamLowerHarness instance: StreamLowerHarness) {
-        self.reference = .streamLowerHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(newStreamFlowHarness instance: NewStreamFlowHarness) {
-        self.reference = .newStreamFlowHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-
-    init(newDatagramFlowHarness instance: NewDatagramFlowHarness) {
-        self.reference = .newDatagramFlowHarness(instance)
-        self.context = instance.context
-        self._protocolEventStateIndex = instance.eventManager.register(with: self.context, state: &self.context.state)
-    }
-    #endif
-
-    #if !NETWORK_EMBEDDED
-    public init(custom container: any ProtocolInstanceContainer, index: Int? = nil) {
-        self.reference = .custom(container: container, index: index)
-        var context = NetworkContext.implicitContext
-        var eventStateIndex: NetworkStateIndex? = nil
-        container.accessInstance(at: index) { instance in
-            context = instance.context
-            eventStateIndex = instance.eventManager.register(with: instance.context, state: &instance.context.state)
-        }
-        self.context = context
-        self._protocolEventStateIndex = eventStateIndex
-    }
-    #else
-    public init(custom: AnyObject, index: Int? = nil) {
-        self.reference = .none
-        self.context = NetworkContext.implicitContext
-        self._protocolEventStateIndex = nil
-    }
-    #endif
-
-    var isNone: Bool {
-        switch self.reference {
-        case .none: return true
-        default: return false
-        }
     }
 }

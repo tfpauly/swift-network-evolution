@@ -190,7 +190,7 @@ public struct DemuxProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init(custom: self)
+            self.reference = .init()
         }
         public var reference = ProtocolInstanceReference()
         public var log = NetworkLoggerState()
@@ -332,14 +332,14 @@ public struct DemuxProtocol: NetworkProtocol {
             guard lower.isDetached else {
                 throw NetworkError.posix(EALREADY)
             }
-            self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-                state: &state,
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
+//            self.lower = try lowerProtocol.attachUpperDatagramProtocol(
+//                state: &state,
+//                reference,
+//                remote: remote,
+//                local: local,
+//                parameters: parameters,
+//                path: path
+//            )
         }
 
         func addInboundDatagram(_ datagram: consuming Frame) -> Int? {

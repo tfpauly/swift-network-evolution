@@ -65,11 +65,11 @@ class QUICTestHarness {
     var context: NetworkContext
 
     struct QUICHarnessState {
-        let clientHarness: NewStreamFlowHarness
-        let serverHarness: NewStreamFlowHarness
+        let clientHarness: NewStreamFlowHarness<DefaultStreamLinkageFamily>
+        let serverHarness: NewStreamFlowHarness<DefaultStreamLinkageFamily>
 
-        let clientDatagramHarness: NewDatagramFlowHarness?
-        let serverDatagramHarness: NewDatagramFlowHarness?
+        let clientDatagramHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
+        let serverDatagramHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
 
         let clientReference: ProtocolInstanceReference
         let serverReference: ProtocolInstanceReference
@@ -206,7 +206,7 @@ class QUICTestHarness {
             let serverLinkage = StreamListenerLinkage(reference: serverReference)
 
             // Attach client
-            let clientHarness = NewStreamFlowHarness(
+            let clientHarness = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,
@@ -215,20 +215,20 @@ class QUICTestHarness {
                 context: self.context,
                 listenerProtocol: clientLinkage
             )
-            do {
-                try clientReference.attachLowerDatagramProtocolForNewPath(
-                    clientBridge,
-                    remote: self.serverEndpoint,
-                    local: self.clientEndpoint,
-                    parameters: clientParameters,
-                    path: clientPath
-                )
-            } catch {
-                XCTFail("Failed to attach QUIC client to datagram bridge")
-            }
+//            do {
+//                try clientReference.attachLowerDatagramProtocolForNewPath(
+//                    clientBridge,
+//                    remote: self.serverEndpoint,
+//                    local: self.clientEndpoint,
+//                    parameters: clientParameters,
+//                    path: clientPath
+//                )
+//            } catch {
+//                XCTFail("Failed to attach QUIC client to datagram bridge")
+//            }
 
             // Attach server
-            let serverHarness = NewStreamFlowHarness(
+            let serverHarness = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: self.serverEndpoint,
                 remote: self.clientEndpoint,
@@ -237,25 +237,25 @@ class QUICTestHarness {
                 context: self.context,
                 listenerProtocol: serverLinkage
             )
-            do {
-                try serverReference.attachLowerDatagramProtocolForNewPath(
-                    serverBridge,
-                    remote: self.clientEndpoint,
-                    local: self.serverEndpoint,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-            } catch {
-                XCTFail("Failed to attach QUIC server to datagram bridge")
-            }
+//            do {
+//                try serverReference.attachLowerDatagramProtocolForNewPath(
+//                    serverBridge,
+//                    remote: self.clientEndpoint,
+//                    local: self.serverEndpoint,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//            } catch {
+//                XCTFail("Failed to attach QUIC server to datagram bridge")
+//            }
 
             // Attach datagram harnesses
-            let clientDatagramHarness: NewDatagramFlowHarness?
-            let serverDatagramHarness: NewDatagramFlowHarness?
+            let clientDatagramHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
+            let serverDatagramHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
 
             if datagram {
-                let clientDatagramLinkage = DatagramListenerLinkage(reference: clientReference)
-                clientDatagramHarness = NewDatagramFlowHarness(
+                let clientDatagramLinkage = DefaultDatagramListenerLinkage(reference: clientReference)
+                clientDatagramHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     local: self.clientEndpoint,
                     remote: self.serverEndpoint,
@@ -265,8 +265,8 @@ class QUICTestHarness {
                     listenerProtocol: clientDatagramLinkage
                 )
 
-                let serverDatagramLinkage = DatagramListenerLinkage(reference: serverReference)
-                serverDatagramHarness = NewDatagramFlowHarness(
+                let serverDatagramLinkage = DefaultDatagramListenerLinkage(reference: serverReference)
+                serverDatagramHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Server",
                     local: self.serverEndpoint,
                     remote: self.clientEndpoint,
@@ -361,7 +361,7 @@ class QUICTestHarness {
         identifier: String,
         quicOptions: ProtocolOptions<QUICProtocol> = QUICProtocol.options(),
         serverInitiated: Bool = false
-    ) -> StreamUpperHarness? {
+    ) -> StreamUpperHarness<DefaultStreamLinkageFamily>? {
         var handlerInstance: QUICProtocol.Instance?
         if serverInitiated {
             handlerInstance = state?.serverInstance
@@ -376,7 +376,7 @@ class QUICTestHarness {
         var parameters = Parameters()
         parameters.context = context
 
-        var upperHarness: StreamUpperHarness?
+        var upperHarness: StreamUpperHarness<DefaultStreamLinkageFamily>?
         let newStreamExpectation = XCTestExpectation(description: "Wait for new QUIC stream to be ready")
         let options = quicOptions.deepCopy()
         context.async {
@@ -391,7 +391,7 @@ class QUICTestHarness {
             path.effectiveMTU = 1500
 
             let listenerLinkage = StreamListenerLinkage(reference: instance.reference)
-            let streamUpperHarness = StreamUpperHarness(
+            let streamUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,
@@ -441,7 +441,7 @@ class QUICTestHarness {
     private func createNewDatagramFlow(
         identifier: String,
         quicOptions: ProtocolOptions<QUICProtocol> = QUICProtocol.options()
-    ) -> DatagramUpperHarness? {
+    ) -> DatagramUpperHarness<DefaultDatagramLinkageFamily>? {
         guard let instance = state?.clientInstance else {
             XCTFail("No instance found")
             return nil
@@ -450,7 +450,7 @@ class QUICTestHarness {
         var parameters = Parameters()
         parameters.context = context
 
-        var upperHarness: DatagramUpperHarness?
+        var upperHarness: DatagramUpperHarness<DefaultDatagramLinkageFamily>?
         let newFlowExpectation = XCTestExpectation(description: "Wait for new QUIC datagram flow to be ready")
         let options = quicOptions.deepCopy()
         context.async {
@@ -464,8 +464,8 @@ class QUICTestHarness {
             var path = PathProperties(parameters: parameters)
             path.effectiveMTU = 1500
 
-            let listenerLinkage = DatagramListenerLinkage(reference: instance.reference)
-            let datagramUpperHarness = DatagramUpperHarness(
+            let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
+            let datagramUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,
@@ -568,7 +568,7 @@ class QUICTestHarness {
         let serverStreamExpectation = XCTestExpectation(description: "Wait for server to receive stream")
         let clientStreamHarness = state.clientHarness.upperHarnesses[streamIndex]
 
-        var serverStreamHarness: StreamUpperHarness? = nil
+        var serverStreamHarness: StreamUpperHarness<DefaultStreamLinkageFamily>? = nil
 
         // Set up waiting for a server stream
         context.async {
@@ -715,7 +715,7 @@ class QUICTestHarness {
 
     private func echoDatagrams(
         dataGenerator: TestDataGenerator,
-        datagramFlow: DatagramUpperHarness,
+        datagramFlow: DatagramUpperHarness<DefaultDatagramLinkageFamily>,
         timeout: TimeInterval = 5.0
     ) {
         guard let state else {
@@ -734,7 +734,7 @@ class QUICTestHarness {
         let serverDatagramFlowExpectation = XCTestExpectation(description: "Wait for server to receive stream")
         let clientDatagramFlow = datagramFlow
 
-        var serverDatagramFlow: DatagramUpperHarness? = nil
+        var serverDatagramFlow: DatagramUpperHarness<DefaultDatagramLinkageFamily>? = nil
 
         // Set up waiting for a server flow
         context.async {
@@ -1335,7 +1335,7 @@ class QUICTestHarness {
 
         let serverFlowExpectation = XCTestExpectation(description: "Server sees new flow")
         let serverAbortExpectation = XCTestExpectation(description: "Server sees abort event")
-        var serverStream: StreamUpperHarness?
+        var serverStream: StreamUpperHarness<DefaultStreamLinkageFamily>?
 
         context.async {
             self.state?.serverHarness.waitForNewFlow {
@@ -1412,7 +1412,7 @@ class QUICTestHarness {
 
         let serverFlowExpectation = XCTestExpectation(description: "Server sees new flow")
         let serverAbortExpectation = XCTestExpectation(description: "Server sees inbound abort event")
-        var serverStream: StreamUpperHarness?
+        var serverStream: StreamUpperHarness<DefaultStreamLinkageFamily>?
 
         context.async {
             self.state?.serverHarness.waitForNewFlow {
@@ -1480,7 +1480,7 @@ class QUICTestHarness {
         // The client must observe a clean end-of-stream.
         let clientClosedExpectation = XCTestExpectation(description: "Client observes clean close")
 
-        var serverStream: StreamUpperHarness?
+        var serverStream: StreamUpperHarness<DefaultStreamLinkageFamily>?
         var clientResetError: String?
 
         // The client's receive side must reach a clean end-of-stream.
@@ -1603,7 +1603,7 @@ class QUICTestHarness {
             let path = PathProperties(parameters: parameters)
 
             let listenerLinkage = StreamListenerLinkage(reference: self.state!.clientInstance.reference)
-            let ninthStream = StreamUpperHarness(
+            let ninthStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,

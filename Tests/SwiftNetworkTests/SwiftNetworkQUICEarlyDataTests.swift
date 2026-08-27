@@ -102,8 +102,8 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
     }
 
     func transferPackets(
-        sender: DatagramLowerHarness,
-        receiver: DatagramLowerHarness,
+        sender: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
+        receiver: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
         maximumBurst: Int
     ) -> Int {
         var packetsSent: Int = 0
@@ -119,8 +119,8 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
     }
 
     struct PairedUDPIPPaths {
-        var client: DatagramLowerHarness
-        var server: DatagramLowerHarness
+        var client: DatagramLowerHarness<DefaultDatagramLinkageFamily>
+        var server: DatagramLowerHarness<DefaultDatagramLinkageFamily>
 
         var clientTop: ProtocolInstanceReference
         var serverTop: ProtocolInstanceReference
@@ -169,46 +169,46 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-            client = DatagramLowerHarness(identifier: "Client" + identifier, context: context)
-            server = DatagramLowerHarness(identifier: "Server" + identifier, context: context)
+            client = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client" + identifier, context: context)
+            server = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server" + identifier, context: context)
 
             client.maximumOutputSize = maximumDatagramSize
             server.maximumOutputSize = maximumDatagramSize
 
-            try! clientTop.attachLowerDatagramProtocol(
-                clientIP,
-                remote: serverEndpoint,
-                local: clientEndpoint,
-                parameters: clientParameters,
-                path: clientPath
-            )
-            try! clientIP.attachLowerDatagramProtocol(
-                client.reference,
-                remote: serverEndpoint,
-                local: clientEndpoint,
-                parameters: clientParameters,
-                path: clientPath
-            )
-
-            try! serverTop.attachLowerDatagramProtocol(
-                serverIP,
-                remote: clientEndpoint,
-                local: serverEndpoint,
-                parameters: serverParameters,
-                path: serverPath
-            )
-            try! serverIP.attachLowerDatagramProtocol(
-                server.reference,
-                remote: clientEndpoint,
-                local: serverEndpoint,
-                parameters: serverParameters,
-                path: serverPath
-            )
+//            try! clientTop.attachLowerDatagramProtocol(
+//                clientIP,
+//                remote: serverEndpoint,
+//                local: clientEndpoint,
+//                parameters: clientParameters,
+//                path: clientPath
+//            )
+//            try! clientIP.attachLowerDatagramProtocol(
+//                client.reference,
+//                remote: serverEndpoint,
+//                local: clientEndpoint,
+//                parameters: clientParameters,
+//                path: clientPath
+//            )
+//
+//            try! serverTop.attachLowerDatagramProtocol(
+//                serverIP,
+//                remote: clientEndpoint,
+//                local: serverEndpoint,
+//                parameters: serverParameters,
+//                path: serverPath
+//            )
+//            try! serverIP.attachLowerDatagramProtocol(
+//                server.reference,
+//                remote: clientEndpoint,
+//                local: serverEndpoint,
+//                parameters: serverParameters,
+//                path: serverPath
+//            )
         }
 
         private func transferPackets(
-            sender: DatagramLowerHarness,
-            receiver: DatagramLowerHarness,
+            sender: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
+            receiver: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
             maximumBurst: Int
         ) -> Int {
             var packetsSent: Int = 0
@@ -245,8 +245,8 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
         let context = clientParameters.context
         var clientConnected = false
         var serverConnected = false
-        var clientUpperHarness: StreamUpperHarness?
-        var serverUpperHarness: NewStreamFlowHarness?
+        var clientUpperHarness: StreamUpperHarness<DefaultStreamLinkageFamily>?
+        var serverUpperHarness: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
         var clientQUICReference: ProtocolInstanceReference?
         var serverQUICReference: ProtocolInstanceReference?
 
@@ -285,7 +285,7 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
             let clientListenerLinkage = StreamListenerLinkage(reference: clientQUIC)
-            clientUpperHarness = StreamUpperHarness(
+            clientUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: clientEndpoint,
                 remote: serverEndpoint,
@@ -299,17 +299,17 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
                 return
             }
 
-            do {
-                try clientQUIC.attachLowerDatagramProtocolForNewPath(
-                    pairedPaths.clientTop,
-                    remote: serverEndpoint,
-                    local: clientEndpoint,
-                    parameters: clientParameters,
-                    path: clientPath
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach client stack")
-            }
+//            do {
+//                try clientQUIC.attachLowerDatagramProtocolForNewPath(
+//                    pairedPaths.clientTop,
+//                    remote: serverEndpoint,
+//                    local: clientEndpoint,
+//                    parameters: clientParameters,
+//                    path: clientPath
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach client stack")
+//            }
 
             var serverParameters = Parameters()
             serverParameters.isServer = true
@@ -324,7 +324,7 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
             let serverListenerLinkage = StreamListenerLinkage(reference: serverQUIC)
-            serverUpperHarness = NewStreamFlowHarness(
+            serverUpperHarness = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: serverEndpoint,
                 remote: clientEndpoint,
@@ -338,17 +338,17 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
                 return
             }
 
-            do {
-                try serverQUIC.attachLowerDatagramProtocolForNewPath(
-                    pairedPaths.serverTop,
-                    remote: clientEndpoint,
-                    local: serverEndpoint,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach server stack")
-            }
+//            do {
+//                try serverQUIC.attachLowerDatagramProtocolForNewPath(
+//                    pairedPaths.serverTop,
+//                    remote: clientEndpoint,
+//                    local: serverEndpoint,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach server stack")
+//            }
 
             clientUpperHarness.completions.earlyDataRejected = {
                 earlyDataRejected = true

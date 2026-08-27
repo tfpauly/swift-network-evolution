@@ -752,14 +752,14 @@ extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: Outbound
             passthroughEvents = false
         }
         // TODO: TFPDEBUG
-        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-            state: &state,
-            effectiveSelfReference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        ) as! Self.LowerProtocol
+//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
+//            state: &state,
+//            effectiveSelfReference,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        ) as! Self.LowerProtocol
     }
 
     public func invokeReceiveDatagrams(
@@ -852,13 +852,13 @@ extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol == Outbou
             // If the upper is detached at the time of attaching the lower, don't pass through events
             passthroughEvents = false
         }
-        self.lower = try lowerProtocol.attachUpperStreamProtocol(
-            effectiveSelfReference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        self.lower = try lowerProtocol.attachUpperStreamProtocol(
+//            effectiveSelfReference,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 
     public mutating func attachLowerStreamProtocolToExistingFlow(

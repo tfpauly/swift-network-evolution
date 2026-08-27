@@ -150,10 +150,11 @@ final class Timer: PrefixedLoggable {
             // reference's own context here rather than threading it through every QUIC
             // timer call site.
             if let reference {
-                reference.unscheduleWakeup(
-                    state: &reference.context.state,
-                    timerReference: timerReference
-                )
+                // TODO: TFPDEBUG fix
+//                reference.unscheduleWakeup(
+//                    state: &reference.context.state,
+//                    timerReference: timerReference
+//                )
             }
         }
         if final {
@@ -227,11 +228,13 @@ final class Timer: PrefixedLoggable {
             "arming timer for the next \(delta) (now \(now)), new deadline \(nextDeadline) old deadline \(oldDeadline)"
         )
         if let reference {
-            reference.scheduleWakeup(
-                state: &reference.context.state,
-                milliseconds: UInt64(delta.milliseconds),
-                timerReference: timerReference
-            )
+            // TODO: TFPDEBUG fix
+
+//            reference.scheduleWakeup(
+//                state: &reference.context.state,
+//                milliseconds: UInt64(delta.milliseconds),
+//                timerReference: timerReference
+//            )
         }
     }
 

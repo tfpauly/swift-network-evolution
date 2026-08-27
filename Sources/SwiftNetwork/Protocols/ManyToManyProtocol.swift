@@ -148,7 +148,7 @@ where Path.LowerProtocol == DefaultOutboundDatagramLinkage {
     case inboundFlow(index: Int)
 
     init(_ reference: ProtocolInstanceReference) {
-        guard let index = reference._protocolEventStateIndex else {
+        guard let index = reference.protocolEventStateIndex else {
             self = .allFlows
             return
         }
@@ -156,7 +156,7 @@ where Path.LowerProtocol == DefaultOutboundDatagramLinkage {
     }
 
     init(inboundReference: ProtocolInstanceReference) {
-        guard let index = inboundReference._protocolEventStateIndex else {
+        guard let index = inboundReference.protocolEventStateIndex else {
             self = .allFlows
             return
         }
@@ -829,6 +829,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 
     public func deliverNewInboundSecondaryFlowEvent(_ flowReference: ProtocolInstanceReference) {
         secondaryInboundFlowLinkage.deliverNewInboundFlowEvent(
+            state: &context.state,
             reference,
             flowReference: flowReference,
             flowMetadata: nil
@@ -1045,7 +1046,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
-        do {
+        do throws(NetworkError) {
             return try newFlow.attachUpperStreamProtocol(
                 from,
                 remote: remote,
@@ -1053,7 +1054,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
                 parameters: parameters,
                 path: path
             )
-        } catch let error as NetworkError {
+        } catch {
             multiplexedFlows[flowID] = nil
             throw error
         }
@@ -1073,7 +1074,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
 }
 
 @available(Network 0.1.0, *)
-extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: OutboundDatagramHandler {
+extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: OutboundDatagramHandler, Flow.UpperProtocol == DefaultInboundDatagramLinkage {
     public mutating func attachNewDatagramFlowProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
@@ -1109,7 +1110,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
-        do {
+        do throws(NetworkError) {
             return try newFlow.attachUpperDatagramProtocol(
                 state: &context.state,
                 from,
@@ -1118,7 +1119,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
                 parameters: parameters,
                 path: path
             )
-        } catch let error as NetworkError {
+        } catch {
             multiplexedFlows[flowID] = nil
             throw error
         }
@@ -1139,7 +1140,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
 
 @available(Network 0.1.0, *)
 extension HeterogeneousManyToManyProtocolHandler
-where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandler {
+where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandler, SecondaryFlow.UpperProtocol == DefaultInboundDatagramLinkage {
     public mutating func attachNewDatagramFlowProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
@@ -1175,7 +1176,7 @@ where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandl
         var newFlow = SecondaryFlow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedSecondaryFlows[flowID] = newFlow
-        do {
+        do throws(NetworkError) {
             return try newFlow.attachUpperDatagramProtocol(
                 state: &context.state,
                 from,
@@ -1184,7 +1185,7 @@ where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandl
                 parameters: parameters,
                 path: path
             )
-        } catch let error as NetworkError {
+        } catch {
             multiplexedSecondaryFlows[flowID] = nil
             throw error
         }
@@ -1491,8 +1492,8 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
 
     public var reference = ProtocolInstanceReference()
     func initializeReference() {
-        reference = .init(custom: self)
-        reference.parentReference = parentProtocol.reference
+        reference = .init()
+        reference.setParentReference(parentProtocol.reference)
     }
 
     public func serviceUpperSendQueue() {
@@ -1552,7 +1553,7 @@ extension UnidirectionalAbortingStreamFlow {
                 event: .inboundAborted(selfReference, upper.reference, error: error)
             )
         } else {
-            upper.deliverInboundAbortedEvent(self.reference, error: error)
+            upper.deliverInboundAbortedEvent(state: &context.state, self.reference, error: error)
         }
     }
 
@@ -1566,7 +1567,7 @@ extension UnidirectionalAbortingStreamFlow {
                 event: .outboundAborted(selfReference, upper.reference, error: error)
             )
         } else {
-            upper.deliverOutboundAbortedEvent(self.reference, error: error)
+            upper.deliverOutboundAbortedEvent(state: &context.state, self.reference, error: error)
         }
     }
 
@@ -1749,8 +1750,8 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
 
     public var reference = ProtocolInstanceReference()
     func initializeReference() {
-        reference = .init(custom: self)
-        reference.parentReference = parentProtocol.reference
+        reference = .init()
+        reference.setParentReference(parentProtocol.reference)
     }
 
     public func serviceUpperSendQueue() {
@@ -1891,6 +1892,7 @@ extension ManyToManyProtocolHandler {
         flowMetadata: AbstractProtocolMetadata?
     ) {
         inboundFlowLinkage.deliverNewInboundFlowEvent(
+            state: &context.state,
             reference,
             flowReference: flowReference,
             flowMetadata: flowMetadata
@@ -2155,8 +2157,8 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
 
     public var reference = ProtocolInstanceReference()
     func initializeReference() {
-        reference = .init(custom: self)
-        reference.parentReference = parentProtocol.reference
+        reference = .init()
+        reference.setParentReference(parentProtocol.reference)
     }
 
     public func serviceLowerReceiveQueue() {
@@ -2184,13 +2186,13 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-            state: &state,
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
+//            state: &state,
+//            reference,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 }

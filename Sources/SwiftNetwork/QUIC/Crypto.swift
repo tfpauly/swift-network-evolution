@@ -108,7 +108,7 @@ final class QUICCrypto {
     ) -> Bool {
         self.parentConnection = parentConnection
         // Build the reference now that the context (via parentConnection) is available.
-        self.reference = .init(quicCrypto: self)
+        self.reference = .init()
 
         initialReassemblyQueue.log = NetworkLoggerState("[TLS-Initial]")
         handshakeReassemblyQueue.log = NetworkLoggerState("[TLS-Handshake]")

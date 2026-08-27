@@ -30,11 +30,13 @@ import Dispatch
 @_spi(Essentials)
 @available(Network 0.1.0, *)
 public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInstanceContainer {
+    public typealias LinkageFamily = DefaultDatagramLinkageFamily
+    public typealias UpperProtocol = LinkageFamily.Upper
 
     public private(set) var context: NetworkContext
     public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()
-    public var upper = DefaultInboundDatagramLinkage()
+    public var upper = LinkageFamily.Upper(reference: .init())
     var log = NetworkLoggerState()
 
     private var socket: SystemSocket? = nil
@@ -51,7 +53,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
 
     deinit {
@@ -410,6 +412,8 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 @_spi(Essentials)
 @available(Network 0.1.0, *)
 public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceContainer {
+    public typealias LinkageFamily = DefaultStreamLinkageFamily
+    public typealias UpperProtocol = LinkageFamily.Upper
 
     public private(set) var context: NetworkContext
     public var reference = ProtocolInstanceReference()
@@ -451,7 +455,7 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
 
     deinit {

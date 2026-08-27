@@ -41,7 +41,7 @@ final class RecoveryTests: XCTestCase {
             try? self.connection.setup(remote: nil, local: nil, parameters: nil, path: nil)
             self.connection.recovery = Recovery(logPrefixer: recoveryTestsLogPrefixer)
             self.connection.recovery.connection = self.connection
-            let lowerHarness = DatagramLowerHarness(
+            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
                 context: .implicitContext
             )

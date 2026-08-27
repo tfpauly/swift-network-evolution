@@ -67,7 +67,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
         self.path = path
         self.logger = logger
         self.context = parameters.context
-        self.reference = .init(custom: self)
+        self.reference = .init()
         do throws(NetworkError) {
             self.lowerProtocol = try streamListenerProtocol.invokeAttachNewStreamFlowProtocol(
                 self.reference,

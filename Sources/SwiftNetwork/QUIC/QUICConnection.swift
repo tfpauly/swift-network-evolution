@@ -165,7 +165,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
     ProtocolInstanceContainer
 {
     public var inboundFlowLinkage = InboundStreamFlowLinkage()
-    public var secondaryInboundFlowLinkage = InboundDatagramFlowLinkage()
+    public var secondaryInboundFlowLinkage = DefaultInboundDatagramFlowLinkage()
 
     public var multiplexedFlows = [MultiplexedFlowIdentifier: QUICStreamInstance]()
     public var multiplexedSecondaryFlows = [MultiplexedFlowIdentifier: QUICDatagramFlow]()
@@ -175,7 +175,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
     public typealias UpperProtocol = InboundStreamFlowLinkage
 
     public typealias SecondaryFlow = QUICDatagramFlow
-    public typealias SecondaryUpperProtocol = InboundDatagramFlowLinkage
+    public typealias SecondaryUpperProtocol = DefaultInboundDatagramFlowLinkage
 
     public typealias Path = QUICPath
 
@@ -428,7 +428,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
         self.timer = Timer(timerReference: timerReference, logPrefixer: self.logPrefixer)
         self.ecn = ECN()
         self.stats = Statistics()
-        self.reference = .init(quic: self)
+        self.reference = .init()
     }
 
     public func setup(
@@ -6234,7 +6234,7 @@ public final class QUICConnection: ProtocolInstance, ProtocolInstanceContainer {
     public private(set) var context: NetworkContext
     public init(context: NetworkContext) {
         self.context = context
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
     public var reference = ProtocolInstanceReference()
     public var eventManager = ProtocolEventManager()

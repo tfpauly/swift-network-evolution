@@ -72,7 +72,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)][S\(streamID)]"
-        self.reference = .init(custom: self)
+        self.reference = .init()
     }
 
     public init?(
@@ -94,7 +94,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         self.context = parameters.context
         self.identifier = identifier
         log.logPrefix = "[\(identifier)][S\(streamID)]"
-        self.reference = .init(custom: self)
+        self.reference = .init()
         do throws(NetworkError) {
             self.lowerProtocol = try listenerProtocol.invokeAttachUpperStreamProtocolToNewFlow(
                 reference,

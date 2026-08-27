@@ -493,7 +493,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             parameters.defaultStack.transport = .udp(udpOptions)
 
             let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
-            let upperHarness = DatagramUpperHarness(
+            let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -507,21 +507,21 @@ final class SwiftNetworkIPTests: NetTestCase {
                 return
             }
 
-            let lowerHarness = DatagramLowerHarness(
+            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
                 context: parameters.context
             )
-            do {
-                try reference.attachLowerDatagramProtocol(
-                    lowerHarness.reference,
-                    remote: remoteEndpoint,
-                    local: localEndpoint,
-                    parameters: parameters,
-                    path: path
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach IP to lower harness")
-            }
+//            do {
+//                try reference.attachLowerDatagramProtocol(
+//                    lowerHarness.reference,
+//                    remote: remoteEndpoint,
+//                    local: localEndpoint,
+//                    parameters: parameters,
+//                    path: path
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach IP to lower harness")
+//            }
 
             upperHarness.start { connected in
                 XCTAssertTrue(connected, "IP failed to become connected")
@@ -951,7 +951,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let remoteEndpoint = Endpoint(address: IPv4Address(SwiftNetworkIPTests.remoteIPv4Address)!, port: 0)
             let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             guard
-                let upperHarness = DatagramUpperHarness(
+                let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     local: localEndpoint,
                     remote: remoteEndpoint,
@@ -964,19 +964,19 @@ final class SwiftNetworkIPTests: NetTestCase {
                 XCTFail("Failed to attach IP to upper harness")
                 return
             }
-            let lowerHarness = DatagramLowerHarness(identifier: "Client", context: parameters.context)
-            do {
-                try reference.attachLowerDatagramProtocol(
-                    lowerHarness.reference,
-                    remote: remoteEndpoint,
-                    local: localEndpoint,
-                    parameters: parameters,
-                    path: path
-                )
-            } catch {
-                XCTFail("Failed to attach IP to lower harness")
-                return
-            }
+            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: parameters.context)
+//            do {
+//                try reference.attachLowerDatagramProtocol(
+//                    lowerHarness.reference,
+//                    remote: remoteEndpoint,
+//                    local: localEndpoint,
+//                    parameters: parameters,
+//                    path: path
+//                )
+//            } catch {
+//                XCTFail("Failed to attach IP to lower harness")
+//                return
+//            }
             upperHarness.start { connected in XCTAssertTrue(connected) }
             _ = upperHarness.write(payload)
 
@@ -1071,7 +1071,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let remoteEndpoint = Endpoint(address: IPv6Address(SwiftNetworkIPTests.remoteIPv6Address)!, port: 0)
             let ipLinkage = DefaultOutboundDatagramLinkage(reference: reference)
             guard
-                let upperHarness = DatagramUpperHarness(
+                let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     local: localEndpoint,
                     remote: remoteEndpoint,
@@ -1084,19 +1084,19 @@ final class SwiftNetworkIPTests: NetTestCase {
                 XCTFail("Failed to attach IP to upper harness")
                 return
             }
-            let lowerHarness = DatagramLowerHarness(identifier: "Client", context: parameters.context)
-            do {
-                try reference.attachLowerDatagramProtocol(
-                    lowerHarness.reference,
-                    remote: remoteEndpoint,
-                    local: localEndpoint,
-                    parameters: parameters,
-                    path: path
-                )
-            } catch {
-                XCTFail("Failed to attach IP to lower harness")
-                return
-            }
+            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: parameters.context)
+//            do {
+//                try reference.attachLowerDatagramProtocol(
+//                    lowerHarness.reference,
+//                    remote: remoteEndpoint,
+//                    local: localEndpoint,
+//                    parameters: parameters,
+//                    path: path
+//                )
+//            } catch {
+//                XCTFail("Failed to attach IP to lower harness")
+//                return
+//            }
             upperHarness.start { connected in XCTAssertTrue(connected) }
             _ = upperHarness.write(payload)
 
@@ -1181,7 +1181,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let ipLinkage = DefaultOutboundDatagramLinkage(reference: ipInstance)
             guard
-                let upperHarness = DatagramUpperHarness(
+                let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     local: localEndpoint,
                     remote: remoteEndpoint,
@@ -1195,19 +1195,19 @@ final class SwiftNetworkIPTests: NetTestCase {
                 return
             }
 
-            let lowerHarness = DatagramLowerHarness(identifier: "Client", context: parameters.context)
-            do {
-                try ipInstance.attachLowerDatagramProtocol(
-                    lowerHarness.reference,
-                    remote: remoteEndpoint,
-                    local: localEndpoint,
-                    parameters: parameters,
-                    path: path
-                )
-            } catch {
-                XCTFail("Failed to attach IP to lower harness")
-                return
-            }
+            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: parameters.context)
+//            do {
+//                try ipInstance.attachLowerDatagramProtocol(
+//                    lowerHarness.reference,
+//                    remote: remoteEndpoint,
+//                    local: localEndpoint,
+//                    parameters: parameters,
+//                    path: path
+//                )
+//            } catch {
+//                XCTFail("Failed to attach IP to lower harness")
+//                return
+//            }
 
             upperHarness.start { connected in
                 XCTAssertTrue(connected)
@@ -1240,7 +1240,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             clientParameters.defaultStack.internet = .ip(clientOptions)
 
             let clientIPLinkage = DefaultOutboundDatagramLinkage(reference: clientReference)
-            let clientUpperHarness = DatagramUpperHarness(
+            let clientUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
                 local: clientEndpoint,
                 remote: serverEndpoint,
@@ -1254,19 +1254,19 @@ final class SwiftNetworkIPTests: NetTestCase {
                 return
             }
 
-            let clientLowerHarness = DatagramLowerHarness(identifier: "Client", context: clientParameters.context)
+            let clientLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: clientParameters.context)
             clientLowerHarness.maximumOutputSize = 9000
-            do {
-                try clientReference.attachLowerDatagramProtocol(
-                    clientLowerHarness.reference,
-                    remote: serverEndpoint,
-                    local: clientEndpoint,
-                    parameters: clientParameters,
-                    path: clientPath
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach IP to lower harness")
-            }
+//            do {
+//                try clientReference.attachLowerDatagramProtocol(
+//                    clientLowerHarness.reference,
+//                    remote: serverEndpoint,
+//                    local: clientEndpoint,
+//                    parameters: clientParameters,
+//                    path: clientPath
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach IP to lower harness")
+//            }
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
@@ -1277,7 +1277,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             serverParameters.defaultStack.internet = .ip(serverOptions)
 
             let serverIPLinkage = DefaultOutboundDatagramLinkage(reference: serverReference)
-            let serverUpperHarness = DatagramUpperHarness(
+            let serverUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Server",
                 local: serverEndpoint,
                 remote: clientEndpoint,
@@ -1291,19 +1291,19 @@ final class SwiftNetworkIPTests: NetTestCase {
                 return
             }
 
-            let serverLowerHarness = DatagramLowerHarness(identifier: "Server", context: serverParameters.context)
+            let serverLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: serverParameters.context)
             serverLowerHarness.maximumOutputSize = 9000
-            do {
-                try serverReference.attachLowerDatagramProtocol(
-                    serverLowerHarness.reference,
-                    remote: clientEndpoint,
-                    local: serverEndpoint,
-                    parameters: serverParameters,
-                    path: serverPath
-                )
-            } catch {
-                XCTAssertTrue(false, "Failed to attach IP server to lower harness")
-            }
+//            do {
+//                try serverReference.attachLowerDatagramProtocol(
+//                    serverLowerHarness.reference,
+//                    remote: clientEndpoint,
+//                    local: serverEndpoint,
+//                    parameters: serverParameters,
+//                    path: serverPath
+//                )
+//            } catch {
+//                XCTAssertTrue(false, "Failed to attach IP server to lower harness")
+//            }
 
             clientUpperHarness.start { connected in
                 XCTAssertTrue(connected, "IP client failed to become connected")

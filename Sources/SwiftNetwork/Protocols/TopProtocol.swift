@@ -400,7 +400,7 @@ extension TopDatapathProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == DefaultOutboundDatagramLinkage {
+extension TopProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundDatagramLinkage {
     public mutating func attachLowerDatagramProtocol(
         state: inout NetworkContext.State,
         _ lowerProtocol: ProtocolInstanceReference,
@@ -412,14 +412,14 @@ extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == DefaultOutb
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-            state: &state,
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
+//            state: &state,
+//            reference,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 }
 
@@ -435,13 +435,13 @@ extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStr
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
-        self.lower = try lowerProtocol.attachUpperStreamProtocol(
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        self.lower = try lowerProtocol.attachUpperStreamProtocol(
+//            reference,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 
     public mutating func attachLowerStreamProtocolToExistingFlow(

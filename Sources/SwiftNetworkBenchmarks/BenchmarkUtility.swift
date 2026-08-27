@@ -42,22 +42,22 @@ internal import os
 @available(Network 0.1.0, *)
 public struct QUICLoopbackState {
     public let context: NetworkContext
-    public var clientApplicationLayers: [StreamUpperHarness]
+    public var clientApplicationLayers: [StreamUpperHarness<DefaultStreamLinkageFamily>]
     public let clientInstance: QUICConnection
-    public let clientNetworkLayer: DatagramLowerHarness
-    public let serverApplicationLayer: NewStreamFlowHarness
-    public let serverNetworkLayer: DatagramLowerHarness
+    public let clientNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>
+    public let serverApplicationLayer: NewStreamFlowHarness<DefaultStreamLinkageFamily>
+    public let serverNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>
     public let serverInstance: QUICConnection
-    public let clientNewFlowHandler: NewStreamFlowHarness?
+    public let clientNewFlowHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
     public init(
         context: NetworkContext,
-        clientApplicationLayers: [StreamUpperHarness],
+        clientApplicationLayers: [StreamUpperHarness<DefaultStreamLinkageFamily>],
         clientInstance: QUICConnection,
-        clientNetworkLayer: DatagramLowerHarness,
-        serverApplicationLayer: NewStreamFlowHarness,
-        serverNetworkLayer: DatagramLowerHarness,
+        clientNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
+        serverApplicationLayer: NewStreamFlowHarness<DefaultStreamLinkageFamily>,
+        serverNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
         serverInstance: QUICConnection,
-        clientNewFlowHandler: NewStreamFlowHarness?
+        clientNewFlowHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
     ) {
         self.context = context
         self.clientApplicationLayers = clientApplicationLayers
@@ -75,9 +75,9 @@ public struct QUICLoopbackState {
 public struct QUICClientEndpointResult {
     public var instance: QUICConnection
     public var parameters: Parameters
-    public var upperHandler: StreamUpperHarness
-    public var lowerHandler: DatagramLowerHarness
-    public var clientNewFlowHandler: NewStreamFlowHarness?
+    public var upperHandler: StreamUpperHarness<DefaultStreamLinkageFamily>
+    public var lowerHandler: DatagramLowerHarness<DefaultDatagramLinkageFamily>
+    public var clientNewFlowHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
 }
 
 @_spi(ProtocolProvider)
@@ -85,8 +85,8 @@ public struct QUICClientEndpointResult {
 public struct QUICServerEndpointResult {
     public var instance: QUICConnection
     public var parameters: Parameters
-    public var upperHandler: NewStreamFlowHarness
-    public var lowerHandler: DatagramLowerHarness
+    public var upperHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>
+    public var lowerHandler: DatagramLowerHarness<DefaultDatagramLinkageFamily>
 }
 
 @_spi(ProtocolProvider)
@@ -155,7 +155,7 @@ public final class QUICBenchmarkUtility {
         var instance = instance
 
         let listenerLinkage = StreamListenerLinkage(reference: instance.reference)
-        let streamHandler = StreamUpperHarness(
+        let streamHandler = StreamUpperHarness<DefaultStreamLinkageFamily>(
             identifier: "Client",
             local: localEndpoint,
             remote: remoteEndpoint,
@@ -167,7 +167,7 @@ public final class QUICBenchmarkUtility {
         guard let streamHandler else {
             return nil
         }
-        let outputHandler = DatagramLowerHarness(identifier: "Client", context: context)
+        let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: context)
         do {
             try instance.attachLowerDatagramProtocolForNewPath(
                 outputHandler.reference,
@@ -207,7 +207,7 @@ public final class QUICBenchmarkUtility {
 
         let listenerLinkage = StreamListenerLinkage(reference: instance.reference)
 
-        let serverNewFlowHandler = NewStreamFlowHarness(
+        let serverNewFlowHandler = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
             local: localEndpoint,
             remote: remoteEndpoint,
             parameters: serverParameters,
@@ -220,7 +220,7 @@ public final class QUICBenchmarkUtility {
             return nil
         }
 
-        let outputHandler = DatagramLowerHarness(identifier: "Server", context: context)
+        let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: context)
         do {
             try instance.attachLowerDatagramProtocolForNewPath(
                 outputHandler.reference,
@@ -325,8 +325,8 @@ public struct LoggingHandle: CustomStringConvertible {
 public final class DataBenchmarkUtility {
     @discardableResult
     public func loopOutputHandlerPackets(
-        sender: DatagramLowerHarness,
-        receiver: DatagramLowerHarness,
+        sender: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
+        receiver: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
         maximumBurst: Int
     ) -> Int {
         var packetsSent: Int = 0

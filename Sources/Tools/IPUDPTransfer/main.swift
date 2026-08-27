@@ -75,7 +75,7 @@ final class IPUDPTransfer {
                 clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
                 let clientUDPLinkage = DefaultOutboundDatagramLinkage(reference: clientUDP)
-                let clientInput = DatagramUpperHarness(
+                let clientInput = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     local: ipv4Client,
                     remote: ipv4Server,
@@ -88,29 +88,30 @@ final class IPUDPTransfer {
                     return
                 }
 
-                let clientOutput = DatagramLowerHarness(
+                let clientOutput = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
                     context: clientParameters.context
                 )
-                do {
-                    try clientUDP.attachLowerDatagramProtocol(
-                        clientIP,
-                        remote: ipv4Server,
-                        local: ipv4Client,
-                        parameters: clientParameters,
-                        path: path
-                    )
-                    try clientIP.attachLowerDatagramProtocol(
-                        clientOutput.reference,
-                        remote: ipv4Server,
-                        local: ipv4Client,
-                        parameters: clientParameters,
-                        path: path
-                    )
-                } catch {
-                    loggingHandle.log("Failed to attach client IP to lower protocol")
-                    return
-                }
+                // TODO: TFPDEBUG
+//                do {
+//                    try clientUDP.attachLowerDatagramProtocol(
+//                        clientIP,
+//                        remote: ipv4Server,
+//                        local: ipv4Client,
+//                        parameters: clientParameters,
+//                        path: path
+//                    )
+//                    try clientIP.attachLowerDatagramProtocol(
+//                        clientOutput.reference,
+//                        remote: ipv4Server,
+//                        local: ipv4Client,
+//                        parameters: clientParameters,
+//                        path: path
+//                    )
+//                } catch {
+//                    loggingHandle.log("Failed to attach client IP to lower protocol")
+//                    return
+//                }
                 // Server
                 var serverParameters = Parameters()
                 serverParameters.context = context
@@ -129,7 +130,7 @@ final class IPUDPTransfer {
                 serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
                 let serverUDPLinkage = DefaultOutboundDatagramLinkage(reference: serverUDP)
-                let serverInput = DatagramUpperHarness(
+                let serverInput = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Server",
                     local: ipv4Server,
                     remote: ipv4Client,
@@ -142,29 +143,30 @@ final class IPUDPTransfer {
                     return
                 }
 
-                let serverOutput = DatagramLowerHarness(
+                let serverOutput = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Server",
                     context: clientParameters.context
                 )
-                do {
-                    try serverUDP.attachLowerDatagramProtocol(
-                        serverIP,
-                        remote: ipv4Client,
-                        local: ipv4Server,
-                        parameters: clientParameters,
-                        path: path
-                    )
-                    try serverIP.attachLowerDatagramProtocol(
-                        serverOutput.reference,
-                        remote: ipv4Client,
-                        local: ipv4Server,
-                        parameters: serverParameters,
-                        path: serverPath
-                    )
-                } catch {
-                    loggingHandle.log("Failed to attach server IP to lower protocol")
-                    return
-                }
+                // TODO: TFPDEBUG
+//                do {
+//                    try serverUDP.attachLowerDatagramProtocol(
+//                        serverIP,
+//                        remote: ipv4Client,
+//                        local: ipv4Server,
+//                        parameters: clientParameters,
+//                        path: path
+//                    )
+//                    try serverIP.attachLowerDatagramProtocol(
+//                        serverOutput.reference,
+//                        remote: ipv4Client,
+//                        local: ipv4Server,
+//                        parameters: serverParameters,
+//                        path: serverPath
+//                    )
+//                } catch {
+//                    loggingHandle.log("Failed to attach server IP to lower protocol")
+//                    return
+//                }
                 serverInput.start()
                 clientInput.start()
                 // Transfer data

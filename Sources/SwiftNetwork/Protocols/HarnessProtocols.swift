@@ -37,8 +37,8 @@ public protocol UpperHarnessProtocol: TopDatapathProtocol, LoggableProtocol {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol {
-    public typealias LowerProtocol = LinkageType.PairedLinkage
+public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtocol {
+    public typealias LowerProtocol = LinkageFamily.Lower
 
     // Completions: called once!
     public struct Completions {
@@ -107,7 +107,7 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        lowerProtocol: LinkageType.PairedLinkage
+        lowerProtocol: LinkageFamily.Lower
     ) {
         log.logPrefix = "[UpperHarness:\(identifier)]"
         self.context = context
@@ -277,10 +277,9 @@ public class UpperHarness<LinkageType: InboundDataLinkage>: UpperHarnessProtocol
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, TopDatagramProtocol {
-
+public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
     override func initializeReference() {
-        reference = .init(datagramUpperHarness: self)
+        reference = .init()
     }
 
     public convenience init?(
@@ -290,7 +289,7 @@ public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, 
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: DatagramListenerLinkage
+        listenerProtocol: LinkageFamily.Listener
     ) {
         self.init(
             identifier: identifier,
@@ -367,10 +366,10 @@ public class DatagramUpperHarness: UpperHarness<DefaultInboundDatagramLinkage>, 
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamProtocol {
+public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarness<LinkageFamily>, TopStreamProtocol {
 
     override func initializeReference() {
-        reference = .init(streamUpperHarness: self)
+        reference = .init()
     }
 
     public func handleInboundAbortedEvent(error: NetworkError?) {
@@ -547,9 +546,9 @@ public class StreamUpperHarness: UpperHarness<InboundStreamLinkage>, TopStreamPr
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class LowerHarness<LinkageType: OutboundDataLinkage>: BottomProtocolHandler, LoggableProtocol
-where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
-    public typealias UpperProtocol = LinkageType.PairedLinkage
+public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandler, LoggableProtocol {
+    public typealias UpperProtocol = LinkageFamily.Upper
+    public typealias LinkageFamily = LinkageFamily
 
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
@@ -638,11 +637,17 @@ where LinkageType == LinkageType.PairedLinkage.PairedLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class DatagramLowerHarness: LowerHarness<DefaultOutboundDatagramLinkage>, BottomDatagramProtocol {
+public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHarness<LinkageFamily>, BottomDatagramProtocol {
+
+    // TODO: TFPDEBUG get rid of this
+    public func attachUpperDatagramProtocol(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> LinkageFamily.Upper.PairedLinkage {
+        throw NetworkError.posix(1)
+    }
+    
     public var maximumOutputSize = 1500
 
     override func initializeReference() {
-        reference = .init(datagramLowerHarness: self)
+        reference = .init()
     }
 
     public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
@@ -671,10 +676,10 @@ public class DatagramLowerHarness: LowerHarness<DefaultOutboundDatagramLinkage>,
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class StreamLowerHarness: LowerHarness<OutboundStreamLinkage>, BottomStreamProtocol {
+public class StreamLowerHarness<LinkageFamily: StreamLinkageFamily>: LowerHarness<LinkageFamily>, BottomStreamProtocol {
 
     override func initializeReference() {
-        reference = .init(streamLowerHarness: self)
+        reference = .init()
     }
 
     public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
@@ -692,10 +697,10 @@ public class StreamLowerHarness: LowerHarness<OutboundStreamLinkage>, BottomStre
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperHarnessProtocol>: InboundFlowHandler,
+public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: UpperHarnessProtocol>: InboundFlowHandler,
     LoggableProtocol
 {
-    public typealias LowerProtocol = LinkageType.PairedLinkage
+    public typealias LowerProtocol = LinkageFamily.Listener
     typealias HarnessType = HarnessType
 
     public var eventManager = ProtocolEventManager()
@@ -708,7 +713,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
         reference = .init()
     }
     var lower = LowerProtocol(reference: .init())
-    var asUpper: LinkageType { .init(reference: reference) }
+    var asUpper: LinkageFamily.InboundFlow { .init(reference: reference) }
 
     public var upperHarnesses: [HarnessType] = []
 
@@ -828,7 +833,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: LinkageType.PairedLinkage
+        listenerProtocol: LinkageFamily.Listener
     ) {
         log.logPrefix = "[NewFlowHarness:\(identifier)]"
         self.context = context
@@ -841,7 +846,7 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
 
 //        do throws(NetworkError) {
 //            self.lower = try listenerProtocol.invokeAttachUpperProtocol(
-//                asUpper as! LinkageType.PairedLinkage.PairedLinkage,
+//                asUpper as! LinkageFamily.PairedLinkage.PairedLinkage,
 //                remote: remote,
 //                local: local,
 //                parameters: parameters,
@@ -910,10 +915,10 @@ public class NewFlowHarness<LinkageType: InboundFlowLinkage, HarnessType: UpperH
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class NewDatagramFlowHarness: NewFlowHarness<InboundDatagramFlowLinkage, DatagramUpperHarness> {
+public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFlowHarness<LinkageFamily, DatagramUpperHarness<LinkageFamily>> {
 
     override func initializeReference() {
-        reference = .init(newDatagramFlowHarness: self)
+        reference = .init()
     }
 
     public convenience init?(
@@ -923,7 +928,7 @@ public class NewDatagramFlowHarness: NewFlowHarness<InboundDatagramFlowLinkage, 
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        datagramListenerProtocol: DatagramListenerLinkage
+        datagramListenerProtocol: LinkageFamily.Listener
     ) {
         self.init(
             identifier: identifier,
@@ -981,10 +986,9 @@ public class NewDatagramFlowHarness: NewFlowHarness<InboundDatagramFlowLinkage, 
 }
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public class NewStreamFlowHarness: NewFlowHarness<InboundStreamFlowLinkage, StreamUpperHarness> {
-
+public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHarness<LinkageFamily, StreamUpperHarness<LinkageFamily>> {
     override func initializeReference() {
-        reference = .init(newStreamFlowHarness: self)
+        reference = .init()
     }
 
     public convenience init?(

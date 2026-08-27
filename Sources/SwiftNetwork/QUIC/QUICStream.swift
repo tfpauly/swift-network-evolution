@@ -426,8 +426,8 @@ public final class QUICStreamInstance: MultiplexedStreamFlow<QUICConnection>,
     var streamMetadata = QUICStreamProtocol.QUICStreamMetadata()
 
     override func initializeReference() {
-        reference = .init(quicStream: self)
-        reference.parentReference = parentProtocol.reference
+        reference = .init()
+        reference.setParentReference(parentProtocol.reference)
     }
 
     var flowControlState = FlowControlState(isStream: true)

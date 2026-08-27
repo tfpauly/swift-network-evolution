@@ -1884,9 +1884,9 @@ public struct IPProtocol: NetworkProtocol {
             let ip = IPInstance(context: context)
             let registeredIndex = state.registerIPInstance(ip)
             state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
-            state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
-                ipIndex: registeredIndex, state: &state
-            )
+//            state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
+//                ipIndex: registeredIndex, state: &state
+//            )
             return state.ipInstances[registeredIndex].reference
         }
 

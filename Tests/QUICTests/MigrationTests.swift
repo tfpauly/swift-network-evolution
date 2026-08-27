@@ -51,7 +51,7 @@ final class MigrationTests: XCTestCase {
     // registered in `remoteCIDs` so it can be retired. `validated` drives it to the
     // validated state so `migrate(to:)` will accept it.
     private func makePath(dcid: QUICConnectionID, sequenceNumber: UInt64, validated: Bool) -> QUICPath {
-        let lower = DatagramLowerHarness(identifier: "\(sequenceNumber)", context: .implicitContext)
+        let lower = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "\(sequenceNumber)", context: .implicitContext)
         lower.connect()
         var path = QUICPath(parent: connection)
         path.set(interface: nil, priority: 1, isInitial: true)  // -> .routeEstablished

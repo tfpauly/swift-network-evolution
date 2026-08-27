@@ -59,12 +59,12 @@ extension ProtocolInstance where Self: ~Copyable {
     /// already hold the context state, call the `state:`-taking variant instead so the state
     /// isn't re-derived from the context.
     public func async(_ block: @escaping () -> Void) {
-        reference.async(state: &context.state, block)
+        reference.async(context: context, state: &context.state, block)
     }
 
     /// Schedules an asynchronous block, using an already-acquired context state.
     public func async(state: inout NetworkContext.State, _ block: @escaping () -> Void) {
-        reference.async(state: &state, block)
+        reference.async(context: context, state: &state, block)
     }
 
     /// Enters a protocol's execution state from an external source.

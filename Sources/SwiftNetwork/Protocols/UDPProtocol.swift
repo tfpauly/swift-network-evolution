@@ -103,18 +103,6 @@ public struct UDPProtocol: NetworkProtocol {
     typealias UDPInstance = UDPInnerInstance<DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage>
     struct UDPInnerInstance<Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage>: ~Copyable, OneToOneDatagramProtocol {
 
-        // TODO: How can we register an index or array for this particular type?
-        // "Static stored properties not supported in generic types"
-        // Idea: Make the caller who first instantiates one or asks for the reference to it create the storage
-
-
-
-//        static public let _protocolIndex = NetworkMutex<Int?>(nil)
-//        static public var protocolIndex: Int {
-//            if let p = _protocolIndex { return p }
-//            
-//        }
-
         typealias UpperProtocol = Upper
         typealias LowerProtocol = Lower
 
@@ -140,9 +128,9 @@ public struct UDPProtocol: NetworkProtocol {
             let udp = UDPInstance(context: context)
             let registeredIndex = state.registerUDPInstance(udp)
             state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
-            state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
-                udpIndex: registeredIndex, state: &state
-            )
+//            state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
+//                udpIndex: registeredIndex, state: &state
+//            )
             return state.udpInstances[registeredIndex].reference
         }
 

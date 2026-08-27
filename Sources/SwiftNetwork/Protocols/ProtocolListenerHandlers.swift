@@ -22,6 +22,7 @@ public protocol InboundFlowHandler: ~Copyable, UpperProtocolHandler {
     )
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func handleNewInboundFlowEvent(
@@ -47,6 +48,7 @@ extension ProtocolInstanceReference {
         }
     }
 }
+ */
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -131,6 +133,7 @@ public protocol HeterogeneousListenerHandler: ~Copyable, ListenerHandler {
     associatedtype SecondaryUpperProtocol: InboundFlowLinkage
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     #if !NETWORK_EMBEDDED
@@ -399,3 +402,4 @@ extension ProtocolInstanceReference {
         }
     }
 }
+*/

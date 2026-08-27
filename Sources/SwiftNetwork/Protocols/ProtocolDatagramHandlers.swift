@@ -142,7 +142,7 @@ public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where Lowe
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where UpperProtocol == DefaultInboundDatagramLinkage {
+public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where UpperProtocol: InboundDatagramLinkage {
 
     mutating func attachUpperDatagramProtocol(
         state: inout NetworkContext.State,
@@ -151,7 +151,7 @@ public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where Up
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
+    ) throws(NetworkError) -> UpperProtocol.PairedLinkage
 
     mutating func receiveDatagrams(
         state: inout NetworkContext.State,
@@ -243,6 +243,7 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
     }
 }
 
+/*
 @available(Network 0.1.0, *)
 extension ProtocolInstanceReference {
     func receiveDatagrams(
@@ -384,3 +385,4 @@ extension ProtocolInstanceReference {
         }
     }
 }
+*/
