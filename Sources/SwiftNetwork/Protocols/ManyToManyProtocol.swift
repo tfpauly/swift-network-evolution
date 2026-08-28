@@ -1490,11 +1490,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
         return .init(upper.reference)
     }
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-        reference.setParentReference(parentProtocol.reference)
-    }
+    public var reference: ProtocolInstanceReference
 
     public func serviceUpperSendQueue() {
         parentProtocol.serviceStreamDataToSend(flow: identifier)
@@ -1503,7 +1499,8 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
     public required init(parent: ParentProtocol, inbound: Bool) {
         self.parentProtocol = parent
         self._identifier = nil
-        initializeReference()
+        reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference.setParentReference(parent.reference)
 
         if inbound {
             self._identifier = .init(inboundReference: reference)
@@ -1748,11 +1745,7 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
         return .init(upper.reference)
     }
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-        reference.setParentReference(parentProtocol.reference)
-    }
+    public var reference: ProtocolInstanceReference
 
     public func serviceUpperSendQueue() {
         parentProtocol.serviceDatagramsToSend(flow: identifier)
@@ -1761,7 +1754,8 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
     public required init(parent: ParentProtocol, inbound: Bool) {
         self.parentProtocol = parent
         self._identifier = nil
-        initializeReference()
+        reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference.setParentReference(parent.reference)
         if inbound {
             self._identifier = .init(inboundReference: reference)
         }
@@ -2155,11 +2149,7 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
     public var pathIsPrimary: Bool = false
     public var pathHasMigrationInfo: Bool = false
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-        reference.setParentReference(parentProtocol.reference)
-    }
+    public var reference: ProtocolInstanceReference
 
     public func serviceLowerReceiveQueue() {
         guard !lowerReceiveQueue.isEmpty else { return }
@@ -2172,7 +2162,8 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
 
     public required init(parent: ParentProtocol) {
         self.parentProtocol = parent
-        initializeReference()
+        reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference.setParentReference(parent.reference)
     }
 
     public func attachLowerDatagramProtocol(

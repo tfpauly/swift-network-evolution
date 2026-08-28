@@ -339,17 +339,19 @@ extension TopProtocolHandler where Self: ~Copyable {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        lower = lowerProtocol
-        try lowerProtocol.invokeAttachUpperProtocol(
-            asUpper,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+        throw NetworkError.posix(EINVAL)
+
+//        guard lower.isDetached else {
+//            throw NetworkError.posix(EALREADY)
+//        }
+//        lower = lowerProtocol
+//        try lowerProtocol.invokeAttachUpperProtocol(
+//            asUpper,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 
     public func handleConnectedEvent(_ from: ProtocolInstanceReference) {

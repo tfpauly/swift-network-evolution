@@ -109,12 +109,13 @@ public struct UDPProtocol: NetworkProtocol {
         var upper = UpperProtocol(reference: ProtocolInstanceReference())
         var lower = LowerProtocol(reference: ProtocolInstanceReference())
 
-        var udpInstanceIndex: NetworkStateIndex? = nil
-
         private(set) var context: NetworkContext
-        init(context: NetworkContext) { self.context = context }
+        init(context: NetworkContext) {
+            self.context = context
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        }
 
-        var reference: ProtocolInstanceReference = .init()
+        var reference: ProtocolInstanceReference
 
         var log = NetworkLoggerState()
 
@@ -127,7 +128,7 @@ public struct UDPProtocol: NetworkProtocol {
         ) -> ProtocolInstanceReference {
             let udp = UDPInstance(context: context)
             let registeredIndex = state.registerUDPInstance(udp)
-            state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
+//            state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
 //            state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
 //                udpIndex: registeredIndex, state: &state
 //            )

@@ -346,13 +346,13 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
             // If the upper is detached at the time of attaching the lower, don't pass through events
             passthroughEvents = false
         }
-        try lowerProtocol.invokeAttachUpperProtocol(
-            asUpper,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        try lowerProtocol.invokeAttachUpperProtocol(
+//            asUpper,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 
     public mutating func attachUpperProtocol(

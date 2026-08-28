@@ -239,7 +239,7 @@ where LinkageFamily: DatagramLinkageFamily, LinkageFamily.Upper == UpperProtocol
 
 @available(Network 0.1.0, *)
 extension BottomProtocolHandler where Self: ~Copyable {
-    var asLower: LinkageFamily.Lower { .init(reference: reference) }
+//    var asLower: LinkageFamily.Lower { .init(reference: reference) }
 
     public func handleApplicationEvent(
         state: inout NetworkContext.State,
@@ -398,19 +398,21 @@ extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: DatagramLi
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> LinkageFamily.Lower {
-        guard upper.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        upper = LinkageFamily.Upper(reference: from)
+        throw NetworkError.posix(EINVAL)
 
-        do {
-            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower
+//        guard upper.isDetached else {
+//            throw NetworkError.posix(EALREADY)
+//        }
+//        upper = LinkageFamily.Upper(reference: from)
+//
+//        do {
+//            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
+//        } catch let error {
+//            upper = .init(reference: .init())
+//            throw error
+//        }
+//
+//        return asLower
     }
 }
 
@@ -423,19 +425,20 @@ extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: StreamLink
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> OutboundStreamLinkage {
-        guard upper.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        upper = UpperProtocol(reference: from)
-
-        do {
-            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower
+        throw NetworkError.posix(EINVAL)
+//        guard upper.isDetached else {
+//            throw NetworkError.posix(EALREADY)
+//        }
+//        upper = UpperProtocol(reference: from)
+//
+//        do {
+//            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
+//        } catch let error {
+//            upper = .init(reference: .init())
+//            throw error
+//        }
+//
+//        return asLower
     }
 }
 

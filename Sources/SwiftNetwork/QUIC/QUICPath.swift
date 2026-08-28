@@ -131,11 +131,6 @@ public final class QUICPath: MultiplexingDatagramPath<QUICConnection>, Equatable
 
     static let slowInitialProbeInterval: NetworkDuration = .seconds(1)
 
-    override func initializeReference() {
-        reference = .init()
-        reference.setParentReference(parentProtocol.reference)
-    }
-
     private(set) var state: QUICPathState = QUICPathState()
     var priority: Int = 0  // Relative priority to other paths, used to gate migration decisions
     var interface: Interface?

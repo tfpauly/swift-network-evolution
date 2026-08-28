@@ -69,10 +69,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     fileprivate(set) var context: NetworkContext
 
-    var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-    }
+    let reference: ProtocolInstanceReference
     var lower = LowerProtocol(reference: .init())
     var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
 
@@ -98,7 +95,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
     }
 
     init(
@@ -118,7 +115,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.path = path
         self.lower = lowerProtocol
         // Must be initialized before asUpper is used, since asUpper derives from reference.
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
         try lowerProtocol.invokeAttachUpperProtocol(
             asUpper,
             remote: remote,
@@ -273,10 +270,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 @available(Network 0.1.0, *)
 final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
 
-    override func initializeReference() {
-        reference = .init()
-    }
-
     func attachLowerDatagramProtocol(
         state: inout NetworkContext.State,
         _ lowerProtocol: ProtocolInstanceReference,
@@ -377,10 +370,6 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 
 @available(Network 0.1.0, *)
 final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkage>, InboundStreamHandler {
-
-    override func initializeReference() {
-        reference = .init()
-    }
 
     func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
     func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}

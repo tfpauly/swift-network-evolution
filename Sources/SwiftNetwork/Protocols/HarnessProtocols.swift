@@ -66,10 +66,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     public fileprivate(set) var context: NetworkContext
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-    }
+    public var reference: ProtocolInstanceReference
 
     public var lower = LowerProtocol(reference: .init())
 
@@ -96,11 +93,11 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         self.parameters = parameters
         self.path = path
         log.logPrefix = "[UpperHarness:\(identifier)]"
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
     }
 
     #if !NETWORK_EMBEDDED
-    public init?(
+    public init(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -117,18 +114,18 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         self.path = path
         self.lower = lowerProtocol
         // Must be initialized before asUpper is used, since asUpper derives from reference.
-        initializeReference()
-        do throws(NetworkError) {
-            try lowerProtocol.invokeAttachUpperProtocol(
-                asUpper,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
+        reference = .init(context: context, eventManager: &self.eventManager)
+//        do throws(NetworkError) {
+//            try lowerProtocol.invokeAttachUpperProtocol(
+//                asUpper,
+//                remote: remote,
+//                local: local,
+//                parameters: parameters,
+//                path: path
+//            )
+//        } catch {
+//            return nil
+//        }
     }
     #endif
 
@@ -278,9 +275,6 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
-    override func initializeReference() {
-        reference = .init()
-    }
 
     public convenience init?(
         identifier: String = "",
@@ -367,10 +361,6 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarness<LinkageFamily>, TopStreamProtocol {
-
-    override func initializeReference() {
-        reference = .init()
-    }
 
     public func handleInboundAbortedEvent(error: NetworkError?) {
         log.debug("Received inbound aborted event: \(error?.description ?? "no error")")
@@ -553,10 +543,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-    }
+    public var reference: ProtocolInstanceReference
     public var upper = UpperProtocol(reference: .init())
 
     public var eventManager = ProtocolEventManager()
@@ -570,7 +557,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
     ) {
         log.logPrefix = "[LowerHarness:\(identifier)]"
         self.context = context
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
     }
 
     public func flushPackets() {
@@ -646,10 +633,6 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
     
     public var maximumOutputSize = 1500
 
-    override func initializeReference() {
-        reference = .init()
-    }
-
     public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
         let array = pendingInboundPackets.drainArray(maximumFrameCount: maximumDatagramCount)
         log.debug("Deliver inbound datagram count: \(array.count)")
@@ -678,10 +661,6 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
 @available(Network 0.1.0, *)
 public class StreamLowerHarness<LinkageFamily: StreamLinkageFamily>: LowerHarness<LinkageFamily>, BottomStreamProtocol {
 
-    override func initializeReference() {
-        reference = .init()
-    }
-
     public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
         pendingInboundPackets.drainArray(maximumByteCount: maximumBytes)
     }
@@ -708,10 +687,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference = ProtocolInstanceReference()
-    func initializeReference() {
-        reference = .init()
-    }
+    public var reference: ProtocolInstanceReference
     var lower = LowerProtocol(reference: .init())
     var asUpper: LinkageFamily.InboundFlow { .init(reference: reference) }
 
@@ -822,7 +798,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
     }
 
     #if !NETWORK_EMBEDDED
@@ -841,7 +817,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        initializeReference()
+        reference = .init(context: context, eventManager: &self.eventManager)
         // TODO: TFPDEBUG
 
 //        do throws(NetworkError) {
@@ -917,10 +893,6 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 @available(Network 0.1.0, *)
 public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFlowHarness<LinkageFamily, DatagramUpperHarness<LinkageFamily>> {
 
-    override func initializeReference() {
-        reference = .init()
-    }
-
     public convenience init?(
         identifier: String = "",
         local: Endpoint,
@@ -987,9 +959,6 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHarness<LinkageFamily, StreamUpperHarness<LinkageFamily>> {
-    override func initializeReference() {
-        reference = .init()
-    }
 
     public convenience init?(
         identifier: String = "",

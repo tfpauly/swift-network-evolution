@@ -380,9 +380,9 @@ public struct TCPProtocol: NetworkProtocol {
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init()
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
-        var reference = ProtocolInstanceReference()
+        var reference: ProtocolInstanceReference
         var passthroughEvents = false
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()

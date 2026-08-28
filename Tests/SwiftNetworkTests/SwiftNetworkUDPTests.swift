@@ -107,10 +107,10 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 context: context,
                 lowerProtocol: udpLinkage
             )
-            XCTAssertNotNil(upperHarness, "Failed to attach UDP to upper harness")
-            guard let upperHarness else {
-                return
-            }
+//            XCTAssertNotNil(upperHarness, "Failed to attach UDP to upper harness")
+//            guard let upperHarness else {
+//                return
+//            }
 
             let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
@@ -241,20 +241,15 @@ final class SwiftNetworkUDPTests: NetTestCase {
             parameters.defaultStack.transport = .udp(udpOptions)
 
             let udpLinkage = DefaultOutboundDatagramLinkage(reference: reference)
-            guard
-                let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
-                    identifier: "Client",
-                    local: localEndpoint,
-                    remote: remoteEndpoint,
-                    parameters: parameters,
-                    path: path,
-                    context: context,
-                    lowerProtocol: udpLinkage
-                )
-            else {
-                XCTFail("Failed to attach UDP to upper harness")
-                return
-            }
+            let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+                identifier: "Client",
+                local: localEndpoint,
+                remote: remoteEndpoint,
+                parameters: parameters,
+                path: path,
+                context: context,
+                lowerProtocol: udpLinkage
+            )
 
             let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: context)
 //            do {
@@ -393,10 +388,10 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 context: clientParameters.context,
                 lowerProtocol: clientUDPLinkage
             )
-            XCTAssertNotNil(clientUpperHarness, "Failed to attach UDP to client input harness")
-            guard let clientUpperHarness else {
-                return
-            }
+//            XCTAssertNotNil(clientUpperHarness, "Failed to attach UDP to client input harness")
+//            guard let clientUpperHarness else {
+//                return
+//            }
 
             let clientLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: clientParameters.context)
             clientLowerHarness.maximumOutputSize = 9000
@@ -431,10 +426,10 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 context: serverParameters.context,
                 lowerProtocol: serverUDPLinkage
             )
-            XCTAssertNotNil(serverUpperHarness, "Failed to attach UDP to server input harness")
-            guard let serverUpperHarness else {
-                return
-            }
+//            XCTAssertNotNil(serverUpperHarness, "Failed to attach UDP to server input harness")
+//            guard let serverUpperHarness else {
+//                return
+//            }
 
             let serverLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: serverParameters.context)
             serverLowerHarness.maximumOutputSize = 9000

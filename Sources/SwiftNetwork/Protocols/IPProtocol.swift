@@ -1858,23 +1858,23 @@ public struct IPProtocol: NetworkProtocol {
         case ipv6(IPv6Instance)
     }
 
-    typealias IPInstance = IPInnerInstance<DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage>
-    struct IPInnerInstance<Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage>: ~Copyable,
+    typealias IPInstance = IPInnerInstance<DefaultDatagramLinkageFamily>
+    struct IPInnerInstance<LinkageFamily: DatagramLinkageFamily>: ~Copyable,
         OneToOneDatagramProtocol
     {
-
-        typealias UpperProtocol = Upper
-        typealias LowerProtocol = Lower
+        typealias UpperProtocol = LinkageFamily.Upper
+        typealias LowerProtocol = LinkageFamily.Lower
 
         var upper = UpperProtocol(reference: ProtocolInstanceReference())
         var lower = LowerProtocol(reference: ProtocolInstanceReference())
 
-        var ipInstanceIndex: NetworkStateIndex? = nil
-
         private(set) var context: NetworkContext
-        init(context: NetworkContext) { self.context = context }
+        init(context: NetworkContext) {
+            self.context = context
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        }
 
-        var reference: ProtocolInstanceReference = .init()
+        var reference: ProtocolInstanceReference
 
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
@@ -1883,7 +1883,7 @@ public struct IPProtocol: NetworkProtocol {
         fileprivate static func registerNewIP(on context: NetworkContext, state: inout NetworkContext.State) -> ProtocolInstanceReference {
             let ip = IPInstance(context: context)
             let registeredIndex = state.registerIPInstance(ip)
-            state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
+//            state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
 //            state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
 //                ipIndex: registeredIndex, state: &state
 //            )

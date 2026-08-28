@@ -31,11 +31,6 @@ public final class QUICDatagramFlow: MultiplexedDatagramFlow<QUICConnection> {
     private(set) var contextID: UInt64?
     var applicationMarkedIdle: Bool = false
 
-    override func initializeReference() {
-        reference = .init()
-        reference.setParentReference(parentProtocol.reference)
-    }
-
     var usableDatagramSize: Int {
         get { maximumUpperDatagramSize }
         set { maximumUpperDatagramSize = newValue }

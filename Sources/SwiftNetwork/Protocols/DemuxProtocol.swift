@@ -190,9 +190,9 @@ public struct DemuxProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init()
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
-        public var reference = ProtocolInstanceReference()
+        public var reference: ProtocolInstanceReference
         public var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
 

@@ -128,10 +128,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init()
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
-        // TODO: TFPDEBUG Make this not use custom!
-        public var reference = ProtocolInstanceReference()
+        public let reference: ProtocolInstanceReference
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         public let timerReference = TimerReference()
@@ -414,9 +413,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init()
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
-        public var reference = ProtocolInstanceReference()
+        public let reference: ProtocolInstanceReference
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         var localEndpoint: Endpoint?

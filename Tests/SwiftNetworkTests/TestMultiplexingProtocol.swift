@@ -71,10 +71,10 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     public private(set) var context: NetworkContext
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init()
+        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
     }
 
-    var reference = ProtocolInstanceReference()
+    var reference: ProtocolInstanceReference
     var log = NetworkLoggerState()
     var eventManager = ProtocolEventManager()
 

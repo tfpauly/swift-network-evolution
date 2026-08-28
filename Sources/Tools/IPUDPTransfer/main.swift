@@ -84,9 +84,9 @@ final class IPUDPTransfer {
                     context: context,
                     lowerProtocol: clientUDPLinkage
                 )
-                guard let clientInput else {
-                    return
-                }
+//                guard let clientInput else {
+//                    return
+//                }
 
                 let clientOutput = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
@@ -139,9 +139,9 @@ final class IPUDPTransfer {
                     context: context,
                     lowerProtocol: serverUDPLinkage
                 )
-                guard let serverInput else {
-                    return
-                }
+//                guard let serverInput else {
+//                    return
+//                }
 
                 let serverOutput = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Server",

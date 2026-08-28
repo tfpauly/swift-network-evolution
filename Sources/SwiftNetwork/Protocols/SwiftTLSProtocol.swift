@@ -255,7 +255,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         var upper = InboundStreamLinkage()
         var lower = OutboundStreamLinkage()
         private(set) var context: NetworkContext
-        var reference = ProtocolInstanceReference()
+        var reference: ProtocolInstanceReference
         var passthroughEvents = false
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
@@ -264,7 +264,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
         init(context: NetworkContext) {
             self.context = context
-            self.reference = .init()
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
 
         func setup(

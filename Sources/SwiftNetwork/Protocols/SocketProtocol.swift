@@ -34,7 +34,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
     public typealias UpperProtocol = LinkageFamily.Upper
 
     public private(set) var context: NetworkContext
-    public var reference = ProtocolInstanceReference()
+    public var reference: ProtocolInstanceReference
     public var eventManager = ProtocolEventManager()
     public var upper = LinkageFamily.Upper(reference: .init())
     var log = NetworkLoggerState()
@@ -53,7 +53,7 @@ public final class SocketDatagramProtocol: BottomDatagramProtocol, ProtocolInsta
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init()
+        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
     }
 
     deinit {
@@ -416,7 +416,7 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
     public typealias UpperProtocol = LinkageFamily.Upper
 
     public private(set) var context: NetworkContext
-    public var reference = ProtocolInstanceReference()
+    public var reference: ProtocolInstanceReference
     public var eventManager = ProtocolEventManager()
     public var upper = InboundStreamLinkage()
     var log = NetworkLoggerState()
@@ -455,7 +455,7 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = .init()
+        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
     }
 
     deinit {

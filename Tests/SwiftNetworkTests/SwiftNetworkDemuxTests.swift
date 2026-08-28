@@ -148,10 +148,10 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                 context: context,
                 lowerProtocol: demuxLinkage
             )
-            XCTAssertNotNil(upperHarness, "Failed to attach default upper harness")
-            guard let upperHarness else {
-                return
-            }
+//            XCTAssertNotNil(upperHarness, "Failed to attach default upper harness")
+//            guard let upperHarness else {
+//                return
+//            }
 
             let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(context: context)
 
@@ -204,10 +204,10 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                     context: context,
                     lowerProtocol: demuxLinkage
                 )
-                XCTAssertNotNil(demuxUpperHarness, "Failed to attach demux upper harness")
-                guard let demuxUpperHarness else {
-                    return
-                }
+//                XCTAssertNotNil(demuxUpperHarness, "Failed to attach demux upper harness")
+//                guard let demuxUpperHarness else {
+//                    return
+//                }
 
                 demuxUpperHarness.invokeConnect()
 
