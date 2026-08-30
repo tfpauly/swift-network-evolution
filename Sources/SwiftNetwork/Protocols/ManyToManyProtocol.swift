@@ -1313,7 +1313,9 @@ extension MultiplexedFlow {
             // Enqueue pending event instead of delivering immediately.
             // Inbound multiplexed flows may get attached after creation.
             let selfReference = self.reference
-            selfReference.enqueuePendingEventForUpperProtocol(state: &context.state, event: .connected(selfReference, upper.reference))
+            selfReference.enqueuePendingEventForUpperProtocol(state: &context.state, event: .connected(selfReference, upper.reference, { _, _ in
+
+            }))
         } else {
             // Deliver connected event *followed by* any events which were buffered while detached
             upper.deliverConnectedEvent(state: &context.state, self.reference)
@@ -1328,7 +1330,9 @@ extension MultiplexedFlow {
             let selfReference = self.reference
             selfReference.enqueuePendingEventForUpperProtocol(
                 state: &context.state,
-                event: .disconnected(selfReference, upper.reference, error: error)
+                event: .disconnected(selfReference, upper.reference, error: error, { _, _, _ in
+
+                })
             )
         } else {
             upper.deliverDisconnectedEvent(state: &context.state, self.reference, error: error)
@@ -1547,7 +1551,9 @@ extension UnidirectionalAbortingStreamFlow {
             let selfReference = self.reference
             selfReference.enqueuePendingEventForUpperProtocol(
                 state: &context.state,
-                event: .inboundAborted(selfReference, upper.reference, error: error)
+                event: .inboundAborted(selfReference, upper.reference, error: error, { _, _, _ in
+
+                })
             )
         } else {
             upper.deliverInboundAbortedEvent(state: &context.state, self.reference, error: error)
@@ -1561,7 +1567,9 @@ extension UnidirectionalAbortingStreamFlow {
             let selfReference = self.reference
             selfReference.enqueuePendingEventForUpperProtocol(
                 state: &context.state,
-                event: .outboundAborted(selfReference, upper.reference, error: error)
+                event: .outboundAborted(selfReference, upper.reference, error: error, { _, _, _ in
+
+                })
             )
         } else {
             upper.deliverOutboundAbortedEvent(state: &context.state, self.reference, error: error)

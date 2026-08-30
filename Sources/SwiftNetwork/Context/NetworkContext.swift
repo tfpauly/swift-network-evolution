@@ -139,7 +139,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
 #if !NETWORK_PRIVATE || NETWORK_STANDALONE
         internal var protocolEventStates = NetworkGappyArray<ProtocolEventManagerState>()
         internal var udpInstances = NetworkGappyArray<UDPProtocol.Instance>()
-        internal var ipInstances = NetworkGappyArray<IPProtocol.Instance>()
 #endif
         internal mutating func registerProtocolEventState() -> NetworkStateIndex {
             protocolEventStates.insert(.init())
@@ -153,13 +152,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         }
         internal mutating func unregisterUDPInstance(_ index: NetworkStateIndex) {
             udpInstances.remove(index: index)
-        }
-
-        internal mutating func registerIPInstance(_ instance: consuming IPProtocol.Instance) -> NetworkStateIndex {
-            ipInstances.insert(instance)
-        }
-        internal mutating func unregisterIPInstance(_ index: NetworkStateIndex) {
-            ipInstances.remove(index: index)
         }
 
         // MARK: Arena element access
@@ -189,21 +181,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
             }
         }
 
-        internal mutating func withIPInstance<R: ~Copyable, E: Error>(
-            _ index: NetworkStateIndex,
-            _ body: (inout IPProtocol.Instance, inout State) throws(E) -> R
-        ) throws(E) -> R {
-            var instance = ipInstances.take(index: index)
-            do {
-                let result = try body(&instance, &self)
-                ipInstances.restore(index: index, consume instance)
-                return result
-            } catch {
-                ipInstances.restore(index: index, consume instance)
-                throw error
-            }
-        }
-
         // Variants that forward a non-copyable value into the body, for calls like
         // `sendDatagrams` that consume their payload.
         internal mutating func withUDPInstance<R: ~Copyable, T: ~Copyable, E: Error>(
@@ -218,22 +195,6 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
                 return result
             } catch {
                 udpInstances.restore(index: index, consume instance)
-                throw error
-            }
-        }
-
-        internal mutating func withIPInstance<R: ~Copyable, T: ~Copyable, E: Error>(
-            _ index: NetworkStateIndex,
-            _ value: consuming T,
-            _ body: (inout IPProtocol.Instance, inout State, consuming T) throws(E) -> R
-        ) throws(E) -> R {
-            var instance = ipInstances.take(index: index)
-            do {
-                let result = try body(&instance, &self, value)
-                ipInstances.restore(index: index, consume instance)
-                return result
-            } catch {
-                ipInstances.restore(index: index, consume instance)
                 throw error
             }
         }

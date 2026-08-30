@@ -71,50 +71,88 @@ struct ProtocolEventManagerState: ~Copyable {
     }
 
     enum PendingEvent: ~Copyable {
-        case connected(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference)
-        case disconnected(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference, error: NetworkError?)
-        case inboundDataAvailable(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference)
-        case outboundRoomAvailable(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference)
-        case inboundAborted(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference, error: NetworkError?)
-        case outboundAborted(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference, error: NetworkError?)
+        typealias EventBlock = (inout NetworkContext.State, ProtocolInstanceReference) -> Void
+        typealias ErrorEventBlock = (inout NetworkContext.State, ProtocolInstanceReference, NetworkError?) -> Void
+        typealias NewInboundFlowEventBlock = (
+            inout NetworkContext.State,
+            ProtocolInstanceReference,
+            ProtocolInstanceReference,
+            AbstractProtocolMetadata?
+        ) -> Void
+        typealias NetworkProtocolEventBlock = (
+            inout NetworkContext.State,
+            ProtocolInstanceReference,
+            NetworkProtocolEvent
+        ) -> Void
+
+        case connected(_ from: ProtocolInstanceReference, _ to: ProtocolInstanceReference, _ block: EventBlock)
+        case disconnected(
+            _ from: ProtocolInstanceReference,
+            _ to: ProtocolInstanceReference,
+            error: NetworkError?,
+            _ block: ErrorEventBlock
+        )
+        case inboundDataAvailable(
+            _ from: ProtocolInstanceReference,
+            _ to: ProtocolInstanceReference,
+            _ block: EventBlock
+        )
+        case outboundRoomAvailable(
+            _ from: ProtocolInstanceReference,
+            _ to: ProtocolInstanceReference,
+            _ block: EventBlock
+        )
+        case inboundAborted(
+            _ from: ProtocolInstanceReference,
+            _ to: ProtocolInstanceReference,
+            error: NetworkError?,
+            _ block: ErrorEventBlock
+        )
+        case outboundAborted(
+            _ from: ProtocolInstanceReference,
+            _ to: ProtocolInstanceReference,
+            error: NetworkError?,
+            _ block: ErrorEventBlock
+        )
         case newInboundFlow(
             _ from: ProtocolInstanceReference,
             _ to: ProtocolInstanceReference,
             flowReference: ProtocolInstanceReference,
-            flowMetadata: AbstractProtocolMetadata?
+            flowMetadata: AbstractProtocolMetadata?,
+            _ block: NewInboundFlowEventBlock
         )
         case networkProtocolEvent(
             _ from: ProtocolInstanceReference,
             _ to: ProtocolInstanceReference,
-            event: NetworkProtocolEvent
+            event: NetworkProtocolEvent,
+            _ block: NetworkProtocolEventBlock
         )
 
-        fileprivate func run() {
-            // TODO: TFPDEBUG fix event running 
-//            switch self {
-//            case .connected(let from, let to): to.handleConnectedEvent(from)
-//            case .disconnected(let from, let to, let error): to.handleDisconnectedEvent(from, error: error)
-//            case .inboundDataAvailable(let from, let to): to.handleInboundDataAvailableEvent(from)
-//            case .outboundRoomAvailable(let from, let to): to.handleOutboundRoomAvailableEvent(from)
-//            case .inboundAborted(let from, let to, let error): to.handleInboundAbortedEvent(from, error: error)
-//            case .outboundAborted(let from, let to, let error): to.handleOutboundAbortedEvent(from, error: error)
-//            case .newInboundFlow(let from, let to, let flow, let metadata):
-//                to.handleNewInboundFlowEvent(from, flowReference: flow, flowMetadata: metadata)
-//            case .networkProtocolEvent(let from, let to, let event): to.handleNetworkProtocolEvent(from, event: event)
-//            }
+        fileprivate func run(state: inout NetworkContext.State) {
+            switch self {
+            case .connected(let from, _, let block): block(&state, from)
+            case .disconnected(let from, _, let error, let block): block(&state, from, error)
+            case .inboundDataAvailable(let from, _, let block): block(&state, from)
+            case .outboundRoomAvailable(let from, _, let block): block(&state, from)
+            case .inboundAborted(let from, _, let error, let block): block(&state, from, error)
+            case .outboundAborted(let from, _, let error, let block): block(&state, from, error)
+            case .newInboundFlow(let from, _, let flow, let metadata, let block):
+                block(&state, from, flow, metadata)
+            case .networkProtocolEvent(let from, _, let event, let block): block(&state, from, event)
+            }
         }
 
         @inline(always)
         fileprivate var toReference: ProtocolInstanceReference {
             switch self {
-            case .connected(_, let to): return to
-            case .disconnected(_, let to, _): return to
-            case .inboundDataAvailable(_, let to): return to
-            case .outboundRoomAvailable(_, let to): return to
-            case .inboundAborted(_, let to, _): return to
-            case .outboundAborted(_, let to, _): return to
-            case .newInboundFlow(_, let to, _, _): return to
-            case .networkProtocolEvent(_, let to, _): return to
+            case .connected(_, let to, _): return to
+            case .disconnected(_, let to, _, _): return to
+            case .inboundDataAvailable(_, let to, _): return to
+            case .outboundRoomAvailable(_, let to, _): return to
+            case .inboundAborted(_, let to, _, _): return to
+            case .outboundAborted(_, let to, _, _): return to
+            case .newInboundFlow(_, let to, _, _, _): return to
+            case .networkProtocolEvent(_, let to, _, _): return to
             }
         }
 
@@ -126,17 +164,33 @@ struct ProtocolEventManagerState: ~Copyable {
             return toReference
         }
 
-        fileprivate consuming func reassign(to newTo: ProtocolInstanceReference) -> PendingEvent {
+        fileprivate consuming func reassign(
+            to newTo: ProtocolInstanceReference,
+            _ newBlock: @escaping EventBlock,
+            _ newErrorBlock: @escaping ErrorEventBlock,
+            _ newInboundFlowBlock: @escaping NewInboundFlowEventBlock,
+            _ newNetworkProtocolEventBlock: @escaping NetworkProtocolEventBlock
+        ) -> PendingEvent {
             switch self {
-            case .connected(let from, _): return .connected(from, newTo)
-            case .disconnected(let from, _, let error): return .disconnected(from, newTo, error: error)
-            case .inboundDataAvailable(let from, _): return .inboundDataAvailable(from, newTo)
-            case .outboundRoomAvailable(let from, _): return .outboundRoomAvailable(from, newTo)
-            case .inboundAborted(let from, _, let error): return .inboundAborted(from, newTo, error: error)
-            case .outboundAborted(let from, _, let error): return .outboundAborted(from, newTo, error: error)
-            case .newInboundFlow(let from, _, let flow, let metadata):
-                return .newInboundFlow(from, newTo, flowReference: flow, flowMetadata: metadata)
-            case .networkProtocolEvent(let from, _, let event): return .networkProtocolEvent(from, newTo, event: event)
+            case .connected(let from, _, _): return .connected(from, newTo, newBlock)
+            case .disconnected(let from, _, let error, _):
+                return .disconnected(from, newTo, error: error, newErrorBlock)
+            case .inboundDataAvailable(let from, _, _): return .inboundDataAvailable(from, newTo, newBlock)
+            case .outboundRoomAvailable(let from, _, _): return .outboundRoomAvailable(from, newTo, newBlock)
+            case .inboundAborted(let from, _, let error, _):
+                return .inboundAborted(from, newTo, error: error, newErrorBlock)
+            case .outboundAborted(let from, _, let error, _):
+                return .outboundAborted(from, newTo, error: error, newErrorBlock)
+            case .newInboundFlow(let from, _, let flow, let metadata, _):
+                return .newInboundFlow(
+                    from,
+                    newTo,
+                    flowReference: flow,
+                    flowMetadata: metadata,
+                    newInboundFlowBlock
+                )
+            case .networkProtocolEvent(let from, _, let event, _):
+                return .networkProtocolEvent(from, newTo, event: event, newNetworkProtocolEventBlock)
             }
         }
 
@@ -321,14 +375,6 @@ public struct ProtocolEventManager: ~Copyable {
         state.unregisterProtocolEventState(contextIndex)
         self.contextIndex = nil
     }
-//    deinit {
-//        guard let contextIndex, let context else { return }
-//
-//        // TODO: TFPDEBUG avoid async on deinit
-////        context.async {
-////            context.state.unregisterProtocolEventState(contextIndex)
-////        }
-//    }
 }
 
 @available(Network 0.1.0, *)
@@ -347,7 +393,7 @@ extension NetworkContext.State {
         if eventCount > 0 {
             for _ in 0..<eventCount {
                 let pendingEvent = protocolEventStates[indexToTrigger].readPendingEventFromLower()
-                pendingEvent.run()
+                pendingEvent.run(state: &self)
             }
             protocolEventStates[indexToTrigger].finishDrainingPendingEventsFromLower()
             drainPendingEvents(index: indexToTrigger)
@@ -368,13 +414,13 @@ extension NetworkContext.State {
             return
         } else if eventCount == 1 {
             // Fast path for common case. Just run the new event, don't enqueue.
-            event.run()
+            event.run(state: &self)
         } else {
             // Enqueue new event, then run all events.
             protocolEventStates[indexToTrigger].addEventFromLowerProtocol(event: event)
             for _ in 0..<eventCount {
                 let pendingEvent = protocolEventStates[indexToTrigger].readPendingEventFromLower()
-                pendingEvent.run()
+                pendingEvent.run(state: &self)
             }
         }
         protocolEventStates[indexToTrigger].finishDrainingPendingEventsFromLower()
@@ -387,7 +433,7 @@ extension NetworkContext.State {
             let lowerEvents = protocolEventStates[index].startDrainingPendingEventsFromLower()
             if lowerEvents > 0 {
                 for _ in 0..<lowerEvents {
-                    protocolEventStates[index].readPendingEventFromLower().run()
+                    protocolEventStates[index].readPendingEventFromLower().run(state: &self)
                 }
                 protocolEventStates[index].finishDrainingPendingEventsFromLower()
             }
@@ -453,7 +499,13 @@ extension NetworkContext.State {
         if let parentIndex {
             var foundEvents = false
             while let event = protocolEventStates[index].unassignedPendingEventsToDeliverToUpperProtocol.popFirst() {
-                let event = event.reassign(to: newUpper)
+                let event = event.reassign(
+                    to: newUpper,
+                    { _, _ in },
+                    { _, _, _ in },
+                    { _, _, _, _ in },
+                    { _, _, _ in }
+                )
                 deliverEventToUpperProtocol(index: index, parentIndex: parentIndex, event: event, drain: false)
                 foundEvents = true
             }
@@ -462,7 +514,13 @@ extension NetworkContext.State {
             }
         } else {
             while let event = protocolEventStates[index].unassignedPendingEventsToDeliverToUpperProtocol.popFirst() {
-                let event = event.reassign(to: newUpper)
+                let event = event.reassign(
+                    to: newUpper,
+                    { _, _ in },
+                    { _, _, _ in },
+                    { _, _, _, _ in },
+                    { _, _, _ in }
+                )
                 deliverEventToUpperProtocol(index: index, parentIndex: nil, event: event, drain: false)
             }
         }

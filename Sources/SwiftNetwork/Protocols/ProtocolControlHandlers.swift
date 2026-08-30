@@ -26,6 +26,7 @@ public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance
         path: PathProperties?
     ) throws(NetworkError)
 
+    // TODO: These need to take state
     mutating func handleConnectedEvent(_ from: ProtocolInstanceReference)
     mutating func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?)
     mutating func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent)

@@ -517,7 +517,9 @@ public struct DemuxProtocol: NetworkProtocol {
                 }
             } else {
                 // Just reply connected to the non-default cases
-                from.deliverEventToUpperProtocol(state: &context.state, event: .connected(self.reference, from))
+                from.deliverEventToUpperProtocol(state: &context.state, event: .connected(self.reference, from, { _, _ in
+
+                }))
             }
         }
 
@@ -534,7 +536,9 @@ public struct DemuxProtocol: NetworkProtocol {
                 }
             } else {
                 // Just reply disconnected to the non-default cases
-                from.deliverEventToUpperProtocol(state: &context.state, event: .disconnected(self.reference, from, error: error))
+                from.deliverEventToUpperProtocol(state: &context.state, event: .disconnected(self.reference, from, error: error, { _, _, _ in
+
+                }))
             }
         }
 

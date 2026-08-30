@@ -118,7 +118,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
     }
 
     public final class BridgeInstance: BottomDatagramProtocol, ProtocolInstanceContainer, TimerSchedulable {        
-        public typealias LinkageFamily = BaseNetworkProtocolStorage.BaseDatagramLinkageFamily
+        public typealias LinkageFamily = BaseDatagramLinkageFamily
         public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500

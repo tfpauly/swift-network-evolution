@@ -27,7 +27,6 @@ internal import os
 public struct IPProtocol: NetworkProtocol {
     public typealias Options = IPOptions
     public typealias Metadata = IPMetadata
-    typealias Instance = IPInstance
 
     static public var ipv4HeaderLength: Int {
         MemoryLayout<UInt8>.size * 20
@@ -1858,8 +1857,7 @@ public struct IPProtocol: NetworkProtocol {
         case ipv6(IPv6Instance)
     }
 
-    typealias IPInstance = IPInnerInstance<DefaultDatagramLinkageFamily>
-    struct IPInnerInstance<LinkageFamily: DatagramLinkageFamily>: ~Copyable,
+    struct IPInstance<LinkageFamily: DatagramLinkageFamily>: ~Copyable,
         OneToOneDatagramProtocol
     {
         typealias UpperProtocol = LinkageFamily.Upper
@@ -1878,17 +1876,6 @@ public struct IPProtocol: NetworkProtocol {
 
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
-
-        // Only called by newProtocolInstance()
-        fileprivate static func registerNewIP(on context: NetworkContext, state: inout NetworkContext.State) -> ProtocolInstanceReference {
-            let ip = IPInstance(context: context)
-            let registeredIndex = state.registerIPInstance(ip)
-//            state.ipInstances[registeredIndex].ipInstanceIndex = registeredIndex
-//            state.ipInstances[registeredIndex].reference = ProtocolInstanceReference(
-//                ipIndex: registeredIndex, state: &state
-//            )
-            return state.ipInstances[registeredIndex].reference
-        }
 
         var passthroughEvents = true
 
@@ -2132,7 +2119,7 @@ public struct IPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> IPOptions? { IPOptions(from: serializedBytes) }
     public func newPerProtocolMetadata() -> IPMetadata? { IPMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        IPInstance.registerNewIP(on: context, state: &context.state)
+        nil
     }
 
     static let identifier = ProtocolIdentifier(name: "ip", level: .internet, mapping: .oneToOne)

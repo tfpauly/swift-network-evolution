@@ -111,6 +111,34 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
         }
          */
     }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+
+    }
+
+    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+    }
+
+    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+    }
 }
 
 @_spi(ProtocolProvider)
@@ -295,6 +323,35 @@ public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
     ) throws(NetworkError) {
         // TODO: TFPDEBUG, concrete calls
     }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+
+    }
+
+    public func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        flowReference: ProtocolInstanceReference,
+        flowMetadata: AbstractProtocolMetadata?
+    ) {
+
+    }
 }
 
 @_spi(ProtocolProvider)
@@ -361,8 +418,14 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
     }
 }
 
-
-
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public struct BaseDatagramLinkageFamily: DatagramLinkageFamily {
+    public typealias Upper = BaseNetworkProtocolStorage.BaseInboundDatagramLinkage
+    public typealias Lower = BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage
+    public typealias Listener = BaseNetworkProtocolStorage.BaseDatagramListenerLinkage
+    public typealias InboundFlow = BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage
+}
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -372,13 +435,6 @@ open class BaseNetworkProtocolStorage {
 
     init(context: NetworkContext) {
         self.context = context
-    }
-
-    public struct BaseDatagramLinkageFamily: DatagramLinkageFamily {
-        public typealias Upper = BaseInboundDatagramLinkage
-        public typealias Lower = BaseOutboundDatagramLinkage
-        public typealias Listener = BaseDatagramListenerLinkage
-        public typealias InboundFlow = BaseInboundDatagramFlowLinkage
     }
 
     public struct BaseInboundDatagramLinkage: InboundDatagramLinkage {
@@ -397,7 +453,70 @@ open class BaseNetworkProtocolStorage {
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
         }
-        
+
+        public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleConnectedEvent(from)
+            case .ip(let index): storage!.ipInstances[index].handleConnectedEvent(from)
+            case .datagramUpperHarness(let index): storage!.datagramUpperHarnesses[index].handleConnectedEvent(from)
+            default: fatalError("Protocol cannot accept handleConnectedEvent call")
+            }
+        }
+
+        public func handleDisconnectedEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            error: NetworkError?
+        ) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleDisconnectedEvent(from, error: error)
+            case .ip(let index): storage!.ipInstances[index].handleDisconnectedEvent(from, error: error)
+            case .datagramUpperHarness(let index):
+                storage!.datagramUpperHarnesses[index].handleDisconnectedEvent(from, error: error)
+            default: fatalError("Protocol cannot accept handleDisconnectedEvent call")
+            }
+        }
+
+        public func handleNetworkProtocolEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            event: NetworkProtocolEvent
+        ) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleNetworkProtocolEvent(from, event: event)
+            case .ip(let index): storage!.ipInstances[index].handleNetworkProtocolEvent(from, event: event)
+            case .datagramUpperHarness(let index):
+                storage!.datagramUpperHarnesses[index].handleNetworkProtocolEvent(from, event: event)
+            default: fatalError("Protocol cannot accept handleNetworkProtocolEvent call")
+            }
+        }
+
+        public func handleInboundDataAvailableEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleInboundDataAvailableEvent(from)
+            case .ip(let index): storage!.ipInstances[index].handleInboundDataAvailableEvent(from)
+            case .datagramUpperHarness(let index):
+                storage!.datagramUpperHarnesses[index].handleInboundDataAvailableEvent(from)
+            default: fatalError("Protocol cannot accept handleInboundDataAvailableEvent call")
+            }
+        }
+
+        public func handleOutboundRoomAvailableEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleOutboundRoomAvailableEvent(from)
+            case .ip(let index): storage!.ipInstances[index].handleOutboundRoomAvailableEvent(from)
+            case .datagramUpperHarness(let index):
+                storage!.datagramUpperHarnesses[index].handleOutboundRoomAvailableEvent(from)
+            default: fatalError("Protocol cannot accept handleOutboundRoomAvailableEvent call")
+            }
+        }
+
         public typealias PairedLinkage = BaseOutboundDatagramLinkage
 
         // TODO: TFPDEBUG Remove this
@@ -516,11 +635,23 @@ open class BaseNetworkProtocolStorage {
             guard !reference.isNone else { return }
             try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
                 switch protocolType {
-                case .udp(let index): try storage!.udpInstances[index].detach(state: &state, from)
-                case .ip(let index): try storage!.ipInstances[index].detach(state: &state, from)
-                case .datagramLowerHarness(let index): try storage!.datagramLowerHarnesses[index].detach(state: &state, from)
+                case .udp(let index):
+                    try storage!.udpInstances[index].detach(state: &state, from)
+                case .ip(let index):
+                    try storage!.ipInstances[index].detach(state: &state, from)
+                case .datagramLowerHarness(let index):
+                    try storage!.datagramLowerHarnesses[index].detach(state: &state, from)
                 default: fatalError("Protocol cannot accept detach call")
                 }
+            }
+            switch protocolType {
+            case .udp(let index):
+                storage!.udpInstances[index].eventManager.unregister(state: &state)
+            case .ip(let index):
+                storage!.ipInstances[index].eventManager.unregister(state: &state)
+            case .datagramLowerHarness(let index):
+                storage!.datagramLowerHarnesses[index].eventManager.unregister(state: &state)
+            default: break
             }
         }
 
@@ -652,6 +783,35 @@ open class BaseNetworkProtocolStorage {
         public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
 
         }
+
+        public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+        }
+
+        public func handleDisconnectedEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            error: NetworkError?
+        ) {
+
+        }
+
+        public func handleNetworkProtocolEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            event: NetworkProtocolEvent
+        ) {
+
+        }
+
+        public func handleNewInboundFlowEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            flowReference: ProtocolInstanceReference,
+            flowMetadata: AbstractProtocolMetadata?
+        ) {
+
+        }
     }
 
 
@@ -670,10 +830,10 @@ open class BaseNetworkProtocolStorage {
         return (inbound, outbound)
     }
 
-    internal var ipInstances = NetworkGappyArray<IPProtocol.IPInnerInstance<BaseDatagramLinkageFamily>>()
+    internal var ipInstances = NetworkGappyArray<IPProtocol.IPInstance<BaseDatagramLinkageFamily>>()
 
     func createIPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
-        let instance = IPProtocol.IPInnerInstance<BaseDatagramLinkageFamily>(context: context)
+        let instance = IPProtocol.IPInstance<BaseDatagramLinkageFamily>(context: context)
 
         let instanceIndex = ipInstances.insert(instance)
 
@@ -721,5 +881,4 @@ open class BaseNetworkProtocolStorage {
 
         return (instance, inbound)
     }
-
 }

@@ -57,6 +57,7 @@ extension ProtocolLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol UpperProtocolLinkage: ProtocolLinkage where PairedLinkage: LowerProtocolLinkage {
+    // TODO: TFPDEBUG Move these out of the protocol and into implementation?
     func deliverConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
     func deliverDisconnectedEvent(
         state: inout NetworkContext.State,
@@ -76,19 +77,39 @@ public protocol UpperProtocolLinkage: ProtocolLinkage where PairedLinkage: Lower
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError)
+
+    // TODO: TFPDEBUG These are the ones callers need to implement
+    func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
+    func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    )
 }
 
 @available(Network 0.1.0, *)
 extension UpperProtocolLinkage {
     public func deliverConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        from.deliverEventToUpperProtocol(state: &state, event: .connected(from, self.reference))
+        from.deliverEventToUpperProtocol(state: &state, event: .connected(from, self.reference, { state, from in
+            self.handleConnectedEvent(state: &state, from)
+        }))
     }
     public func deliverDisconnectedEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         error: NetworkError?
     ) {
-        from.deliverEventToUpperProtocol(state: &state, event: .disconnected(from, self.reference, error: error))
+        from.deliverEventToUpperProtocol(
+            state: &state,
+            event: .disconnected(from, self.reference, error: error, { state, from, error in
+                self.handleDisconnectedEvent(state: &state, from, error: error)
+            })
+        )
     }
     public func deliverNetworkProtocolEvent(
         state: inout NetworkContext.State,
@@ -98,7 +119,9 @@ extension UpperProtocolLinkage {
     ) {
         selfReference.deliverEventToUpperProtocol(
             state: &state,
-            event: .networkProtocolEvent(originalReference, self.reference, event: event)
+            event: .networkProtocolEvent(originalReference, self.reference, event: event, { state, from, event in
+                self.handleNetworkProtocolEvent(state: &state, from, event: event)
+            })
         )
     }
 //    public func invokeAttachLowerProtocol(
@@ -123,6 +146,10 @@ extension UpperProtocolLinkage {
 public protocol InboundDataLinkage: UpperProtocolLinkage where PairedLinkage: OutboundDataLinkage {
     func deliverInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
     func deliverOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+
+    // TODO: TFPDEBUG These are the ones callers need to implement
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
 }
 
 @available(Network 0.1.0, *)
@@ -131,13 +158,23 @@ extension InboundDataLinkage {
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) {
-        from.deliverEventToUpperProtocol(state: &state, event: .inboundDataAvailable(from, self.reference))
+        from.deliverEventToUpperProtocol(
+            state: &state,
+            event: .inboundDataAvailable(from, self.reference, { state, from in
+                self.handleInboundDataAvailableEvent(state: &state, from)
+            })
+        )
     }
     public func deliverOutboundRoomAvailableEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) {
-        from.deliverEventToUpperProtocol(state: &state, event: .outboundRoomAvailable(from, self.reference))
+        from.deliverEventToUpperProtocol(
+            state: &state,
+            event: .outboundRoomAvailable(from, self.reference, { state, from in
+                self.handleOutboundRoomAvailableEvent(state: &state, from)
+            })
+        )
     }
 }
 
@@ -146,6 +183,14 @@ extension InboundDataLinkage {
 public protocol InboundFlowLinkage: UpperProtocolLinkage where PairedLinkage: ListenerLinkage {
     associatedtype DataLinkage: OutboundDataLinkage
     func deliverNewInboundFlowEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        flowReference: ProtocolInstanceReference,
+        flowMetadata: AbstractProtocolMetadata?
+    )
+
+    // TODO: TFPDEBUG These are the ones callers need to implement
+    func handleNewInboundFlowEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
@@ -163,7 +208,20 @@ extension InboundFlowLinkage {
     ) {
         from.deliverEventToUpperProtocol(
             state: &state,
-            event: .newInboundFlow(from, self.reference, flowReference: flowReference, flowMetadata: flowMetadata)
+            event: .newInboundFlow(
+                from,
+                self.reference,
+                flowReference: flowReference,
+                flowMetadata: flowMetadata,
+                { state, from, flowReference, flowMetadata in
+                    self.handleNewInboundFlowEvent(
+                        state: &state,
+                        from,
+                        flowReference: flowReference,
+                        flowMetadata: flowMetadata
+                    )
+                }
+            )
         )
     }
 }
@@ -345,10 +403,20 @@ public struct InboundStreamLinkage: InboundDataLinkage {
     public init() { self.reference = .init() }
 
     public func deliverInboundAbortedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
-        from.deliverEventToUpperProtocol(state: &state, event: .inboundAborted(from, self.reference, error: error))
+        from.deliverEventToUpperProtocol(
+            state: &state,
+            event: .inboundAborted(from, self.reference, error: error, { state, from, error in
+                self.handleInboundAbortedEvent(state: &state, from, error: error)
+            })
+        )
     }
     public func deliverOutboundAbortedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
-        from.deliverEventToUpperProtocol(state: &state, event: .outboundAborted(from, self.reference, error: error))
+        from.deliverEventToUpperProtocol(
+            state: &state,
+            event: .outboundAborted(from, self.reference, error: error, { state, from, error in
+                self.handleOutboundAbortedEvent(state: &state, from, error: error)
+            })
+        )
     }
 
     public func invokeAttachLowerProtocol(
@@ -359,6 +427,43 @@ public struct InboundStreamLinkage: InboundDataLinkage {
         path: PathProperties?
     ) throws(NetworkError) {
         // TODO: TFPDEBUG, concrete calls
+    }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+    }
+
+    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+    }
+
+    public func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
     }
 }
 
@@ -525,6 +630,35 @@ public struct InboundStreamFlowLinkage: InboundFlowLinkage {
         path: PathProperties?
     ) throws(NetworkError) {
         // TODO: TFPDEBUG, concrete calls
+    }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+
+    }
+
+    public func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        flowReference: ProtocolInstanceReference,
+        flowMetadata: AbstractProtocolMetadata?
+    ) {
+
     }
 }
 
