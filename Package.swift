@@ -70,6 +70,7 @@ packageDependencies = [
     .package(url: "https://github.com/apple/swift-collections.git", from: "1.5.0"),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "5.0.0-beta.1"),
     .package(url: "https://github.com/apple/swift-tls.git", branch: "main"),
+    .package(url: "https://github.com/apple/swift-http-types.git", from: "1.6.0"),
 ]
 targetDependencies = [
     .product(name: "DequeModule", package: "swift-collections"),
@@ -77,6 +78,8 @@ targetDependencies = [
     .product(name: "Crypto", package: "swift-crypto"),
     .product(name: "CryptoExtras", package: "swift-crypto"),
     .product(name: "SwiftTLS", package: "swift-tls"),
+    .product(name: "HTTPTypes", package: "swift-http-types"),
+
 ]
 
 // To support back to macOS 26, provide a shim on top of crypto APIs
