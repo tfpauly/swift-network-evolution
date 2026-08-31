@@ -18,13 +18,13 @@
 public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance {
     associatedtype LowerProtocol: LowerProtocolLinkage
 
+    /// Attaches the provided protocol linkage as the lower protocol of this
+    /// protocol instance. The optional return value provides a paired "upper"
+    /// protocol linkage that this protocol instance wants to use for the lower
+    /// protocol to refer to its upper.
     mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError)
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage?
 
     mutating func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
     mutating func handleDisconnectedEvent(

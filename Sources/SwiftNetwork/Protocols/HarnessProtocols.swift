@@ -79,7 +79,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     var parameters: Parameters
     var path: PathProperties
 
-    fileprivate init(
+    public init(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -95,39 +95,6 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         log.logPrefix = "[UpperHarness:\(identifier)]"
         reference = .init(context: context, eventManager: &self.eventManager)
     }
-
-    #if !NETWORK_EMBEDDED
-    public init(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        lowerProtocol: LinkageFamily.Lower
-    ) {
-        log.logPrefix = "[UpperHarness:\(identifier)]"
-        self.context = context
-        self.local = local
-        self.remote = remote
-        self.parameters = parameters
-        self.path = path
-        self.lower = lowerProtocol
-        // Must be initialized before asUpper is used, since asUpper derives from reference.
-        reference = .init(context: context, eventManager: &self.eventManager)
-//        do throws(NetworkError) {
-//            try lowerProtocol.invokeAttachUpperProtocol(
-//                asUpper,
-//                remote: remote,
-//                local: local,
-//                parameters: parameters,
-//                path: path
-//            )
-//        } catch {
-//            return nil
-//        }
-    }
-    #endif
 
     public func handleConnectedEvent(state: inout NetworkContext.State) {
         log.debug("Received connected event")
@@ -236,14 +203,18 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        if let flowMetadata = flowMetadata as? ProtocolMetadata<P> {
-            return flowMetadata
+        fromExternal { state in
+            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
+                return nil
+            }
+            return metadata
         }
-        return invokeGetMetadata() as? ProtocolMetadata<P>
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
-        lower.invokeGetMetrics(state: &context.state, reference, requestedNetworkMetric: requestedNetworkMetric)
+        fromExternal { state in
+            lower.invokeGetMetrics(state: &state, reference, requestedNetworkMetric: requestedNetworkMetric)
+        }
     }
 
     public func setApplicationError(_ applicationError: UInt64, applicationErrorReason: String) {
@@ -684,7 +655,6 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 
     public var reference: ProtocolInstanceReference
     var lower = LowerProtocol()
-//    var asUpper: LinkageFamily.InboundFlow { .init(reference: reference) }
 
     public var upperHarnesses: [HarnessType] = []
 
@@ -707,11 +677,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 
     public func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
         throw NetworkError.posix(EINVAL)
     }
 
@@ -822,19 +788,6 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         self.parameters = parameters
         self.path = path
         reference = .init(context: context, eventManager: &self.eventManager)
-        // TODO: TFPDEBUG
-
-//        do throws(NetworkError) {
-//            self.lower = try listenerProtocol.invokeAttachUpperProtocol(
-//                asUpper as! LinkageFamily.PairedLinkage.PairedLinkage,
-//                remote: remote,
-//                local: local,
-//                parameters: parameters,
-//                path: path
-//            )
-//        } catch {
-//            return nil
-//        }
     }
     #endif
 

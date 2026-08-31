@@ -184,8 +184,6 @@ public struct DemuxProtocol: NetworkProtocol {
         var demuxEntries = NetworkUniqueArray<DemuxEntry>()
 
         var lower = LowerProtocol()
-        var asUpper: LowerProtocol.PairedLinkage { .init(reference: reference) }
-        var asLower: UpperProtocol.PairedLinkage { .init(reference: reference) }
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -260,22 +258,12 @@ public struct DemuxProtocol: NetworkProtocol {
 
         public func attachLowerProtocol(
             _ lowerProtocol: LowerProtocol,
-            remote: Endpoint?,
-            local: Endpoint?,
-            parameters: Parameters?,
-            path: PathProperties?
-        ) throws(NetworkError) {
+        ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
             guard lower.isDetached else {
                 throw NetworkError.posix(EALREADY)
             }
             lower = lowerProtocol
-            try lowerProtocol.invokeAttachUpperProtocol(
-                asUpper,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
+            return nil
         }
 
         func addInboundDatagram(_ datagram: consuming Frame) -> Int? {

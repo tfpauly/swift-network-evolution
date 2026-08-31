@@ -311,6 +311,11 @@ public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: Upper
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) -> ProtocolMetadata<P>?
+    func invokeGetMetrics(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        requestedNetworkMetric: RequestedNetworkMetrics
+    ) -> NetworkMetrics?
 }
 
 @available(Network 0.1.0, *)

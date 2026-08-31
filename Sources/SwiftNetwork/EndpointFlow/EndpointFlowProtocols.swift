@@ -127,11 +127,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
         throw NetworkError.posix(EINVAL)
     }
 

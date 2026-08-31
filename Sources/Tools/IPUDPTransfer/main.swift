@@ -81,9 +81,9 @@ final class IPUDPTransfer {
                     remote: ipv4Server,
                     parameters: clientParameters,
                     path: path,
-                    context: context,
-                    lowerProtocol: clientUDPLinkage
+                    context: context
                 )
+
 //                guard let clientInput else {
 //                    return
 //                }
@@ -94,6 +94,7 @@ final class IPUDPTransfer {
                 )
                 // TODO: TFPDEBUG
 //                do {
+                // TODO: Attach upper to UDP
 //                    try clientUDP.attachLowerDatagramProtocol(
 //                        clientIP,
 //                        remote: ipv4Server,
@@ -136,8 +137,7 @@ final class IPUDPTransfer {
                     remote: ipv4Client,
                     parameters: serverParameters,
                     path: serverPath,
-                    context: context,
-                    lowerProtocol: serverUDPLinkage
+                    context: context
                 )
 //                guard let serverInput else {
 //                    return
@@ -149,6 +149,7 @@ final class IPUDPTransfer {
                 )
                 // TODO: TFPDEBUG
 //                do {
+                // TODO: Attach UDP to upper
 //                    try serverUDP.attachLowerDatagramProtocol(
 //                        serverIP,
 //                        remote: ipv4Client,

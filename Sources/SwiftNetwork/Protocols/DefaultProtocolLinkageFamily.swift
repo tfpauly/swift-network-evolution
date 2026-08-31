@@ -420,12 +420,15 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+            let overrideUpperLinkage: Self?
             switch protocolType {
-            case .udp(let index): try storage!.udpInstances[index].attachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
-            case .ip(let index): try storage!.ipInstances[index].attachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
-            case .datagramUpperHarness(let index): try storage!.datagramUpperHarnesses[index].attachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .udp(let index): overrideUpperLinkage = try storage!.udpInstances[index].attachLowerProtocol(lowerProtocol)
+            case .ip(let index): overrideUpperLinkage = try storage!.ipInstances[index].attachLowerProtocol(lowerProtocol)
+            case .datagramUpperHarness(let index): overrideUpperLinkage = try storage!.datagramUpperHarnesses[index].attachLowerProtocol(lowerProtocol)
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
+            let upperLinkage = overrideUpperLinkage ?? self
+            try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
         }
 
         public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -842,15 +845,13 @@ open class BaseNetworkProtocolStorage {
                                     remote: Endpoint,
                                     parameters: Parameters,
                                     path: PathProperties,
-                                    context: NetworkContext,
-                                    lowerProtocol: BaseDatagramLinkageFamily.Lower) -> (DatagramUpperHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramLinkage) {
+                                    context: NetworkContext) -> (DatagramUpperHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramLinkage) {
         let instance = DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: identifier,
                                                                        local: local,
                                                                        remote: remote,
                                                                        parameters: parameters,
                                                                        path: path,
-                                                                       context: context,
-                                                                       lowerProtocol: lowerProtocol)
+                                                                       context: context)
         let instanceIndex = datagramUpperHarnesses.insert(instance)
 
         let reference = instance.reference

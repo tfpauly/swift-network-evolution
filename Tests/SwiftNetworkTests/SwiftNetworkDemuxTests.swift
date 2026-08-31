@@ -146,7 +146,6 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                 parameters: parameters,
                 path: path,
                 context: context,
-                lowerProtocol: demuxLinkage
             )
 //            XCTAssertNotNil(upperHarness, "Failed to attach default upper harness")
 //            guard let upperHarness else {
@@ -155,6 +154,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
 
             let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(context: context)
 
+            // TODO: Attach upper to demux
 //            try! demux.attachLowerDatagramProtocol(
 //                udp,
 //                remote: remoteEndpoint,
@@ -202,12 +202,13 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                     parameters: demuxParameters,
                     path: path,
                     context: context,
-                    lowerProtocol: demuxLinkage
                 )
 //                XCTAssertNotNil(demuxUpperHarness, "Failed to attach demux upper harness")
 //                guard let demuxUpperHarness else {
 //                    return
 //                }
+
+                // TODO: Attach upper to demux
 
                 demuxUpperHarness.invokeConnect()
 

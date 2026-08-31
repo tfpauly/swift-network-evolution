@@ -50,13 +50,7 @@ final class RecoveryTests: XCTestCase {
             newPath.set(interface: nil, priority: 1, isInitial: true)
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))
-            try? newPath.attachLowerProtocol(
-                .init(reference: lowerHarness.reference),
-                remote: nil,
-                local: nil,
-                parameters: nil,
-                path: nil
-            )
+            _ = try? newPath.attachLowerProtocol(.init(reference: lowerHarness.reference))
             self.path = newPath
             self.connection.currentPath = newPath
             self.connection.multiplexingPaths[newPath.identifier] = newPath

@@ -343,26 +343,14 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 
     public mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
         lower = lowerProtocol
-        if upper.isDetached {
-            // If the upper is detached at the time of attaching the lower, don't pass through events
-            passthroughEvents = false
-        }
-//        try lowerProtocol.invokeAttachUpperProtocol(
-//            asUpper,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
+        // Don't pass through events, linkages are not compatible
+        passthroughEvents = false
+        return nil
     }
 
     public mutating func attachUpperProtocol(
@@ -537,6 +525,27 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
         parameters.protocolOptions(for: self.reference)
     }
     #endif
+}
+
+@available(Network 0.1.0, *)
+extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == LowerProtocol.PairedLinkage {
+    public mutating func attachLowerProtocol(
+        _ lowerProtocol: LowerProtocol,
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+        guard lower.isDetached else {
+            throw NetworkError.posix(EALREADY)
+        }
+        lower = lowerProtocol
+        if upper.isDetached {
+            // If the upper is detached at the time of attaching the lower, don't pass through events
+            passthroughEvents = false
+        }
+        if passthroughEvents {
+            return upper
+        } else {
+            return nil
+        }
+    }
 }
 
 // Default implementations, to be overridden as necessary

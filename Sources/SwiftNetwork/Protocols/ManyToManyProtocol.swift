@@ -364,7 +364,8 @@ extension ManyToManyProtocolHandler {
         path: PathProperties?
     ) throws(NetworkError) {
         var newPath = Path(parent: self as! Self.Path.ParentProtocol)
-        try newPath.attachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
+        // TODO: TFPDEBUG FIX THIS
+        _ = try newPath.attachLowerProtocol(lowerProtocol)
         if multiplexingPaths.isEmpty { newPath.pathIsPrimary = true }
         multiplexingPaths[newPath.identifier] = newPath
         handlePathChanged(path: newPath.identifier, event: .available, isPrimary: newPath.pathIsPrimary)
@@ -1806,22 +1807,12 @@ extension MultiplexingPath {
 
     public mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
         lower = lowerProtocol
-        try lowerProtocol.invokeAttachUpperProtocol(
-            asUpper,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+        return nil
     }
 
     fileprivate func invokeConnect() {

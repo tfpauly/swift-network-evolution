@@ -89,44 +89,36 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
+            let storage = BaseNetworkProtocolStorage(context: context)
 
-            let reference = UDPProtocol.instance(context: context)
+            let (udpUpper, udpLower) = storage.createUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            udpOptions.setProtocolInstance(reference)
+            udpOptions.setProtocolInstance(udpUpper.reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let udpLinkage = DefaultOutboundDatagramLinkage(reference: reference)
-            let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let (upperHarness, upperHarnessLinkage) = storage.createDatagramUpperHarness(
                 identifier: "Client",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: context,
-                lowerProtocol: udpLinkage
-            )
-//            XCTAssertNotNil(upperHarness, "Failed to attach UDP to upper harness")
-//            guard let upperHarness else {
-//                return
-//            }
+                context: context)
+            do {
+                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to upper harness")
+            }
 
-            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
+            let (lowerHarness, lowerHarnessLinkage) = storage.createDatagramLowerHarness(
                 identifier: "Client",
-                context: context
-            )
-//            do {
-//                try reference.attachLowerDatagramProtocol(
-//                    lowerHarness.reference,
-//                    remote: remoteEndpoint,
-//                    local: localEndpoint,
-//                    parameters: parameters,
-//                    path: path
-//                )
-//            } catch {
-//                XCTAssertTrue(false, "Failed to attach UDP to lower harness")
-//            }
+                context: context)
+            do {
+                try udpUpper.invokeAttachLowerProtocol(lowerHarnessLinkage, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to lower harness")
+            }
 
             upperHarness.start { connected in
                 XCTAssertTrue(connected, "UDP failed to become connected")
@@ -222,7 +214,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
         remoteEndpoint: Endpoint,
         fullChecksumOffload: Bool,
         preferNoChecksum: Bool = false,
-        validateOutbound: @escaping (DatagramLowerHarness<DefaultDatagramLinkageFamily>) -> Void
+        validateOutbound: @escaping (DatagramLowerHarness<BaseDatagramLinkageFamily>) -> Void
     ) {
         let parameters = Parameters()
         let expectation = XCTestExpectation()
@@ -230,40 +222,40 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
+            let storage = BaseNetworkProtocolStorage(context: context)
 
-            let reference = UDPProtocol.instance(context: context)
+            let (udpUpper, udpLower) = storage.createUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.fullChecksumOffload = fullChecksumOffload
             udpOptions.preferNoChecksum = preferNoChecksum
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            udpOptions.setProtocolInstance(reference)
+            udpOptions.setProtocolInstance(udpUpper.reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let udpLinkage = DefaultOutboundDatagramLinkage(reference: reference)
-            let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let (upperHarness, upperHarnessLinkage) = storage.createDatagramUpperHarness(
                 identifier: "Client",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: context,
-                lowerProtocol: udpLinkage
-            )
+                context: context)
+            do {
+                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+            } catch {
+                XCTFail("Failed to attach UDP to upper harness")
+                return
+            }
 
-            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: context)
-//            do {
-//                try reference.attachLowerDatagramProtocol(
-//                    lowerHarness.reference,
-//                    remote: remoteEndpoint,
-//                    local: localEndpoint,
-//                    parameters: parameters,
-//                    path: path
-//                )
-//            } catch {
-//                XCTFail("Failed to attach UDP to lower harness")
-//                return
-//            }
+            let (lowerHarness, lowerHarnessLinkage) = storage.createDatagramLowerHarness(
+                identifier: "Client",
+                context: context)
+            do {
+                try udpUpper.invokeAttachLowerProtocol(lowerHarnessLinkage, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+            } catch {
+                XCTFail("Failed to attach UDP to lower harness")
+                return
+            }
 
             upperHarness.start { connected in
                 XCTAssertTrue(connected, "UDP failed to become connected")
@@ -370,80 +362,70 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
 
+            let storage = BaseNetworkProtocolStorage(context: context)
+
             let clientPath = PathProperties(parameters: clientParameters)
-            let clientReference = UDPProtocol.instance(context: clientParameters.context)
+            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
             let clientOptions = UDPProtocol.options()
             clientOptions.noMetadata = true
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientOptions.setProtocolInstance(clientReference)
+            clientOptions.setProtocolInstance(clientUDPUpper.reference)
             clientParameters.defaultStack.transport = .udp(clientOptions)
 
-            let clientUDPLinkage = DefaultOutboundDatagramLinkage(reference: clientReference)
-            let clientUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let (clientUpperHarness, clientUpperHarnessLinkage) = storage.createDatagramUpperHarness(
                 identifier: "Client",
                 local: clientEndpoint,
                 remote: serverEndpoint,
                 parameters: clientParameters,
                 path: clientPath,
-                context: clientParameters.context,
-                lowerProtocol: clientUDPLinkage
-            )
-//            XCTAssertNotNil(clientUpperHarness, "Failed to attach UDP to client input harness")
-//            guard let clientUpperHarness else {
-//                return
-//            }
+                context: clientParameters.context)
+            do {
+                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(clientUDPLower, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to client upper harness")
+            }
 
-            let clientLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: clientParameters.context)
+            let (clientLowerHarness, clientLowerHarnessLinkage) = storage.createDatagramLowerHarness(
+                identifier: "Client",
+                context: clientParameters.context)
             clientLowerHarness.maximumOutputSize = 9000
-//            do {
-//                try clientReference.attachLowerDatagramProtocol(
-//                    clientLowerHarness.reference,
-//                    remote: serverEndpoint,
-//                    local: clientEndpoint,
-//                    parameters: clientParameters,
-//                    path: clientPath
-//                )
-//            } catch {
-//                XCTAssertTrue(false, "Failed to attach UDP to lower harness")
-//            }
+            do {
+                try clientUDPUpper.invokeAttachLowerProtocol(clientLowerHarnessLinkage, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to client lower harness")
+            }
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
-            let serverReference = UDPProtocol.instance(context: serverParameters.context)
+            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             let serverOptions = UDPProtocol.options()
             serverOptions.noMetadata = true
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverOptions.setProtocolInstance(serverReference)
+            serverOptions.setProtocolInstance(serverUDPUpper.reference)
             serverParameters.defaultStack.transport = .udp(serverOptions)
 
-            let serverUDPLinkage = DefaultOutboundDatagramLinkage(reference: serverReference)
-            let serverUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let (serverUpperHarness, serverUpperHarnessLinkage) = storage.createDatagramUpperHarness(
                 identifier: "Server",
                 local: serverEndpoint,
                 remote: clientEndpoint,
                 parameters: serverParameters,
                 path: serverPath,
-                context: serverParameters.context,
-                lowerProtocol: serverUDPLinkage
-            )
-//            XCTAssertNotNil(serverUpperHarness, "Failed to attach UDP to server input harness")
-//            guard let serverUpperHarness else {
-//                return
-//            }
+                context: serverParameters.context)
+            do {
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverUDPLower, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to server upper harness")
+            }
 
-            let serverLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: serverParameters.context)
+            let (serverLowerHarness, serverLowerHarnessLinkage) = storage.createDatagramLowerHarness(
+                identifier: "Server",
+                context: serverParameters.context)
             serverLowerHarness.maximumOutputSize = 9000
-//            do {
-//                try serverReference.attachLowerDatagramProtocol(
-//                    serverLowerHarness.reference,
-//                    remote: clientEndpoint,
-//                    local: serverEndpoint,
-//                    parameters: serverParameters,
-//                    path: serverPath
-//                )
-//            } catch {
-//                XCTAssertTrue(false, "Failed to attach UDP server to lower harness")
-//            }
+            do {
+                try serverUDPUpper.invokeAttachLowerProtocol(serverLowerHarnessLinkage, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach UDP to server lower harness")
+            }
 
             clientUpperHarness.start { connected in
                 XCTAssertTrue(connected, "UDP client failed to become connected")
