@@ -530,7 +530,11 @@ public struct UDPProtocol: NetworkProtocol {
             snapshot.sentTransportByteCount = UInt64(transmitByteCount)
         }
 
-        mutating func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+        mutating func handleDisconnectedEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            error: NetworkError?
+        ) {
             recordStatsEvent(stat: .clear)
         }
 

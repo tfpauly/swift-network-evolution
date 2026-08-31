@@ -39,17 +39,17 @@ public protocol TopProtocolHandler: ~Copyable, InboundDataHandler {
     /// A function the framework calls when the lower protocol connects.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleConnectedEvent()
+    func handleConnectedEvent(state: inout NetworkContext.State)
 
     /// A function the framework calls when the lower protocol disconnects.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleDisconnectedEvent(error: NetworkError?)
+    func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?)
 
     /// A function the framework calls when a lower protocol sends an event.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleNetworkProtocolEvent(_ event: NetworkProtocolEvent)
+    func handleNetworkProtocolEvent(state: inout NetworkContext.State, _ event: NetworkProtocolEvent)
 }
 
 @_spi(ProtocolProvider)
@@ -59,12 +59,12 @@ public protocol TopDatapathProtocol: ~Copyable, TopProtocolHandler where LowerPr
     /// A function the framework calls when the lower protocol has inbound data available to read.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleInboundDataAvailableEvent()
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State)
 
     /// A function the framework calls when the lower protocol has outbound room available to send.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleOutboundRoomAvailableEvent()
+    func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State)
 }
 
 @_spi(ProtocolProvider)
@@ -155,12 +155,12 @@ where LowerProtocol == OutboundStreamLinkage {
     /// A function the framework calls when the lower protocol reports that inbound stream data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleInboundAbortedEvent(error: NetworkError?)
+    func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?)
 
     /// A function the framework calls when the lower protocol reports that outbound stream data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleOutboundAbortedEvent(error: NetworkError?)
+    func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?)
 }
 
 @_spi(ProtocolProvider)
@@ -357,51 +357,65 @@ extension TopProtocolHandler where Self: ~Copyable {
 //        )
     }
 
-    public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleConnectedEvent()
+        self.handleConnectedEvent(state: &state)
     }
 
-    public func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleDisconnectedEvent(error: error)
+        self.handleDisconnectedEvent(state: &state, error: error)
     }
 
-    public func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         // Don't validate lower, can pass through
-        self.handleNetworkProtocolEvent(event)
+        self.handleNetworkProtocolEvent(state: &state, event)
     }
 }
 
 // Default implementations, to be overridden as necessary
 @available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable {
-    public func handleConnectedEvent() {}
+    public func handleConnectedEvent(state: inout NetworkContext.State) {}
 
-    public func handleDisconnectedEvent(error: NetworkError?) {}
+    public func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {}
 
-    public func handleNetworkProtocolEvent(_ event: NetworkProtocolEvent) {}
+    public func handleNetworkProtocolEvent(state: inout NetworkContext.State, _ event: NetworkProtocolEvent) {}
 }
 
 @available(Network 0.1.0, *)
 extension TopDatapathProtocol where Self: ~Copyable {
-    public func handleInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
+    public func handleInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleInboundDataAvailableEvent()
+        self.handleInboundDataAvailableEvent(state: &state)
     }
 
-    public func handleOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference) {
+    public func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleOutboundRoomAvailableEvent()
+        self.handleOutboundRoomAvailableEvent(state: &state)
     }
 }
 
 @available(Network 0.1.0, *)
 extension TopDatapathProtocol where Self: ~Copyable {
     // Default implementations, to be overridden as necessary
-    public func handleInboundDataAvailableEvent() {}
+    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {}
 
-    public func handleOutboundRoomAvailableEvent() {}
+    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {}
 }
 
 @available(Network 0.1.0, *)
@@ -422,21 +436,29 @@ extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStr
 
 @available(Network 0.1.0, *)
 extension TopStreamProtocol where Self: ~Copyable {
-    public func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleInboundAbortedEvent(error: error)
+        self.handleInboundAbortedEvent(state: &state, error: error)
     }
 
-    public func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        self.handleOutboundAbortedEvent(error: error)
+        self.handleOutboundAbortedEvent(state: &state, error: error)
     }
 }
 
 @available(Network 0.1.0, *)
 extension TopStreamProtocol where Self: ~Copyable {
     // Default implementations, to be overridden as necessary
-    public func handleInboundAbortedEvent(error: NetworkError?) {}
+    public func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {}
 
-    public func handleOutboundAbortedEvent(error: NetworkError?) {}
+    public func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {}
 }

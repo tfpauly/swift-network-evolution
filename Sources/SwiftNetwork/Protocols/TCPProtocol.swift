@@ -396,9 +396,16 @@ public struct TCPProtocol: NetworkProtocol {
             throw NetworkError.posix(ENOTSUP)
         }
         func wakeup() {}
-        func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? { nil }
-        func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int { 0 }
-        func sendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {}
+        func receiveStreamData(
+            state: inout NetworkContext.State,
+            minimumBytes: Int,
+            maximumBytes: Int
+        ) throws(NetworkError) -> FrameArray? { nil }
+        func getOutboundStreamDataRoomAvailable(state: inout NetworkContext.State) throws(NetworkError) -> Int { 0 }
+        func sendStreamData(
+            state: inout NetworkContext.State,
+            _ streamData: consuming FrameArray
+        ) throws(NetworkError) {}
         #if !NETWORK_EMBEDDED
         var metadata: AbstractProtocolMetadata? { nil }
         #endif

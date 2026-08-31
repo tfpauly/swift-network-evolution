@@ -129,7 +129,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
     #endif
 
-    public func handleConnectedEvent() {
+    public func handleConnectedEvent(state: inout NetworkContext.State) {
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
@@ -138,7 +138,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
-    public func handleDisconnectedEvent(error: NetworkError?) {
+    public func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Received disconnected event, error \(error.debugDescription)")
         receivedDisconnected = true
         if let completion = completions.connected {
@@ -160,7 +160,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
-    public func handleInboundDataAvailableEvent() {
+    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
             self.completions.inboundDataAvailable = nil
             inboundDataAvailableCompletion(true)
@@ -169,10 +169,10 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
-    public func handleOutboundRoomAvailableEvent() {
+    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {
     }
 
-    public func handleNetworkProtocolEvent(_ event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(state: inout NetworkContext.State, _ event: NetworkProtocolEvent) {
         log.debug("Received network protocol event: \(event)")
         if let quicEvent = event.quicEvent {
             switch quicEvent {
@@ -181,10 +181,10 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
                     self.completions.earlyDataRejected = nil
                     earlyDataRejectedCompletion()
                 }
-            case .receivedRemoteTransportParameters(let state):
+            case .receivedRemoteTransportParameters(let transportParameters):
                 if let transportParametersCompletion = self.completions.receivedRemoteTransportParameters {
                     self.completions.receivedRemoteTransportParameters = nil
-                    transportParametersCompletion(state)
+                    transportParametersCompletion(transportParameters)
                 }
             default: break
             }
@@ -362,7 +362,7 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
 @available(Network 0.1.0, *)
 public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarness<LinkageFamily>, TopStreamProtocol {
 
-    public func handleInboundAbortedEvent(error: NetworkError?) {
+    public func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Received inbound aborted event: \(error?.description ?? "no error")")
         self.inboundAborted = true
         self.inboundAbortError = error
@@ -371,7 +371,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
             inboundAbortedCompletion(self.inboundAbortError)
         }
     }
-    public func handleOutboundAbortedEvent(error: NetworkError?) {
+    public func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Received outbound aborted event: \(error?.description ?? "no error")")
         self.outboundAborted = true
         self.outboundAbortError = error
@@ -715,7 +715,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         throw NetworkError.posix(EINVAL)
     }
 
-    public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
@@ -724,7 +724,11 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         }
     }
 
-    public func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         log.debug("Received disconnected event, \(error?.description ?? "<no error>")")
         receivedDisconnected = true
         if let completion = completions.connected {
@@ -742,6 +746,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
     }
 
     open func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
         flowMetadata: AbstractProtocolMetadata?
@@ -751,7 +756,11 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 
     public var newInboundCIDEventCount = 0
     public var newOutboundCIDEventCount = 0
-    public func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         log.debug("Received network protocol event: \(event)")
         #if !NETWORK_NO_SWIFT_QUIC
         if let quicEvent = event.quicEvent {
@@ -919,6 +928,7 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
     }
 
     public override func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
         flowMetadata: AbstractProtocolMetadata?
@@ -941,7 +951,7 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
             )
             upperHarnesses.append(newUpperHarness)
             newUpperHarness.flowMetadata = flowMetadata
-            newUpperHarness.start()
+            newUpperHarness.invokeConnect(state: &state)
             if let newFlowCompletion = completions.newFlow.popFirst() {
                 newFlowCompletion()
             }
@@ -986,6 +996,7 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
     }
 
     public override func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
         flowMetadata: AbstractProtocolMetadata?
@@ -1008,7 +1019,7 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
             )
             upperHarnesses.append(newUpperHarness)
             newUpperHarness.flowMetadata = flowMetadata
-            newUpperHarness.start()
+            newUpperHarness.invokeConnect(state: &state)
             if let newFlowCompletion = completions.newFlow.popFirst() {
                 newFlowCompletion()
             }

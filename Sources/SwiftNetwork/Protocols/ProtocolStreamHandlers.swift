@@ -147,8 +147,16 @@ public protocol InboundStreamHandler: ~Copyable, InboundDataHandler where LowerP
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError)
 
-    mutating func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?)
-    mutating func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?)
+    mutating func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
+    mutating func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
 }
 
 @_spi(ProtocolProvider)

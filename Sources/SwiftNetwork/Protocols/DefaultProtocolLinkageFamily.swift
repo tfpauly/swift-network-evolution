@@ -430,9 +430,10 @@ open class BaseNetworkProtocolStorage {
 
         public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
-            case .udp(let index): storage!.udpInstances[index].handleConnectedEvent(from)
-            case .ip(let index): storage!.ipInstances[index].handleConnectedEvent(from)
-            case .datagramUpperHarness(let index): storage!.datagramUpperHarnesses[index].handleConnectedEvent(from)
+            case .udp(let index): storage!.udpInstances[index].handleConnectedEvent(state: &state, from)
+            case .ip(let index): storage!.ipInstances[index].handleConnectedEvent(state: &state, from)
+            case .datagramUpperHarness(let index):
+                storage!.datagramUpperHarnesses[index].handleConnectedEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleConnectedEvent call")
             }
         }
@@ -443,10 +444,12 @@ open class BaseNetworkProtocolStorage {
             error: NetworkError?
         ) {
             switch protocolType {
-            case .udp(let index): storage!.udpInstances[index].handleDisconnectedEvent(from, error: error)
-            case .ip(let index): storage!.ipInstances[index].handleDisconnectedEvent(from, error: error)
+            case .udp(let index):
+                storage!.udpInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
+            case .ip(let index):
+                storage!.ipInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .datagramUpperHarness(let index):
-                storage!.datagramUpperHarnesses[index].handleDisconnectedEvent(from, error: error)
+                storage!.datagramUpperHarnesses[index].handleDisconnectedEvent(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept handleDisconnectedEvent call")
             }
         }
@@ -457,10 +460,12 @@ open class BaseNetworkProtocolStorage {
             event: NetworkProtocolEvent
         ) {
             switch protocolType {
-            case .udp(let index): storage!.udpInstances[index].handleNetworkProtocolEvent(from, event: event)
-            case .ip(let index): storage!.ipInstances[index].handleNetworkProtocolEvent(from, event: event)
+            case .udp(let index):
+                storage!.udpInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
+            case .ip(let index):
+                storage!.ipInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .datagramUpperHarness(let index):
-                storage!.datagramUpperHarnesses[index].handleNetworkProtocolEvent(from, event: event)
+                storage!.datagramUpperHarnesses[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleNetworkProtocolEvent call")
             }
         }
@@ -470,10 +475,12 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference
         ) {
             switch protocolType {
-            case .udp(let index): storage!.udpInstances[index].handleInboundDataAvailableEvent(from)
-            case .ip(let index): storage!.ipInstances[index].handleInboundDataAvailableEvent(from)
+            case .udp(let index):
+                storage!.udpInstances[index].handleInboundDataAvailableEvent(state: &state, from)
+            case .ip(let index):
+                storage!.ipInstances[index].handleInboundDataAvailableEvent(state: &state, from)
             case .datagramUpperHarness(let index):
-                storage!.datagramUpperHarnesses[index].handleInboundDataAvailableEvent(from)
+                storage!.datagramUpperHarnesses[index].handleInboundDataAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleInboundDataAvailableEvent call")
             }
         }
@@ -483,10 +490,12 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference
         ) {
             switch protocolType {
-            case .udp(let index): storage!.udpInstances[index].handleOutboundRoomAvailableEvent(from)
-            case .ip(let index): storage!.ipInstances[index].handleOutboundRoomAvailableEvent(from)
+            case .udp(let index):
+                storage!.udpInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
+            case .ip(let index):
+                storage!.ipInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .datagramUpperHarness(let index):
-                storage!.datagramUpperHarnesses[index].handleOutboundRoomAvailableEvent(from)
+                storage!.datagramUpperHarnesses[index].handleOutboundRoomAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleOutboundRoomAvailableEvent call")
             }
         }

@@ -129,7 +129,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     }
 
     // Received connected event
-    public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         log("connected received")
         if let completion = connectedHandler {
             completion(true)
@@ -138,16 +138,25 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     }
 
     // Received disconnected event
-    public func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         log("received disconnected with error: \(String(describing: error))")
     }
 
-    public func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         log("received network protocol event: \(event)")
     }
 
     // Receive a new inbound flow to create a StreamPerfTestHandler from.
     public func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
         flowMetadata: AbstractProtocolMetadata?

@@ -161,11 +161,23 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         }
     }
 
-    public func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
-    public func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
+    public func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {}
+    public func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {}
 
     // Called when the stream handler receives an error and is stopping/disconnecting
-    public func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         log("handleDisconnectedEvent error: \(String(describing: error))")
         guard let errorHandler = self.errorHandler,
             let networkError = error
@@ -178,23 +190,33 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
     // Called when data is available to be read on the stream
     // NOTE: New flows with a single read with not get this event and should optimistically read when the flow is started.
     // This event will be called for all future input available after the flow starts.
-    public func handleInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
+    public func handleInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         if !self.connected { return }
         // If input is available, read right away and buffer any available application data until its picked up by the state machine in readDataForStream
         log("received input room available")
         self.readAvailable = true
     }
 
-    public func handleOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference) {
+    public func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         log("received output available")
     }
 
-    public func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         log("received network protocol event: \(event)")
     }
 
     // Stream handler is in the connected state
-    public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         log("connected")
         if let completion = connectedHandler {
             completion(true)

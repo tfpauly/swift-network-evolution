@@ -392,7 +392,7 @@ extension ManyToManyProtocolHandler {
         error: NetworkError?
     ) {
         do { try validate(inbound: from, #function) } catch { return }
-        if canCallDisconnect(state: &context.state) {
+        if canCallDisconnect(state: &state) {
             disconnect(error: error)
         }
     }
@@ -475,7 +475,7 @@ extension ManyToManyProtocolHandler {
         // Don't validate upper, can pass through
         if self.handleApplicationEvent(event) == .consumed { return }
         applyToAllPaths { path in
-            path.lower.invokeApplicationEvent(state: &context.state, from, event: event)
+            path.lower.invokeApplicationEvent(state: &state, from, event: event)
         }
     }
 }
@@ -1265,7 +1265,7 @@ extension MultiplexedFlow {
         parentProtocol.teardown(flow: identifier)
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
         upper = UpperProtocol()
-        self.reference.discardPendingEventsForUpperProtocol(state: &context.state)
+        self.reference.discardPendingEventsForUpperProtocol(state: &state)
         upperReceiveQueue.finalizeAllFramesAsFailed()
         upperSendQueue.finalizeAllFramesAsFailed()
         parentProtocol.teardownIfPossible()
@@ -1273,12 +1273,12 @@ extension MultiplexedFlow {
 
     public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         do { try validate(upper: from, #function) } catch { return }
-        if parentProtocol.isConnected(state: &context.state) {
-            if canCallConnect(state: &context.state, requested: true) {
+        if parentProtocol.isConnected(state: &state) {
+            if canCallConnect(state: &state, requested: true) {
                 parentProtocol.connect(flow: identifier)
             }
         } else {
-            connectRequested(state: &context.state)
+            connectRequested(state: &state)
             parentProtocol.connectInternal()
         }
     }
@@ -1289,7 +1289,7 @@ extension MultiplexedFlow {
         error: NetworkError?
     ) {
         do { try validate(upper: from, #function) } catch { return }
-        if canCallDisconnect(state: &context.state) {
+        if canCallDisconnect(state: &state) {
             parentProtocol.disconnect(flow: identifier, error: error)
         }
     }
@@ -1302,7 +1302,7 @@ extension MultiplexedFlow {
         // Don't validate upper, can pass through
         if parentProtocol.handleApplicationEvent(flow: identifier, event: event) == .consumed { return }
         parentProtocol.applyToAllPaths { path in
-            path.lower.invokeApplicationEvent(state: &context.state, from, event: event)
+            path.lower.invokeApplicationEvent(state: &state, from, event: event)
         }
     }
 
@@ -1375,7 +1375,7 @@ extension MultiplexedFlow where ParentProtocol: HeterogeneousManyToManyProtocolH
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
         parentProtocol.multiplexedSecondaryFlows.removeValue(forKey: identifier)
         upper = UpperProtocol()
-        self.reference.discardPendingEventsForUpperProtocol(state: &context.state)
+        self.reference.discardPendingEventsForUpperProtocol(state: &state)
         upperReceiveQueue.finalizeAllFramesAsFailed()
         upperSendQueue.finalizeAllFramesAsFailed()
         parentProtocol.teardownIfPossible()
@@ -1399,7 +1399,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) -> Int {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard isConnected(state: &context.state) else { throw NetworkError.posix(ENOTCONN) }
+        guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
         return try getOutboundStreamDataRoomAvailable()
     }
 
@@ -1412,7 +1412,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard isConnected(state: &context.state) else {
+        guard isConnected(state: &state) else {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
@@ -1616,7 +1616,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
         maximumDatagramCount: Int
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard isConnected(state: &context.state) else { throw NetworkError.posix(ENOTCONN) }
+        guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
         return try receiveDatagrams(maximumDatagramCount: maximumDatagramCount)
     }
 
@@ -1627,7 +1627,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard isConnected(state: &context.state) else { throw NetworkError.posix(ENOTCONN) }
+        guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
         return try getDatagramsToSend(
             maximumDatagramCount: maximumDatagramCount,
             minimumDatagramSize: minimumDatagramSize
@@ -1643,7 +1643,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard isConnected(state: &context.state) else {
+        guard isConnected(state: &state) else {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
@@ -1839,22 +1839,30 @@ extension MultiplexingPath {
 
 @available(Network 0.1.0, *)
 extension MultiplexingPath {
-    public func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         do { try validate(lower: from, #function) } catch { return }
-        if parentProtocol.canCallConnect(state: &context.state, requested: false) {
+        if parentProtocol.canCallConnect(state: &state, requested: false) {
             parentProtocol.connect()
         }
         parentProtocol.handleConnectedEvent(path: identifier)
         parentProtocol.handlePathChanged(path: identifier, event: .established, isPrimary: pathIsPrimary)
     }
 
-    public func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(lower: from, #function) } catch { return }
         parentProtocol.handlePathChanged(path: identifier, event: .unavailable, isPrimary: false)
         parentProtocol.handleDisconnectedEvent(path: identifier, error: error)
     }
 
-    public mutating func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public mutating func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         // Don't validate lower, can pass through
         if case .pathPrimaryChanged(let primary) = event.internalEvent {
             if primary && !pathIsPrimary {
@@ -1865,7 +1873,7 @@ extension MultiplexingPath {
             }
             parentProtocol.handlePathChanged(
                 path: identifier,
-                event: isConnected(state: &context.state) ? .established : .available,
+                event: isConnected(state: &state) ? .established : .available,
                 isPrimary: pathIsPrimary
             )
             return
@@ -1874,7 +1882,7 @@ extension MultiplexingPath {
         if parentProtocol.handleNetworkProtocolEvent(path: identifier, event: event) == .consumed { return }
         parentProtocol.applyToAllFlows { flow in
             flow.upper.deliverNetworkProtocolEvent(
-                state: &context.state,
+                state: &state,
                 originalReference: from,
                 selfReference: flow.reference,
                 event: event
@@ -2122,14 +2130,20 @@ extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramP
 
 @available(Network 0.1.0, *)
 extension MultiplexingDatapathPath where Self: AutomaticLowerDatagramProcessing {
-    public mutating func handleInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
+    public mutating func handleInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        handleInboundDataAvailableEvent(state: &context.state)
+        handleInboundDataAvailableEvent(state: &state)
     }
 
-    public mutating func handleOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference) {
+    public mutating func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         do { try validate(lower: from, #function) } catch { return }
-        handleOutboundRoomAvailableEvent(state: &context.state)
+        handleOutboundRoomAvailableEvent(state: &state)
     }
 }
 

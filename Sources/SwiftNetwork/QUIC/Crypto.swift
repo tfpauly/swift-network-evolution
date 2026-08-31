@@ -370,7 +370,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         set { tlsLinkage = newValue }
     }
 
-    func handleConnectedEvent() {
+    func handleConnectedEvent(state: inout NetworkContext.State) {
         guard let parentConnection else { return }
         parentConnection.log.info("Connected: TLS finished")
         parentConnection.fromExternal { _ in
@@ -378,7 +378,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         }
     }
 
-    func handleDisconnectedEvent(error: NetworkError?) {
+    func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         guard let parentConnection else { return }
         parentConnection.log.error("Disconnected: TLS error \(error?.description ?? "<none>")")
         parentConnection.closeFrameType = .crypto
@@ -414,7 +414,8 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         for packetNumberSpace: PacketNumberSpace,
         reassemblyQueue: inout ReassemblyQueue,
         frameArray: inout FrameArray,
-        linkage: InboundStreamLinkage
+        linkage: InboundStreamLinkage,
+        state: inout NetworkContext.State
     ) -> Bool {
 
         let bufferLimitForPNSpace =
@@ -446,7 +447,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
             wakeUp = true
         }
         if wakeUp {
-            linkage.deliverInboundDataAvailableEvent(state: &context.state, reference)
+            linkage.deliverInboundDataAvailableEvent(state: &state, reference)
         }
         return true
     }
@@ -455,7 +456,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         _ cryptoFrame: consuming FrameCrypto,
         for packetNumberSpace: PacketNumberSpace
     ) -> Bool {
-        fromExternal(cryptoFrame) { _, cryptoFrame in
+        fromExternal(cryptoFrame) { state, cryptoFrame in
             switch packetNumberSpace {
             case .initial:
                 return appendInput(
@@ -463,7 +464,8 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
                     for: packetNumberSpace,
                     reassemblyQueue: &initialReassemblyQueue,
                     frameArray: &initialInboundData,
-                    linkage: initialLinkage
+                    linkage: initialLinkage,
+                    state: &state
                 )
             case .handshake:
                 return appendInput(
@@ -471,7 +473,8 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
                     for: packetNumberSpace,
                     reassemblyQueue: &handshakeReassemblyQueue,
                     frameArray: &handshakeInboundData,
-                    linkage: handshakeLinkage
+                    linkage: handshakeLinkage,
+                    state: &state
                 )
             case .applicationData:
                 return appendInput(
@@ -479,7 +482,8 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
                     for: packetNumberSpace,
                     reassemblyQueue: &applicationReassemblyQueue,
                     frameArray: &applicationInboundData,
-                    linkage: applicationLinkage
+                    linkage: applicationLinkage,
+                    state: &state
                 )
             }
         }
@@ -511,6 +515,7 @@ extension QUICCrypto: OutboundStreamHandler {
         error: NetworkError?
     ) {}
     func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         event: NetworkProtocolEvent
     ) {}

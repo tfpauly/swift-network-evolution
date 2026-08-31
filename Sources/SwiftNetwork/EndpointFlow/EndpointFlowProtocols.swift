@@ -135,7 +135,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         throw NetworkError.posix(EINVAL)
     }
 
-    func handleConnectedEvent(_ from: ProtocolInstanceReference) {
+    func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         log.debug("Received connected event")
         if let completion = completions.connected {
             completion(nil)
@@ -143,7 +143,11 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    func handleDisconnectedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         log.debug("Received disconnected event")
         let disconnectError = error ?? .posix(ENOTCONN)
         if let completion = completions.connected {
@@ -166,7 +170,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    func handleInboundDataAvailableEvent(_ from: ProtocolInstanceReference) {
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         log.debug("Received inbound data available event")
         // Clear the slot before invoking: the completion may synchronously
         // re-arm the waiter (when receiveStreamData returns nil because the
@@ -178,7 +182,10 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    public func handleOutboundRoomAvailableEvent(_ from: ProtocolInstanceReference) {
+    public func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
         log.debug("Received outbound room available event")
         if let completion = self.completions.outputRoomAvailable {
             completion()
@@ -186,7 +193,11 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    public func handleNetworkProtocolEvent(_ from: ProtocolInstanceReference, event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
         log.debug("Received network protocol event: \(event)")
     }
 
@@ -360,8 +371,16 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 @available(Network 0.1.0, *)
 final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkage>, InboundStreamHandler {
 
-    func handleInboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
-    func handleOutboundAbortedEvent(_ from: ProtocolInstanceReference, error: NetworkError?) {}
+    func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {}
+    func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {}
 
     override public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
