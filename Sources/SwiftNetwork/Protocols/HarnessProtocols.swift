@@ -68,7 +68,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     public var reference: ProtocolInstanceReference
 
-    public var lower = LowerProtocol(reference: .init())
+    public var lower = LowerProtocol()
 
     public var eventManager = ProtocolEventManager()
     // Metadata passed in by the new inbound flow event when a new flow is created.
@@ -544,7 +544,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
     public private(set) var context: NetworkContext
 
     public var reference: ProtocolInstanceReference
-    public var upper = UpperProtocol(reference: .init())
+    public var upper = UpperProtocol()
 
     public var eventManager = ProtocolEventManager()
 
@@ -625,11 +625,6 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHarness<LinkageFamily>, BottomDatagramProtocol {
-
-    // TODO: TFPDEBUG get rid of this
-    public func attachUpperDatagramProtocol(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> LinkageFamily.Upper.PairedLinkage {
-        throw NetworkError.posix(1)
-    }
     
     public var maximumOutputSize = 1500
 
@@ -688,8 +683,8 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
     public private(set) var context: NetworkContext
 
     public var reference: ProtocolInstanceReference
-    var lower = LowerProtocol(reference: .init())
-    var asUpper: LinkageFamily.InboundFlow { .init(reference: reference) }
+    var lower = LowerProtocol()
+//    var asUpper: LinkageFamily.InboundFlow { .init(reference: reference) }
 
     public var upperHarnesses: [HarnessType] = []
 
@@ -777,7 +772,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         fromExternal { state in
             do throws(NetworkError) {
                 try lower.invokeDetach(state: &state, reference)
-                lower = .init(reference: .init())
+                lower = .init()
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
             }

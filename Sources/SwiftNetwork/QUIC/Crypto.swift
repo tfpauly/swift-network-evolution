@@ -91,8 +91,9 @@ final class QUICCrypto {
 
     static let bufferLimit: Int = 4 * 1024
 
-    var asUpper: InboundStreamLinkage { .init(reference: reference) }
-    var asLower: OutboundStreamLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG FIX THIS
+    var asUpper: InboundStreamLinkage { .init() }
+    var asLower: OutboundStreamLinkage { .init() }
 
     struct cryptoQueuedPackets {
     }
@@ -142,20 +143,21 @@ final class QUICCrypto {
         tlsParameters.isServer = parentConnection.isServer
         tlsParameters.defaultStack.append(applicationProtocol: .swiftTLS(tlsOptions))
         do throws(NetworkError) {
-            self.tlsLinkage = try self.tlsInstance.attachUpperStreamProtocol(
-                reference,
-                remote: nil,
-                local: nil,
-                parameters: tlsParameters,
-                path: nil
-            )
-            try self.tlsInstance.attachLowerStreamProtocol(
-                self.reference,
-                remote: nil,
-                local: nil,
-                parameters: tlsParameters,
-                path: nil
-            )
+//            self.tlsLinkage = try self.tlsInstance.attachUpperStreamProtocol(
+//                reference,
+//                remote: nil,
+//                local: nil,
+//                parameters: tlsParameters,
+//                path: nil
+//            )
+            // TODO: TFPDEBUG FIX THIS
+//            try self.tlsInstance.attachLowerStreamProtocol(
+//                self.reference,
+//                remote: nil,
+//                local: nil,
+//                parameters: tlsParameters,
+//                path: nil
+//            )
         } catch {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
@@ -496,20 +498,11 @@ extension QUICCrypto: OutboundStreamHandler {
     ) throws(NetworkError) {
     }
 
-    func attachUpperStreamProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage {
-        asLower
-    }
-
     func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {}
 
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        InboundStreamLinkage(reference: from).deliverConnectedEvent(state: &state, reference)
+        // TODO: TFPDEBUG FIX THIS
+        InboundStreamLinkage().deliverConnectedEvent(state: &state, reference)
     }
 
     func disconnect(

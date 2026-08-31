@@ -127,7 +127,7 @@ final class QUICStreamLoad {
             bridgeOptions.setProtocolInstance(clientOutput)
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
-            clientListenerLinkage = StreamListenerLinkage(reference: clientQUIC)
+            clientListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             clientInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: ipv4Client,
@@ -203,7 +203,7 @@ final class QUICStreamLoad {
             serverBridgeOptions.setProtocolInstance(serverOutput)
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
-            let serverListenerLinkage = StreamListenerLinkage(reference: serverQUIC)
+            let serverListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             serverInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: ipv4Server,

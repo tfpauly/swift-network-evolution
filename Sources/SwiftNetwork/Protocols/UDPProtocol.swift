@@ -106,8 +106,8 @@ public struct UDPProtocol: NetworkProtocol {
         typealias UpperProtocol = Upper
         typealias LowerProtocol = Lower
 
-        var upper = UpperProtocol(reference: ProtocolInstanceReference())
-        var lower = LowerProtocol(reference: ProtocolInstanceReference())
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -561,9 +561,10 @@ public struct UDPProtocol: NetworkProtocol {
         UDPProtocol().newProtocolInstance(context: context)!
     }
 
+    // TODO: TFPDEBUG Remove this?
     static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
         let reference = UDPProtocol().newProtocolInstance(context: context)!
-        return (UpperLinkage(reference: reference), LowerLinkage(reference: reference))
+        return (UpperLinkage(), LowerLinkage())
     }
 }
 

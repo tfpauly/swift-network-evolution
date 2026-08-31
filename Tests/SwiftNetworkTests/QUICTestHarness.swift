@@ -175,7 +175,7 @@ class QUICTestHarness {
 
             var clientPath = PathProperties(parameters: clientParameters)
             clientPath.effectiveMTU = 1500
-            let clientLinkage = StreamListenerLinkage(reference: clientReference)
+            let clientLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
 
             // Setup server parameters
             var serverParameters = Parameters()
@@ -203,7 +203,7 @@ class QUICTestHarness {
 
             var serverPath = PathProperties(parameters: serverParameters)
             serverPath.effectiveMTU = 1500
-            let serverLinkage = StreamListenerLinkage(reference: serverReference)
+            let serverLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
 
             // Attach client
             let clientHarness = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
@@ -390,7 +390,7 @@ class QUICTestHarness {
             var path = PathProperties(parameters: parameters)
             path.effectiveMTU = 1500
 
-            let listenerLinkage = StreamListenerLinkage(reference: instance.reference)
+            let listenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             let streamUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,
@@ -1602,7 +1602,7 @@ class QUICTestHarness {
             parameters.defaultStack.transport = .custom(options)
             let path = PathProperties(parameters: parameters)
 
-            let listenerLinkage = StreamListenerLinkage(reference: self.state!.clientInstance.reference)
+            let listenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             let ninthStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,

@@ -277,7 +277,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
         do {
             try self.setup(remote: remote, local: local, parameters: parameters, path: path)
         } catch let error {
-            upper = .init(reference: .init())
+            upper = .init()
             throw error
         }
     }
@@ -287,7 +287,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        upper = .init(reference: .init())
+        upper = .init()
         teardown()
     }
 
@@ -386,60 +386,6 @@ extension BottomProtocolHandler where Self: ~Copyable {
     public func updateDataTransferSnapshot(_ snapshot: inout DataTransferSnapshot) {}
 
     public var protocolEstablishmentReport: ProtocolEstablishmentReport? { nil }
-}
-
-@available(Network 0.1.0, *)
-extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: DatagramLinkageFamily {
-    public mutating func attachUpperDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> LinkageFamily.Lower {
-        throw NetworkError.posix(EINVAL)
-
-//        guard upper.isDetached else {
-//            throw NetworkError.posix(EALREADY)
-//        }
-//        upper = LinkageFamily.Upper(reference: from)
-//
-//        do {
-//            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-//        } catch let error {
-//            upper = .init(reference: .init())
-//            throw error
-//        }
-//
-//        return asLower
-    }
-}
-
-@available(Network 0.1.0, *)
-extension BottomProtocolHandler where Self: ~Copyable, LinkageFamily: StreamLinkageFamily, LinkageFamily.Upper == UpperProtocol {
-    public mutating func attachUpperStreamProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage {
-        throw NetworkError.posix(EINVAL)
-//        guard upper.isDetached else {
-//            throw NetworkError.posix(EALREADY)
-//        }
-//        upper = UpperProtocol(reference: from)
-//
-//        do {
-//            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-//        } catch let error {
-//            upper = .init(reference: .init())
-//            throw error
-//        }
-//
-//        return asLower
-    }
 }
 
 @available(Network 0.1.0, *)

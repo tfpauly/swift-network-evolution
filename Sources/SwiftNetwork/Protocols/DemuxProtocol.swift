@@ -223,11 +223,6 @@ public struct DemuxProtocol: NetworkProtocol {
             #endif
         }
 
-        //        public func attachUpperDatagramProtocol(_ from: ProtocolInstanceReference, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        //            <#code#>
-        //        }
-        //
-
         public func attachUpperProtocol(
             _ upperProtocol: DefaultInboundDatagramLinkage,
             remote: Endpoint?,
@@ -281,65 +276,6 @@ public struct DemuxProtocol: NetworkProtocol {
                 parameters: parameters,
                 path: path
             )
-        }
-
-        public func attachUpperDatagramProtocol(
-            state: inout NetworkContext.State,
-            _ from: ProtocolInstanceReference,
-            remote: Endpoint?,
-            local: Endpoint?,
-            parameters: Parameters?,
-            path: PathProperties?
-        ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-            if defaultUpper.isDetached {
-                // Set up default
-                defaultUpper = UpperProtocol(reference: from)
-                #if !NETWORK_EMBEDDED
-                if let parameters {
-                    if let options = parameters.protocolOptions(for: self.reference) {
-                        self.log.logPrefix = options.logIDString ?? ""
-                    }
-                }
-                #endif
-            } else if defaultUpper.reference != from {
-                #if !NETWORK_EMBEDDED
-                if let parameters {
-                    if let demuxOptions: ProtocolOptions<DemuxProtocol> = parameters.protocolOptions(
-                        for: self.reference
-                    ) {
-                        demuxEntries.append(
-                            DemuxEntry(
-                                upper: UpperProtocol(reference: from),
-                                demuxPatterns: demuxOptions.perProtocolOptions!.demuxPatterns
-                            )
-                        )
-                    }
-                }
-                #endif
-            }
-
-            return asLower
-        }
-
-        public func attachLowerDatagramProtocol(
-            state: inout NetworkContext.State,
-            _ lowerProtocol: ProtocolInstanceReference,
-            remote: Endpoint?,
-            local: Endpoint?,
-            parameters: Parameters?,
-            path: PathProperties?
-        ) throws(NetworkError) {
-            guard lower.isDetached else {
-                throw NetworkError.posix(EALREADY)
-            }
-//            self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-//                state: &state,
-//                reference,
-//                remote: remote,
-//                local: local,
-//                parameters: parameters,
-//                path: path
-//            )
         }
 
         func addInboundDatagram(_ datagram: consuming Frame) -> Int? {

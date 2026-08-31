@@ -44,7 +44,8 @@ extension EndpointFlow {
                     throw NetworkError.posix(EINVAL)
                 }
 
-                let listenerLinkage = StreamListenerLinkage(reference: instance)
+                // TODO: TFPDEBUG FIX THIS
+                let listenerLinkage = StreamListenerLinkage()
                 let flow = try StreamEndpointFlowProtocol(
                     identifier: String(self.identifier),
                     local: self.localEndpoint,
@@ -90,7 +91,8 @@ extension EndpointFlow {
                         reference = SocketStreamProtocol.instance(context: context)
                     }
                     options.setProtocolInstance(reference)
-                    let linkage = OutboundStreamLinkage(reference: reference)
+                    // TODO: TFPDEBUG FIX THIS
+                    let linkage = OutboundStreamLinkage()
                     let flow = try StreamEndpointFlowProtocol(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -174,7 +176,8 @@ extension EndpointFlow {
                         parent: String(self.identifier),
                         protocolLogIDNumber: Int(self.identifier)
                     )
-                    let listenerLinkage = StreamListenerLinkage(reference: quicReference)
+                    // TODO: TFPDEBUG FIX THIS
+                    let listenerLinkage = StreamListenerLinkage()
                     let flow = try StreamEndpointFlowProtocol(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -237,7 +240,8 @@ extension EndpointFlow {
                             // but we're not there quite yet
                             if options.identifier == BridgeStreamProtocol.identifier {
                                 let reference = BridgeStreamProtocol.instance(context: context)
-                                let linkage = OutboundStreamLinkage(reference: reference)
+                                // TODO: TFPDEBUG FIX THIS
+                                let linkage = OutboundStreamLinkage()
                                 let flow = try StreamEndpointFlowProtocol(
                                     identifier: String(self.identifier),
                                     local: effectiveLocalEndpoint,
@@ -267,7 +271,8 @@ extension EndpointFlow {
                             throw NetworkError.posix(EINVAL)
                         }
                         options.setProtocolInstance(reference)
-                        let linkage = OutboundStreamLinkage(reference: reference)
+                        // TODO: TFPDEBUG FIX THIS
+                        let linkage = OutboundStreamLinkage()
                         let flow = try StreamEndpointFlowProtocol(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,

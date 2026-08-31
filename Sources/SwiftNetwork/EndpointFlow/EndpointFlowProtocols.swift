@@ -70,8 +70,8 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     fileprivate(set) var context: NetworkContext
 
     let reference: ProtocolInstanceReference
-    var lower = LowerProtocol(reference: .init())
-    var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
+    var lower = LowerProtocol()
+//    var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
 
     var eventManager = ProtocolEventManager()
 
@@ -116,13 +116,13 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.lower = lowerProtocol
         // Must be initialized before asUpper is used, since asUpper derives from reference.
         reference = .init(context: context, eventManager: &self.eventManager)
-        try lowerProtocol.invokeAttachUpperProtocol(
-            asUpper,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+//        try lowerProtocol.invokeAttachUpperProtocol(
+//            asUpper,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
     }
 
     func attachLowerProtocol(
@@ -220,7 +220,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         fromExternal { state in
             do throws(NetworkError) {
                 try lower.invokeDetach(state: &state, reference)
-                lower = .init(reference: .init())
+                lower = .init()
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
             }
@@ -269,17 +269,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
 @available(Network 0.1.0, *)
 final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
-
-    func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        throw NetworkError.posix(EINVAL)
-    }
 
     convenience init(
         identifier: String = "",
@@ -385,16 +374,6 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
             }
             lower.invokeDisconnect(state: &state, reference, error: error)
         }
-    }
-
-    func attachLowerStreamProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        throw NetworkError.posix(EINVAL)
     }
 
     func attachLowerStreamProtocolToExistingFlow(

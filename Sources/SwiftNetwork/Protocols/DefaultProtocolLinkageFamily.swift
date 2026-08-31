@@ -248,32 +248,6 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
          */
     }
 
-    // TODO: TFPDEBUG Remove this one
-    public func invokeAttachUpperDatagramProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Self {
-
-        // TODO: TFPDEBUG Need to call handleCallFromUpperProtocol, get context
-
-/*
-        // This is an entry point from outside the stack, so acquire the context state here
-        // and thread it inward.
-        try reference.attachUpperDatagramProtocol(
-            state: &reference.context.state,
-            from,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
- */
-        return .init(reference: from)
-    }
-
     public func invokeReceiveDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -519,9 +493,8 @@ open class BaseNetworkProtocolStorage {
 
         public typealias PairedLinkage = BaseOutboundDatagramLinkage
 
-        // TODO: TFPDEBUG Remove this
-        public init(reference: ProtocolInstanceReference) {
-            self.reference = reference
+        public init() {
+            self.reference = .init()
             self.storage = nil
             self.protocolType = .unknown
         }
@@ -551,10 +524,6 @@ open class BaseNetworkProtocolStorage {
             case udp(NetworkStateIndex)
             case ip(NetworkStateIndex)
             case datagramLowerHarness(NetworkStateIndex)
-        }
-
-        public func invokeAttachUpperDatagramProtocol(_ from: ProtocolInstanceReference, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage {
-            throw .posix(1)
         }
 
         // TODO: TFPDEBUG: Is it the responsibility of every "subclass" of linkage to call into handleCallFromUpperProtocol? Can we make that more automatic?
@@ -703,9 +672,8 @@ open class BaseNetworkProtocolStorage {
         
         public typealias PairedLinkage = BaseInboundDatagramLinkage
 
-        // TODO: TFPDEBUG Remove this
-        public init(reference: ProtocolInstanceReference) {
-            self.reference = reference
+        public init() {
+            self.reference = .init()
             self.storage = nil
             self.protocolType = .unknown
         }
@@ -734,8 +702,8 @@ open class BaseNetworkProtocolStorage {
 
         public let reference: ProtocolInstanceReference
 
-        public init(reference: ProtocolInstanceReference) {
-            self.reference = reference
+        public init() {
+            self.reference = .init()
         }
 
         public func invokeAttachUpperProtocol(_ upperProtocol: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
@@ -776,8 +744,8 @@ open class BaseNetworkProtocolStorage {
 
         public let reference: ProtocolInstanceReference
 
-        public init(reference: ProtocolInstanceReference) {
-            self.reference = reference
+        public init() {
+            self.reference = .init()
         }
 
         public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {

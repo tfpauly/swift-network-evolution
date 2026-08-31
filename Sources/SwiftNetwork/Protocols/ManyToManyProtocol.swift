@@ -353,7 +353,8 @@ extension ManyToManyProtocolHandler {
 
 @available(Network 0.1.0, *)
 extension ManyToManyProtocolHandler {
-    var asListener: UpperProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG REMOVE
+    var asListener: UpperProtocol.PairedLinkage { .init() }
 
     public mutating func attachLowerProtocolForNewPath(
         _ lowerProtocol: Path.LowerProtocol,
@@ -541,7 +542,7 @@ extension HomogeneousManyToManyProtocolHandler {
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
         // TODO: TFPDEBUG
-        return .init(reference: .init())
+        return .init()
 //        do {
 //            return try newFlow.attachUpperProtocol(
 //                from,
@@ -568,7 +569,7 @@ extension HomogeneousManyToManyProtocolHandler {
         guard var existingFlow = flow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
         }
-        existingFlow.upper = .init(reference: from)
+        existingFlow.upper = .init() // TODO: TFPDEBUG FIX
         return existingFlow.asLower as! Linkage
     }
     #endif
@@ -604,7 +605,7 @@ extension HomogeneousManyToManyProtocolHandler {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(inbound: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        inboundFlowLinkage = .init(reference: .init())
+        inboundFlowLinkage = .init()
         teardownIfPossible()
     }
 
@@ -671,7 +672,7 @@ extension HeterogeneousManyToManyProtocolHandler {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(inbound: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        inboundFlowLinkage = .init(reference: .init())
+        inboundFlowLinkage = .init()
         teardownIfPossible()
     }
 
@@ -692,7 +693,8 @@ extension HeterogeneousManyToManyProtocolHandler {
 
 @available(Network 0.1.0, *)
 extension HeterogeneousManyToManyProtocolHandler {
-    var asSecondaryListener: SecondaryUpperProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG FIX
+    var asSecondaryListener: SecondaryUpperProtocol.PairedLinkage { .init() }
 
     public mutating func performInitialSetupIfNeeded(
         remote: Endpoint?,
@@ -767,7 +769,7 @@ extension HeterogeneousManyToManyProtocolHandler {
             newFlow.log.logPrefix = self.log.logPrefix
             multiplexedFlows[flowID] = newFlow
             // TODO: TFPDEBUG
-            return .init(reference: .init())
+            return .init()
 //            do {
 //                return try newFlow.attachUpperProtocol(
 //                    from,
@@ -793,7 +795,7 @@ extension HeterogeneousManyToManyProtocolHandler {
             newFlow.log.logPrefix = self.log.logPrefix
             multiplexedSecondaryFlows[flowID] = newFlow
             // TODO: TFPDEBUG
-            return .init(reference: .init())
+            return .init()
 //
 //            do {
 //                return try newFlow.attachUpperProtocol(
@@ -846,14 +848,16 @@ extension HeterogeneousManyToManyProtocolHandler {
             guard var existingFlow = flow(for: flowID) else {
                 throw NetworkError.posix(ENOENT)
             }
-            existingFlow.upper = .init(reference: from)
+            // TODO: TFPDEBUG FIX
+            existingFlow.upper = .init()
             return existingFlow.asLower as! Linkage
         } else if Linkage.self == SecondaryUpperProtocol.DataLinkage.self {
             let flowID = MultiplexedFlowIdentifier(inboundReference: flowReference)
             guard var existingFlow = secondaryFlow(for: flowID) else {
                 throw NetworkError.posix(ENOENT)
             }
-            existingFlow.upper = .init(reference: from)
+            // TODO: TFPDEBUG FIX
+            existingFlow.upper = .init()
             return existingFlow.asLower as! Linkage
         } else {
             throw NetworkError.posix(ENOTSUP)
@@ -991,14 +995,15 @@ extension ManyToManyDatapathProtocol where Path.ParentProtocol == Self, Path: In
         path: PathProperties?
     ) throws(NetworkError) {
         var newPath = Path(parent: self)
-        try newPath.attachLowerDatagramProtocol(
-            state: &context.state,
-            lowerProtocol,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
+        // TODO: TFPDEBUG FIX THIS
+//        try newPath.attachLowerDatagramProtocol(
+//            state: &context.state,
+//            lowerProtocol,
+//            remote: remote,
+//            local: local,
+//            parameters: parameters,
+//            path: path
+//        )
         let isFirstPath = multiplexingPaths.isEmpty
         if isFirstPath { newPath.pathIsPrimary = true }
         if path?.hasMigrationInfo == true { newPath.pathHasMigrationInfo = true }
@@ -1024,7 +1029,8 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
 
         try performInitialSetupIfNeeded(remote: remote, local: local, parameters: parameters, path: path)
 
-        self.inboundFlowLinkage = UpperProtocol(reference: from)
+        // TODO: TFPDEBUG FIX
+        self.inboundFlowLinkage = UpperProtocol()
         return asListener
     }
 
@@ -1046,18 +1052,20 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
-        do throws(NetworkError) {
-            return try newFlow.attachUpperStreamProtocol(
-                from,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            multiplexedFlows[flowID] = nil
-            throw error
-        }
+//        do throws(NetworkError) {
+//            // TODO: TFPDEBUG FIX
+////            return try newFlow.attachUpperStreamProtocol(
+////                from,
+////                remote: remote,
+////                local: local,
+////                parameters: parameters,
+////                path: path
+////            )
+//        } catch {
+//            multiplexedFlows[flowID] = nil
+//            throw error
+//        }
+        throw .posix(1)
     }
 
     public mutating func attachUpperStreamProtocolToExistingFlow(
@@ -1068,7 +1076,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         guard var existingFlow = flow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
         }
-        existingFlow.upper = .init(reference: from)
+        existingFlow.upper = .init() // TODO: TFPDEBUG FIX THIS
         return existingFlow.asLower
     }
 }
@@ -1088,7 +1096,8 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
 
         try performInitialSetupIfNeeded(remote: remote, local: local, parameters: parameters, path: path)
 
-        self.inboundFlowLinkage = UpperProtocol(reference: from)
+        // TODO: TFPDEBUG FIX
+        self.inboundFlowLinkage = UpperProtocol()
         return asListener
     }
 
@@ -1110,19 +1119,21 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
-        do throws(NetworkError) {
-            return try newFlow.attachUpperDatagramProtocol(
-                state: &context.state,
-                from,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            multiplexedFlows[flowID] = nil
-            throw error
-        }
+//        do throws(NetworkError) {
+//            // TODO: TFPDEBUG FIX THIS
+////            return try newFlow.attachUpperDatagramProtocol(
+////                state: &context.state,
+////                from,
+////                remote: remote,
+////                local: local,
+////                parameters: parameters,
+////                path: path
+////            )
+//        } catch {
+//            multiplexedFlows[flowID] = nil
+//            throw error
+//        }
+        throw .posix(1)
     }
 
     public mutating func attachUpperDatagramProtocolToExistingFlow(
@@ -1154,7 +1165,8 @@ where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandl
 
         try performInitialSetupIfNeeded(remote: remote, local: local, parameters: parameters, path: path)
 
-        self.secondaryInboundFlowLinkage = SecondaryUpperProtocol(reference: from)
+        // TODO: TFPDEBUG FIX
+        self.secondaryInboundFlowLinkage = SecondaryUpperProtocol()
         return asSecondaryListener
     }
 
@@ -1176,19 +1188,21 @@ where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandl
         var newFlow = SecondaryFlow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedSecondaryFlows[flowID] = newFlow
-        do throws(NetworkError) {
-            return try newFlow.attachUpperDatagramProtocol(
-                state: &context.state,
-                from,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            multiplexedSecondaryFlows[flowID] = nil
-            throw error
-        }
+//        do throws(NetworkError) {
+//            // TODO: TFPDEBUG FIX THIS
+////            return try newFlow.attachUpperDatagramProtocol(
+////                state: &context.state,
+////                from,
+////                remote: remote,
+////                local: local,
+////                parameters: parameters,
+////                path: path
+////            )
+//        } catch {
+//            multiplexedSecondaryFlows[flowID] = nil
+//            throw error
+//        }
+        throw .posix(1)
     }
 
     public mutating func attachUpperDatagramProtocolToExistingFlow(
@@ -1206,7 +1220,8 @@ where SecondaryFlow.ParentProtocol == Self, SecondaryFlow: OutboundDatagramHandl
 
 @available(Network 0.1.0, *)
 extension MultiplexedFlow {
-    var asLower: UpperProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG FIX
+    var asLower: UpperProtocol.PairedLinkage { .init() }
 
     internal func validate(
         upper upperProtocol: ProtocolInstanceReference,
@@ -1237,7 +1252,7 @@ extension MultiplexedFlow {
         do {
             try parentProtocol.setup(flow: identifier, remote: remote, local: local, parameters: parameters, path: path)
         } catch let error {
-            upper = .init(reference: .init())
+            upper = .init()
             throw error
         }
     }
@@ -1249,7 +1264,7 @@ extension MultiplexedFlow {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         parentProtocol.teardown(flow: identifier)
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
-        upper = UpperProtocol(reference: .init())
+        upper = UpperProtocol()
         self.reference.discardPendingEventsForUpperProtocol(state: &context.state)
         upperReceiveQueue.finalizeAllFramesAsFailed()
         upperSendQueue.finalizeAllFramesAsFailed()
@@ -1359,7 +1374,7 @@ extension MultiplexedFlow where ParentProtocol: HeterogeneousManyToManyProtocolH
         parentProtocol.teardown(flow: identifier)
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
         parentProtocol.multiplexedSecondaryFlows.removeValue(forKey: identifier)
-        upper = UpperProtocol(reference: .init())
+        upper = UpperProtocol()
         self.reference.discardPendingEventsForUpperProtocol(state: &context.state)
         upperReceiveQueue.finalizeAllFramesAsFailed()
         upperSendQueue.finalizeAllFramesAsFailed()
@@ -1518,12 +1533,12 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> OutboundStreamLinkage {
-        upper = UpperProtocol(reference: from)
+        upper = UpperProtocol() // TODO: TFPDEBUG FIX THIS
 
         do {
             try parentProtocol.setup(flow: identifier, remote: remote, local: local, parameters: parameters, path: path)
         } catch let error {
-            upper = .init(reference: .init())
+            upper = .init()
             throw error
         }
 
@@ -1768,31 +1783,12 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
             self._identifier = .init(inboundReference: reference)
         }
     }
-
-    public func attachUpperDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        upper = UpperProtocol(reference: from)
-
-        do {
-            try parentProtocol.setup(flow: identifier, remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower
-    }
 }
 
 @available(Network 0.1.0, *)
 extension MultiplexingPath {
-    var asUpper: LowerProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG FIX
+    var asUpper: LowerProtocol.PairedLinkage { .init() }
 
     internal func validate(
         lower lowerProtocol: ProtocolInstanceReference,
@@ -2172,26 +2168,5 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
         self.parentProtocol = parent
         reference = .init(context: parent.context, eventManager: &self.eventManager)
         reference.setParentReference(parent.reference)
-    }
-
-    public func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-//            state: &state,
-//            reference,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
     }
 }

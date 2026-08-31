@@ -296,8 +296,9 @@ where UpperProtocol: InboundDatagramLinkage, LowerProtocol == OutboundStreamLink
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable {
-    var asUpper: LowerProtocol.PairedLinkage { .init(reference: reference) }
-    var asLower: UpperProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG REMOVE OR FIX
+    var asUpper: LowerProtocol.PairedLinkage { .init() }
+    var asLower: UpperProtocol.PairedLinkage { .init() }
 
     internal func validate(
         upper upperProtocol: ProtocolInstanceReference,
@@ -378,43 +379,10 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
         do {
             try self.setup(remote: remote, local: local, parameters: parameters, path: path)
         } catch let error {
-            upper = .init(reference: .init())
+            upper = .init()
             throw error
         }
     }
-
-    #if !NETWORK_EMBEDDED
-    public mutating func attachUpperProtocol<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Linkage {
-        guard Linkage.self == UpperProtocol.PairedLinkage.self else {
-            throw NetworkError.posix(ENOTSUP)
-        }
-        guard upper.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        upper = UpperProtocol(reference: from)
-
-        if let parameters {
-            if let options = getOptions(from: parameters) {
-                self.log.logPrefix = options.logIDString ?? ""
-            }
-        }
-
-        do {
-            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower as! Linkage
-    }
-    #endif
 
     public mutating func detach(
         state: inout NetworkContext.State,
@@ -422,10 +390,10 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
     ) throws(NetworkError) {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         let reference = effectiveSelfReference
-        upper = .init(reference: .init())
+        upper = .init()
         teardown()
         try lower.invokeDetach(state: &state, reference)
-        lower = .init(reference: .init())
+        lower = .init()
     }
 
     public mutating func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -664,37 +632,6 @@ extension OneToOneDatapathProtocol where Self: ~Copyable {
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultInboundDatagramLinkage {
-    public mutating func attachUpperDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> UpperProtocol.PairedLinkage {
-        guard upper.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        upper = UpperProtocol(reference: from)
-
-        #if !NETWORK_EMBEDDED
-        if let parameters {
-            if let options = getOptions(from: parameters) {
-                self.log.logPrefix = options.logIDString ?? ""
-            }
-        }
-        #endif
-
-        do {
-            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower
-    }
-
     public func deliverInboundDataAvailableEvent(state: inout NetworkContext.State) {
         guard passthroughEvents || isConnected(state: &state) else { return }
         upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
@@ -702,66 +639,7 @@ extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == Defaul
 }
 
 @available(Network 0.1.0, *)
-extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == InboundStreamLinkage {
-    public mutating func attachUpperStreamProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage {
-        guard upper.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        upper = UpperProtocol(reference: from)
-
-        #if !NETWORK_EMBEDDED
-        if let parameters {
-            if let options = getOptions(from: parameters) {
-                self.log.logPrefix = options.logIDString ?? ""
-            }
-        }
-        #endif
-
-        do {
-            try self.setup(remote: remote, local: local, parameters: parameters, path: path)
-        } catch let error {
-            upper = .init(reference: .init())
-            throw error
-        }
-
-        return asLower
-    }
-}
-
-@available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundDatagramLinkage {
-    public mutating func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        if upper.isDetached {
-            // If the upper is detached at the time of attaching the lower, don't pass through events
-            passthroughEvents = false
-        }
-        // TODO: TFPDEBUG
-//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-//            state: &state,
-//            effectiveSelfReference,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        ) as! Self.LowerProtocol
-    }
-
     public func invokeReceiveDatagrams(
         state: inout NetworkContext.State,
         maximumDatagramCount: Int
@@ -838,29 +716,6 @@ extension OneToOneDatagramProtocol where Self: ~Copyable {
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStreamLinkage {
-    public mutating func attachLowerStreamProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        if upper.isDetached {
-            // If the upper is detached at the time of attaching the lower, don't pass through events
-            passthroughEvents = false
-        }
-//        self.lower = try lowerProtocol.attachUpperStreamProtocol(
-//            effectiveSelfReference,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-    }
-
     public mutating func attachLowerStreamProtocolToExistingFlow(
         listener: StreamListenerLinkage,
         flowReference: ProtocolInstanceReference

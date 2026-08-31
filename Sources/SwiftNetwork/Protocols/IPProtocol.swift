@@ -1863,8 +1863,8 @@ public struct IPProtocol: NetworkProtocol {
         typealias UpperProtocol = LinkageFamily.Upper
         typealias LowerProtocol = LinkageFamily.Lower
 
-        var upper = UpperProtocol(reference: ProtocolInstanceReference())
-        var lower = LowerProtocol(reference: ProtocolInstanceReference())
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
 
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -2134,9 +2134,10 @@ public struct IPProtocol: NetworkProtocol {
         IPProtocol().newProtocolInstance(context: context)!
     }
 
+    // TODO: TFPDEBUG remove
     static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
         let reference = IPProtocol().newProtocolInstance(context: context)!
-        return (UpperLinkage(reference: reference), LowerLinkage(reference: reference))
+        return (UpperLinkage(), LowerLinkage())
     }
 
     #if !NETWORK_EMBEDDED

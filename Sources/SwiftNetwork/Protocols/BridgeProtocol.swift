@@ -122,8 +122,8 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = LinkageFamily.Upper(reference: .init())
-        var lower = LinkageFamily.Lower(reference: .init())
+        public var upper = LinkageFamily.Upper()
+        var lower = LinkageFamily.Lower()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -336,9 +336,10 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         BridgeDatagramProtocol().newProtocolInstance(context: context)!
     }
 
+    // TODO: TFPDEBUG Fix this
     static public func instance<LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> LowerLinkage {
         let reference = BridgeDatagramProtocol().newProtocolInstance(context: context)!
-        return LowerLinkage(reference: reference)
+        return LowerLinkage()
     }
 }
 

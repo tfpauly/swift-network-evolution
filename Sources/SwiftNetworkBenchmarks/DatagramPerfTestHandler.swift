@@ -89,13 +89,14 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
         log.logPrefix = "[\(identifier)]"
         self.reference = .init()
         do throws(NetworkError) {
-            self.lowerProtocol = try lowerProtocol.invokeAttachUpperDatagramProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
+            // TODO: TFPDEBUG FIX THIS
+//            self.lowerProtocol = try lowerProtocol.invokeAttachUpperDatagramProtocol(
+//                reference,
+//                remote: remote,
+//                local: local,
+//                parameters: parameters,
+//                path: path
+//            )
         } catch {
             self.log("Error attaching lower protocol: \(error)")
             return nil
@@ -248,18 +249,6 @@ public final class DatagramPerfTestHandler: ProtocolInstanceContainer, InboundDa
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 extension DatagramPerfTestHandler: UpperProtocolHandler {
-
-    // UpperProtocolHandler conformance
-    public func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        throw NetworkError.posix(ENOTSUP)
-    }
 
     // UpperProtocolHandler conformance
     public func attachLowerProtocol(

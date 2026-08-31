@@ -107,13 +107,13 @@ extension TopProtocolHandler where Self: ~Copyable {
         try fromExternal { state throws(NetworkError) in
             try lower.invokeDetach(state: &state, self.reference)
         }
-        lower = .init(reference: .init())
+        lower = .init()
     }
 
     /// Detaches the lower protocol, using an already-acquired context state.
     public mutating func invokeDetach(state: inout NetworkContext.State) throws(NetworkError) {
         try lower.invokeDetach(state: &state, self.reference)
-        lower = .init(reference: .init())
+        lower = .init()
     }
 
     /// Signals an application-level event to lower protocols.
@@ -320,7 +320,8 @@ extension TopDatagramProtocol where Self: ~Copyable, Self: ~Copyable {
 
 @available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable {
-    var asUpper: LowerProtocol.PairedLinkage { .init(reference: reference) }
+    // TODO: TFPDEBUG remove
+    var asUpper: LowerProtocol.PairedLinkage { .init() }
 
     internal func validate(
         lower lowerProtocol: ProtocolInstanceReference,
@@ -404,50 +405,7 @@ extension TopDatapathProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension TopProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundDatagramLinkage {
-    public mutating func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-//        self.lower = try lowerProtocol.attachUpperDatagramProtocol(
-//            state: &state,
-//            reference,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-    }
-}
-
-@available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStreamLinkage {
-    public mutating func attachLowerStreamProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-//        self.lower = try lowerProtocol.attachUpperStreamProtocol(
-//            reference,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-    }
-
     public mutating func attachLowerStreamProtocolToExistingFlow(
         listener: StreamListenerLinkage,
         flowReference: ProtocolInstanceReference

@@ -142,14 +142,6 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol InboundStreamHandler: ~Copyable, InboundDataHandler where LowerProtocol == OutboundStreamLinkage {
-    mutating func attachLowerStreamProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError)
-
     mutating func attachLowerStreamProtocolToExistingFlow(
         listener: StreamListenerLinkage,
         flowReference: ProtocolInstanceReference
@@ -162,15 +154,6 @@ public protocol InboundStreamHandler: ~Copyable, InboundDataHandler where LowerP
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OutboundStreamHandler: ~Copyable, OutboundDataHandler where UpperProtocol == InboundStreamLinkage {
-
-    mutating func attachUpperStreamProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage
-
     mutating func receiveStreamData(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,

@@ -129,30 +129,11 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where LowerProtocol: OutboundDatagramLinkage {
-    mutating func attachLowerDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError)
-}
+public protocol InboundDatagramHandler: ~Copyable, InboundDataHandler where LowerProtocol: OutboundDatagramLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OutboundDatagramHandler: ~Copyable, OutboundDataHandler where UpperProtocol: InboundDatagramLinkage {
-
-    mutating func attachUpperDatagramProtocol(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> UpperProtocol.PairedLinkage
-
     mutating func receiveDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,

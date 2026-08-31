@@ -51,7 +51,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
     // Private mutable state
     private var newFlowHandler: ((StreamPerfTestHandler) -> Void)?
     private var errorHandler: ((NetworkError) -> Void)?
-    private var lowerProtocol = LowerProtocol(reference: .init())
+    private var lowerProtocol = LowerProtocol()
 
     public init?(
         local: Endpoint,
@@ -121,7 +121,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
         fromExternal { state in
             do throws(NetworkError) {
                 try lowerProtocol.invokeDetach(state: &state, reference)
-                self.lowerProtocol = .init(reference: .init())
+                self.lowerProtocol = .init()
             } catch {
                 log("Failed to detach lower protocol: \(error)")
             }

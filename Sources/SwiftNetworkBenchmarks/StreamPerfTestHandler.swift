@@ -52,7 +52,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
 
     // Internal mutable state
     internal var errorHandler: ((NetworkError) -> Void)?
-    internal var lowerProtocol = LowerProtocol(reference: .init())
+    internal var lowerProtocol = LowerProtocol()
 
     public init(
         identifier: String,
@@ -154,7 +154,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         fromExternal { state in
             do throws(NetworkError) {
                 try lowerProtocol.invokeDetach(state: &state, reference)
-                lowerProtocol = .init(reference: .init())
+                lowerProtocol = .init()
             } catch {
                 log("Failed to detach lower protocol: \(error)")
             }
@@ -274,17 +274,6 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
 
 @available(Network 0.1.0, *)
 extension StreamPerfTestHandler: UpperProtocolHandler {
-
-    // UpperProtocolHandler conformance
-    public func attachLowerStreamProtocol(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        throw NetworkError.posix(ENOTSUP)
-    }
 
     // InboundStreamHandler conformance
     public func attachLowerStreamProtocolToExistingFlow(
