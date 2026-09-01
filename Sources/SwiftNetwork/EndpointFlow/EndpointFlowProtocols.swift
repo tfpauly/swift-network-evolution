@@ -365,7 +365,7 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 }
 
 @available(Network 0.1.0, *)
-final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkage>, InboundStreamHandler {
+final class StreamEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundStreamLinkage>, InboundStreamHandler {
 
     func handleInboundAbortedEvent(
         state: inout NetworkContext.State,
@@ -392,7 +392,7 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
     }
 
     func attachLowerStreamProtocolToExistingFlow(
-        listener: StreamListenerLinkage,
+        listener: DefaultStreamListenerLinkage,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) {
         throw NetworkError.posix(EINVAL)
@@ -405,7 +405,7 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: StreamListenerLinkage
+        listenerProtocol: DefaultStreamListenerLinkage
     ) throws(NetworkError) {
         self.init(
             identifier: identifier,
@@ -431,7 +431,7 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<InboundStreamLinkag
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: StreamListenerLinkage,
+        listenerProtocol: DefaultStreamListenerLinkage,
         existingFlowReference: ProtocolInstanceReference
     ) throws(NetworkError) {
         self.init(

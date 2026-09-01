@@ -56,8 +56,8 @@ public typealias TLSProtocol = SwiftTLSProtocol
 protocol SwiftTLSQUICInstance: AnyObject {
     func getLowerLinkage(
         for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: InboundStreamLinkage
-    ) -> OutboundStreamLinkage
+        upperLinkage: DefaultInboundStreamLinkage
+    ) -> DefaultOutboundStreamLinkage
     func updateSecret(_ secret: [UInt8], for level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
     func updateEncryptionLevel(_ level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
     func updateSessionTickets(_ sessionTicketArray: [[UInt8]])
@@ -102,7 +102,6 @@ private struct ContextBound<Value>: @unchecked Sendable {
 public struct SwiftTLSProtocol: NetworkProtocol {
     public typealias Options = SwiftTLSProtocolOptions
     public typealias Metadata = SwiftTLSMetadata
-    typealias Instance = SwiftTLSInstance
 
     public init() {}
 
@@ -242,25 +241,29 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         public func isEqual(to other: SwiftTLSMetadata, for: ProtocolCompareMode) -> Bool { true }
     }
 
-    enum SwiftTLSInstanceType {
-        case quicHandshakeOnly(SwiftTLSQUICOnlyInstance)
+    enum SwiftTLSInstanceType<LinkageFamily: StreamLinkageFamily> {
+        case quicHandshakeOnly(SwiftTLSQUICOnlyInstance<LinkageFamily>)
         #if HAS_SWIFTTLS_RECORD && IMPORT_SWIFTTLS && canImport(SwiftTLS)
         case recordLayerTLS(SwiftTLSRecordLayerInstance)
         #endif
     }
 
-    final class SwiftTLSInstance: OneToOneStreamProtocol, ProtocolInstanceContainer {
+    final class SwiftTLSInstance<LinkageFamily: StreamLinkageFamily>: OneToOneStreamProtocol,
+        ProtocolInstanceContainer
+    {
+        typealias UpperProtocol = LinkageFamily.Upper
+        typealias LowerProtocol = LinkageFamily.Lower
 
         var metadata: AbstractProtocolMetadata?
-        var upper = InboundStreamLinkage()
-        var lower = OutboundStreamLinkage()
+        var upper = UpperProtocol()
+        var lower = LowerProtocol()
         private(set) var context: NetworkContext
         var reference: ProtocolInstanceReference
         var passthroughEvents = false
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
 
-        private var instanceType: SwiftTLSInstanceType?
+        private var instanceType: SwiftTLSInstanceType<LinkageFamily>?
 
         init(context: NetworkContext) {
             self.context = context
@@ -423,8 +426,8 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
     }
 
-    final class SwiftTLSQUICOnlyInstance {
-        var handle: SwiftTLSInstance
+    final class SwiftTLSQUICOnlyInstance<LinkageFamily: StreamLinkageFamily> {
+        var handle: SwiftTLSInstance<LinkageFamily>
 
         var isConnected = false
         var isServer = false
@@ -442,7 +445,11 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         var startedHandshake = false
         var options: SwiftTLSProtocolOptions
 
-        fileprivate init(_ handle: SwiftTLSInstance, _ options: SwiftTLSProtocolOptions, _ parameters: Parameters?) {
+        fileprivate init(
+            _ handle: SwiftTLSInstance<LinkageFamily>,
+            _ options: SwiftTLSProtocolOptions,
+            _ parameters: Parameters?
+        ) {
             self.handle = handle
             self.options = options
             if let parameters {
@@ -451,10 +458,12 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
 
         final class EncryptionLevelHandler: TopStreamProtocol, ProtocolInstanceContainer {
-            var lower = OutboundStreamLinkage()
+            typealias LowerProtocol = DefaultOutboundStreamLinkage
+
+            var lower = DefaultOutboundStreamLinkage()
 
             let level: SwiftTLSOptions.EncryptionLevel
-            var parentInstance: SwiftTLSQUICOnlyInstance? {
+            var parentInstance: SwiftTLSQUICOnlyInstance<LinkageFamily>? {
                 didSet {
                     // The context comes from parentInstance, so the reference can only be
                     // built once a parent has been assigned.
@@ -474,7 +483,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             func destroy() {
                 if !lower.isDetached {
                     try? lower.invokeDetach(state: &context.state, reference)
-                    lower = OutboundStreamLinkage()
+                    lower = DefaultOutboundStreamLinkage()
                 }
                 parentInstance = nil
             }
@@ -819,7 +828,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
     }
 
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        SwiftTLSInstance(context: context).reference
+        nil
     }
 
     public func newPerProtocolOptions() -> SwiftTLSProtocolOptions? { SwiftTLSProtocolOptions() }

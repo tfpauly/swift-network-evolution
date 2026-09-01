@@ -418,7 +418,7 @@ public final class SocketStreamProtocol: BottomStreamProtocol, ProtocolInstanceC
     public private(set) var context: NetworkContext
     public var reference: ProtocolInstanceReference
     public var eventManager = ProtocolEventManager()
-    public var upper = InboundStreamLinkage()
+    public var upper = DefaultInboundStreamLinkage()
     var log = NetworkLoggerState()
 
     private var socket: SystemSocket? = nil

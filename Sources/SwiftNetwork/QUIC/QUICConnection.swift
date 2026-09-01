@@ -164,7 +164,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
     StreamListenerHandler, HeterogeneousManyToManyProtocolHandler, TimerSchedulable,
     ProtocolInstanceContainer
 {
-    public var inboundFlowLinkage = InboundStreamFlowLinkage()
+    public var inboundFlowLinkage = DefaultInboundStreamFlowLinkage()
     public var secondaryInboundFlowLinkage = DefaultInboundDatagramFlowLinkage()
 
     public var multiplexedFlows = [MultiplexedFlowIdentifier: QUICStreamInstance]()
@@ -172,7 +172,7 @@ public final class QUICConnection: ManyToManyApplicationStreamProtocol,
     public var multiplexingPaths = [MultiplexingPathIdentifier: QUICPath]()
 
     public typealias Flow = QUICStreamInstance
-    public typealias UpperProtocol = InboundStreamFlowLinkage
+    public typealias UpperProtocol = DefaultInboundStreamFlowLinkage
 
     public typealias SecondaryFlow = QUICDatagramFlow
     public typealias SecondaryUpperProtocol = DefaultInboundDatagramFlowLinkage

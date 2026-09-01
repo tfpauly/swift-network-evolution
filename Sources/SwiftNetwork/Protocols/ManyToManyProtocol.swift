@@ -1016,7 +1016,7 @@ extension ManyToManyDatapathProtocol where Path.ParentProtocol == Self, Path: In
 }
 
 @available(Network 0.1.0, *)
-extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: OutboundStreamHandler {
+extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: OutboundStreamHandler, UpperProtocol: InboundStreamFlowLinkage, UpperProtocol.DataLinkage == Flow.UpperProtocol.PairedLinkage {
     public mutating func attachNewStreamFlowProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
@@ -1041,7 +1041,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage {
+    ) throws(NetworkError) -> UpperProtocol.DataLinkage {
         let flowID = MultiplexedFlowIdentifier(from)
         let existingFlow = flow(for: flowID)
         guard existingFlow == nil else {
@@ -1072,7 +1072,7 @@ extension ManyToManyDatapathProtocol where Flow.ParentProtocol == Self, Flow: Ou
     public mutating func attachUpperStreamProtocolToExistingFlow(
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> OutboundStreamLinkage {
+    ) throws(NetworkError) -> UpperProtocol.DataLinkage {
         let flowID = MultiplexedFlowIdentifier(inboundReference: flowReference)
         guard var existingFlow = flow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
@@ -1491,7 +1491,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
     AutomaticUpperStreamProcessing, ProtocolInstanceContainer
 {
     public typealias ParentProtocol = ParentProtocol
-    public typealias UpperProtocol = InboundStreamLinkage
+    public typealias UpperProtocol = DefaultInboundStreamLinkage
 
     public var parentProtocol: ParentProtocol
     public var upper = UpperProtocol()
@@ -1533,7 +1533,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage {
+    ) throws(NetworkError) -> UpperProtocol.PairedLinkage {
         upper = UpperProtocol() // TODO: TFPDEBUG FIX THIS
 
         do {

@@ -280,7 +280,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
-            let clientListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+            let clientListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             clientUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: clientEndpoint,
@@ -322,7 +322,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
 
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
-            let serverListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+            let serverListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             serverUpperHarness = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: serverEndpoint,

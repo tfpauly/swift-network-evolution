@@ -154,7 +154,7 @@ public final class QUICBenchmarkUtility {
         let path = PathProperties(parameters: parameters)
         var instance = instance
 
-        let listenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+        let listenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
         let streamHandler = StreamUpperHarness<DefaultStreamLinkageFamily>(
             identifier: "Client",
             local: localEndpoint,
@@ -205,7 +205,7 @@ public final class QUICBenchmarkUtility {
 
         var instance = instance
 
-        let listenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+        let listenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
 
         let serverNewFlowHandler = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
             local: localEndpoint,

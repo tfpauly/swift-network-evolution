@@ -56,7 +56,7 @@ final class QUICCrypto {
     // Set in start(with:), once parentConnection (which provides the context) is available.
     var reference = ProtocolInstanceReference()
 
-    var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance
+    var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance<DefaultStreamLinkageFamily>
 
     var outboundCryptoInitialOffset: Int = 0
     var outboundCrypto1RTTOffset: Int = 0
@@ -64,12 +64,12 @@ final class QUICCrypto {
 
     var parentConnection: QUICConnection?
 
-    var tlsLinkage = OutboundStreamLinkage()  // Linkage for control path on top of TLS
+    var tlsLinkage = DefaultOutboundStreamLinkage()  // Linkage for control path on top of TLS
 
-    var initialLinkage = InboundStreamLinkage()
-    var earlyDataLinkage = InboundStreamLinkage()
-    var handshakeLinkage = InboundStreamLinkage()
-    var applicationLinkage = InboundStreamLinkage()
+    var initialLinkage = DefaultInboundStreamLinkage()
+    var earlyDataLinkage = DefaultInboundStreamLinkage()
+    var handshakeLinkage = DefaultInboundStreamLinkage()
+    var applicationLinkage = DefaultInboundStreamLinkage()
 
     var initialReassemblyQueue = ReassemblyQueue()
     var handshakeReassemblyQueue = ReassemblyQueue()
@@ -92,15 +92,15 @@ final class QUICCrypto {
     static let bufferLimit: Int = 4 * 1024
 
     // TODO: TFPDEBUG FIX THIS
-    var asUpper: InboundStreamLinkage { .init() }
-    var asLower: OutboundStreamLinkage { .init() }
+    var asUpper: DefaultInboundStreamLinkage { .init() }
+    var asLower: DefaultOutboundStreamLinkage { .init() }
 
     struct cryptoQueuedPackets {
     }
     var cryptoQueue = Deque<cryptoQueuedPackets>()
 
     init(context: NetworkContext) {
-        tlsInstance = SwiftTLSProtocol.SwiftTLSInstance(context: context)
+        tlsInstance = SwiftTLSProtocol.SwiftTLSInstance<DefaultStreamLinkageFamily>(context: context)
     }
 
     func start(
@@ -220,8 +220,8 @@ final class QUICCrypto {
 extension QUICCrypto: SwiftTLSQUICInstance {
     func getLowerLinkage(
         for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: InboundStreamLinkage
-    ) -> OutboundStreamLinkage {
+        upperLinkage: DefaultInboundStreamLinkage
+    ) -> DefaultOutboundStreamLinkage {
         switch level {
         case .initial: initialLinkage = upperLinkage
         case .earlyData: earlyDataLinkage = upperLinkage
@@ -363,9 +363,11 @@ extension QUICCrypto: SwiftTLSQUICInstance {
 
 @available(Network 0.1.0, *)
 extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
+    typealias LowerProtocol = DefaultOutboundStreamLinkage
+
     var context: NetworkContext { parentConnection!.context }
 
-    var lower: OutboundStreamLinkage {
+    var lower: DefaultOutboundStreamLinkage {
         get { tlsLinkage }
         set { tlsLinkage = newValue }
     }
@@ -414,7 +416,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         for packetNumberSpace: PacketNumberSpace,
         reassemblyQueue: inout ReassemblyQueue,
         frameArray: inout FrameArray,
-        linkage: InboundStreamLinkage,
+        linkage: DefaultInboundStreamLinkage,
         state: inout NetworkContext.State
     ) -> Bool {
 
@@ -493,6 +495,8 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
 // Per-Level Sending Callbacks
 @available(Network 0.1.0, *)
 extension QUICCrypto: OutboundStreamHandler {
+    typealias UpperProtocol = DefaultInboundStreamLinkage
+
     func attachUpperProtocol(
         _ upperProtocol: UpperProtocol,
         remote: Endpoint?,
@@ -506,7 +510,7 @@ extension QUICCrypto: OutboundStreamHandler {
 
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         // TODO: TFPDEBUG FIX THIS
-        InboundStreamLinkage().deliverConnectedEvent(state: &state, reference)
+        DefaultInboundStreamLinkage().deliverConnectedEvent(state: &state, reference)
     }
 
     func disconnect(

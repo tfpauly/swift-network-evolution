@@ -30,7 +30,7 @@ internal import os
 @available(Network 0.1.0, *)
 public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlowHandler, LoggableProtocol {
 
-    public typealias LowerProtocol = StreamListenerLinkage
+    public typealias LowerProtocol = DefaultStreamListenerLinkage
     typealias UpperStreamHandlerType = StreamPerfTestHandler
 
     // Public mutable state
@@ -59,7 +59,7 @@ public final class NewFlowPerfTestHandler: ProtocolInstanceContainer, InboundFlo
         parameters: Parameters,
         path: PathProperties,
         logger: LoggingHandle,
-        streamListenerProtocol: StreamListenerLinkage
+        streamListenerProtocol: DefaultStreamListenerLinkage
     ) {
         self.local = local
         self.remote = remote

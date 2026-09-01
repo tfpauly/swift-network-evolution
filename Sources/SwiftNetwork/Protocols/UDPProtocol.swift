@@ -27,7 +27,6 @@ internal import os
 public struct UDPProtocol: NetworkProtocol {
     public typealias Options = UDPOptions
     public typealias Metadata = UDPMetadata
-    typealias Instance = UDPInstance
 
     static public var headerLength: Int {
         MemoryLayout<UInt16>.size * 4
@@ -100,11 +99,10 @@ public struct UDPProtocol: NetworkProtocol {
         static let gotPathAttributes = UDPInstanceFlags(rawValue: 1 << 10)
     }
 
-    typealias UDPInstance = UDPInnerInstance<DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage>
-    struct UDPInnerInstance<Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage>: ~Copyable, OneToOneDatagramProtocol {
+    struct UDPInstance<LinkageFamily: DatagramLinkageFamily>: ~Copyable, OneToOneDatagramProtocol {
 
-        typealias UpperProtocol = Upper
-        typealias LowerProtocol = Lower
+        typealias UpperProtocol = LinkageFamily.Upper
+        typealias LowerProtocol = LinkageFamily.Lower
 
         var upper = UpperProtocol()
         var lower = LowerProtocol()
@@ -120,20 +118,6 @@ public struct UDPProtocol: NetworkProtocol {
         var log = NetworkLoggerState()
 
         var eventManager = ProtocolEventManager()
-
-        // Only called by newProtocolInstance()
-        fileprivate static func registerNewUDP(
-            on context: NetworkContext,
-            state: inout NetworkContext.State
-        ) -> ProtocolInstanceReference {
-            let udp = UDPInstance(context: context)
-            let registeredIndex = state.registerUDPInstance(udp)
-//            state.udpInstances[registeredIndex].udpInstanceIndex = registeredIndex
-//            state.udpInstances[registeredIndex].reference = ProtocolInstanceReference(
-//                udpIndex: registeredIndex, state: &state
-//            )
-            return state.udpInstances[registeredIndex].reference
-        }
 
         var passthroughEvents = true
 
@@ -550,7 +534,7 @@ public struct UDPProtocol: NetworkProtocol {
     public func newPerProtocolMetadata() -> UDPMetadata? { UDPMetadata() }
 
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        UDPInstance.registerNewUDP(on: context, state: &context.state)
+        nil
     }
 
     static public let identifier = ProtocolIdentifier(name: "udp", level: .transport, mapping: .oneToOne)

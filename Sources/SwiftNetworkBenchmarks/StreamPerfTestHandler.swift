@@ -30,7 +30,7 @@ internal import os
 @available(Network 0.1.0, *)
 public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStreamHandler, LoggableProtocol {
 
-    public typealias LowerProtocol = OutboundStreamLinkage
+    public typealias LowerProtocol = DefaultOutboundStreamLinkage
 
     // Private Constant state
     private let local: Endpoint
@@ -83,7 +83,7 @@ public final class StreamPerfTestHandler: ProtocolInstanceContainer, InboundStre
         path: PathProperties,
         streamID: UInt64,
         logger: LoggingHandle,
-        listenerProtocol: StreamListenerLinkage
+        listenerProtocol: DefaultStreamListenerLinkage
     ) {
         self.local = local
         self.remote = remote
@@ -299,7 +299,7 @@ extension StreamPerfTestHandler: UpperProtocolHandler {
 
     // InboundStreamHandler conformance
     public func attachLowerStreamProtocolToExistingFlow(
-        listener: StreamListenerLinkage,
+        listener: DefaultStreamListenerLinkage,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) {
         throw NetworkError.posix(ENOTSUP)

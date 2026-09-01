@@ -151,7 +151,7 @@ extension TopProtocolHandler where Self: ~Copyable {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol TopStreamProtocol: ~Copyable, TopDatapathProtocol, InboundStreamHandler
-where LowerProtocol == OutboundStreamLinkage {
+where LowerProtocol: OutboundStreamLinkage {
     /// A function the framework calls when the lower protocol reports that inbound stream data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
@@ -407,11 +407,11 @@ extension TopDatapathProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension TopProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStreamLinkage {
-    public mutating func attachLowerStreamProtocolToExistingFlow(
-        listener: StreamListenerLinkage,
+extension TopProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundStreamLinkage {
+    public mutating func attachLowerStreamProtocolToExistingFlow<Listener: StreamListenerLinkage>(
+        listener: Listener,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) {
+    ) throws(NetworkError) where Listener.PairedLinkage.DataLinkage == LowerProtocol {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }

@@ -75,14 +75,14 @@ where UpperProtocol.DataLinkage == DefaultOutboundDatagramLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol StreamListenerHandler: ~Copyable, ListenerHandler
-where UpperProtocol.DataLinkage == OutboundStreamLinkage {
+where UpperProtocol: InboundStreamFlowLinkage {
     mutating func attachNewStreamFlowProtocol(
         _ from: ProtocolInstanceReference,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> StreamListenerLinkage
+    ) throws(NetworkError) -> UpperProtocol.PairedLinkage
 
     // Create a new flow
     mutating func attachUpperStreamProtocolToNewFlow(
@@ -91,13 +91,13 @@ where UpperProtocol.DataLinkage == OutboundStreamLinkage {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> OutboundStreamLinkage
+    ) throws(NetworkError) -> UpperProtocol.DataLinkage
 
     // Attach to an inbound flow
     mutating func attachUpperStreamProtocolToExistingFlow(
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> OutboundStreamLinkage
+    ) throws(NetworkError) -> UpperProtocol.DataLinkage
 }
 
 @_spi(ProtocolProvider)

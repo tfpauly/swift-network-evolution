@@ -45,7 +45,7 @@ extension EndpointFlow {
                 }
 
                 // TODO: TFPDEBUG FIX THIS
-                let listenerLinkage = StreamListenerLinkage()
+                let listenerLinkage = DefaultStreamListenerLinkage()
                 let flow = try StreamEndpointFlowProtocol(
                     identifier: String(self.identifier),
                     local: self.localEndpoint,
@@ -92,7 +92,7 @@ extension EndpointFlow {
                     }
                     options.setProtocolInstance(reference)
                     // TODO: TFPDEBUG FIX THIS
-                    let linkage = OutboundStreamLinkage()
+                    let linkage = DefaultOutboundStreamLinkage()
                     let flow = try StreamEndpointFlowProtocol(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -177,7 +177,7 @@ extension EndpointFlow {
                         protocolLogIDNumber: Int(self.identifier)
                     )
                     // TODO: TFPDEBUG FIX THIS
-                    let listenerLinkage = StreamListenerLinkage()
+                    let listenerLinkage = DefaultStreamListenerLinkage()
                     let flow = try StreamEndpointFlowProtocol(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -241,7 +241,7 @@ extension EndpointFlow {
                             if options.identifier == BridgeStreamProtocol.identifier {
                                 let reference = BridgeStreamProtocol.instance(context: context)
                                 // TODO: TFPDEBUG FIX THIS
-                                let linkage = OutboundStreamLinkage()
+                                let linkage = DefaultOutboundStreamLinkage()
                                 let flow = try StreamEndpointFlowProtocol(
                                     identifier: String(self.identifier),
                                     local: effectiveLocalEndpoint,
@@ -272,7 +272,7 @@ extension EndpointFlow {
                         }
                         options.setProtocolInstance(reference)
                         // TODO: TFPDEBUG FIX THIS
-                        let linkage = OutboundStreamLinkage()
+                        let linkage = DefaultOutboundStreamLinkage()
                         let flow = try StreamEndpointFlowProtocol(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,

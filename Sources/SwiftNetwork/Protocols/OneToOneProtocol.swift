@@ -162,7 +162,7 @@ where UpperProtocol: InboundDataLinkage, LowerProtocol: OutboundDataLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OneToOneStreamProtocol: ~Copyable, OneToOneDatapathProtocol
-where UpperProtocol == InboundStreamLinkage, LowerProtocol == OutboundStreamLinkage {
+where UpperProtocol: InboundStreamLinkage, LowerProtocol: OutboundStreamLinkage {
 
     /// Returns received stream data to the upper protocol.
     ///
@@ -203,7 +203,7 @@ where UpperProtocol == InboundStreamLinkage, LowerProtocol == OutboundStreamLink
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OneToOneStreamToDatagramProtocol: ~Copyable, OneToOneDatapathProtocol
-where UpperProtocol == InboundStreamLinkage, LowerProtocol: OutboundDatagramLinkage {
+where UpperProtocol: InboundStreamLinkage, LowerProtocol: OutboundDatagramLinkage {
 
     /// Returns received stream data to the upper protocol.
     ///
@@ -267,7 +267,7 @@ where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundDatagramLink
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OneToOneDatagramToStreamProtocol: ~Copyable, OneToOneDatapathProtocol
-where UpperProtocol: InboundDatagramLinkage, LowerProtocol == OutboundStreamLinkage {
+where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundStreamLinkage {
 
     mutating func receiveDatagrams(
         state: inout NetworkContext.State,
@@ -732,11 +732,11 @@ extension OneToOneDatagramProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol == OutboundStreamLinkage {
-    public mutating func attachLowerStreamProtocolToExistingFlow(
-        listener: StreamListenerLinkage,
+extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundStreamLinkage {
+    public mutating func attachLowerStreamProtocolToExistingFlow<Listener: StreamListenerLinkage>(
+        listener: Listener,
         flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) {
+    ) throws(NetworkError) where Listener.PairedLinkage.DataLinkage == LowerProtocol {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }

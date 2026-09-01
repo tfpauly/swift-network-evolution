@@ -408,8 +408,8 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = InboundStreamLinkage()
-        var lower = OutboundStreamLinkage()
+        public var upper = DefaultInboundStreamLinkage()
+        var lower = DefaultOutboundStreamLinkage()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {

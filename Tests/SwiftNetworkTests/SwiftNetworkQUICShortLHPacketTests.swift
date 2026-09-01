@@ -169,7 +169,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
 
-            let serverListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+            let serverListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             let serverUpperHarness = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: serverEndpoint,

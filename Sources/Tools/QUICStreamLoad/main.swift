@@ -72,7 +72,7 @@ final class QUICStreamLoad {
         var streamRoundTripDurations = [NetworkDuration]()
 
         var clientInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
-        var clientListenerLinkage: StreamListenerLinkage? = nil
+        var clientListenerLinkage: DefaultStreamListenerLinkage? = nil
         var serverInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
 
         group.enter()
@@ -127,7 +127,7 @@ final class QUICStreamLoad {
             bridgeOptions.setProtocolInstance(clientOutput)
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
-            clientListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+            clientListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             clientInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client",
                 local: ipv4Client,
@@ -203,7 +203,7 @@ final class QUICStreamLoad {
             serverBridgeOptions.setProtocolInstance(serverOutput)
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
-            let serverListenerLinkage = StreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
+            let serverListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
             serverInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
                 identifier: "Server",
                 local: ipv4Server,

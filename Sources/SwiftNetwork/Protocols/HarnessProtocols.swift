@@ -380,7 +380,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        listenerProtocol: StreamListenerLinkage
+        listenerProtocol: LinkageFamily.Listener
     ) {
         self.init(
             identifier: identifier,
@@ -925,7 +925,7 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        streamListenerProtocol: StreamListenerLinkage
+        streamListenerProtocol: LinkageFamily.Listener
     ) {
         self.init(
             identifier: identifier,

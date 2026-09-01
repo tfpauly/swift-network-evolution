@@ -36,7 +36,6 @@ enum MultipathVersion: UInt8 {
 public struct TCPProtocol: NetworkProtocol {
     public typealias Options = TCPOptions
     public typealias Metadata = TCPMetadata
-    typealias Instance = TCPInstance
 
     static public var headerLength: Int {
         MemoryLayout<UInt8>.size * 20
@@ -370,9 +369,13 @@ public struct TCPProtocol: NetworkProtocol {
         }
     }
 
-    final class TCPInstance: OneToOneStreamToDatagramProtocol, TimerSchedulable {
+    final class TCPInstance<
+        UpperLinkageFamily: StreamLinkageFamily,
+        LowerLinkageFamily: DatagramLinkageFamily
+    >: OneToOneStreamToDatagramProtocol, TimerSchedulable {
 
-        typealias LowerProtocol = DefaultOutboundDatagramLinkage
+        typealias UpperProtocol = UpperLinkageFamily.Upper
+        typealias LowerProtocol = LowerLinkageFamily.Lower
 
         var upper = UpperProtocol()
         var lower = LowerProtocol()
