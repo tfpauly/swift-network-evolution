@@ -407,7 +407,7 @@ open class BaseNetworkProtocolStorage {
 
     let context: NetworkContext
 
-    init(context: NetworkContext) {
+    public init(context: NetworkContext) {
         self.context = context
     }
 
@@ -628,10 +628,13 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].eventManager.unregister(state: &state)
+                storage!.udpInstances.remove(index: index)
             case .ip(let index):
                 storage!.ipInstances[index].eventManager.unregister(state: &state)
+                storage!.ipInstances.remove(index: index)
             case .datagramLowerHarness(let index):
                 storage!.datagramLowerHarnesses[index].eventManager.unregister(state: &state)
+                storage!.datagramLowerHarnesses.remove(index: index)
             default: break
             }
         }
@@ -667,7 +670,7 @@ open class BaseNetworkProtocolStorage {
                 switch protocolType {
                 case .udp(let index): return storage!.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
                 case .ip(let index): return storage!.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+                case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetricsgetMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
                 default: fatalError("Protocol cannot accept getMetrics call")
                 }
             }
@@ -798,7 +801,7 @@ open class BaseNetworkProtocolStorage {
     // TODO: TFPDEBUG Move this to an inner non-copyable struct to avoid taking references
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>>()
 
-    func createUDPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
+    public func createUDPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
         let instance = UDPProtocol.UDPInnerInstance<BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage>(context: context)
 
         let instanceIndex = udpInstances.insert(instance)
@@ -812,7 +815,7 @@ open class BaseNetworkProtocolStorage {
 
     internal var ipInstances = NetworkGappyArray<IPProtocol.IPInstance<BaseDatagramLinkageFamily>>()
 
-    func createIPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
+    public func createIPInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
         let instance = IPProtocol.IPInstance<BaseDatagramLinkageFamily>(context: context)
 
         let instanceIndex = ipInstances.insert(instance)
@@ -826,8 +829,8 @@ open class BaseNetworkProtocolStorage {
 
     internal var datagramLowerHarnesses = NetworkGappyArray<DatagramLowerHarness<BaseDatagramLinkageFamily>>()
 
-    func createDatagramLowerHarness(identifier: String = "",
-                                    context: NetworkContext) -> (DatagramLowerHarness<BaseDatagramLinkageFamily>, BaseOutboundDatagramLinkage) {
+    public func createDatagramLowerHarness(identifier: String = "",
+                                           context: NetworkContext) -> (DatagramLowerHarness<BaseDatagramLinkageFamily>, BaseOutboundDatagramLinkage) {
         let instance = DatagramLowerHarness<BaseDatagramLinkageFamily>(identifier: identifier,
                                                                        context: context)
         let instanceIndex = datagramLowerHarnesses.insert(instance)
@@ -840,12 +843,12 @@ open class BaseNetworkProtocolStorage {
 
     internal var datagramUpperHarnesses = NetworkGappyArray<DatagramUpperHarness<BaseDatagramLinkageFamily>>()
 
-    func createDatagramUpperHarness(identifier: String = "",
-                                    local: Endpoint,
-                                    remote: Endpoint,
-                                    parameters: Parameters,
-                                    path: PathProperties,
-                                    context: NetworkContext) -> (DatagramUpperHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramLinkage) {
+    public func createDatagramUpperHarness(identifier: String = "",
+                                           local: Endpoint,
+                                           remote: Endpoint,
+                                           parameters: Parameters,
+                                           path: PathProperties,
+                                           context: NetworkContext) -> (DatagramUpperHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramLinkage) {
         let instance = DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: identifier,
                                                                        local: local,
                                                                        remote: remote,

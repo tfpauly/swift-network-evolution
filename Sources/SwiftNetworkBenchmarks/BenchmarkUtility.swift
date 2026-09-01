@@ -324,9 +324,9 @@ public struct LoggingHandle: CustomStringConvertible {
 @available(Network 0.1.0, *)
 public final class DataBenchmarkUtility {
     @discardableResult
-    public func loopOutputHandlerPackets(
-        sender: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
-        receiver: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
+    public func loopOutputHandlerPackets<LinkageFamily: DatagramLinkageFamily>(
+        sender: DatagramLowerHarness<LinkageFamily>,
+        receiver: DatagramLowerHarness<LinkageFamily>,
         maximumBurst: Int
     ) -> Int {
         var packetsSent: Int = 0
