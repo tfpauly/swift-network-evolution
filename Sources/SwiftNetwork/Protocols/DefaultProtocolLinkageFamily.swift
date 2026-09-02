@@ -23,12 +23,6 @@ internal import os
 #endif
 
 
-// TODO: TFPDEBUG Should a linkage throw/abort if it is created with a reference for a protocol
-// it doesn't understand?
-// TODO: TFPDEBUG does the reference even need to know about the protocol type at all? Can that just
-// be the linkages? If the reference is to a class type, it can just hold a ref count.
-// TODO: TFPDEBUG Reference maybe can just be the tuple of context and event manager index + parent.
-
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultDatagramLinkageFamily: DatagramLinkageFamily {
@@ -62,64 +56,6 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        /*
-        try reference.fromExternal(state: &reference.context.state) { state throws(NetworkError) in
-            switch reference.reference {
-            case .none: fatalError("Cannot attach to empty protocol")
-            case .udp(let index):
-                try state.udpInstances[index].attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            case .ip(let index):
-                try state.ipInstances[index].attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            case .tcp(var instance):
-                try instance.attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            case .datagramEndpointFlow(let instance):
-                try instance.attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            #if !NETWORK_NO_SWIFT_QUIC
-            case .quicPath(var instance):
-                try instance.attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            case .datagramUpperHarness(var instance):
-                try instance.attachLowerProtocol(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            #endif
-            default: fatalError("Protocol cannot accept attachLowerProtocol call")
-            }
-        }
-         */
     }
 
     public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -158,51 +94,10 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) {
         self.reference = reference
-        /*
-        if let protocolIdentifier = reference.protocolIdentifier {
-            switch protocolIdentifier {
-            case UDPProtocol.identifier:
-                knownType = .udp
-            case IPProtocol.identifier:
-                knownType = .ip
-                // TODO: TFPDEBUG All protocols need identifiers?
-//            #if !NETWORK_NO_SWIFT_QUIC
-//            case QUICDatagramFlow.identifier:
-//                knownType = .quicDatagram
-//            #endif
-//            #if !NETWORK_NO_TESTING_HARNESS
-//            case DatagramLowerHarness.identifier:
-//                knownType = .datagramLowerHarness
-//            #endif
-            default:
-                knownType = .none
-            }
-        } else {
-            knownType = .none
-        }
-         */
-        knownType = .none
-
     }
     public init() {
         reference = .init()
-        knownType = .none
     }
-
-    // TODO: TFPDEBUG Add enum of known types here
-
-    enum KnownType {
-        case none
-        case udp
-        case ip
-        #if !NETWORK_NO_SWIFT_QUIC
-        case quicDatagram
-        #endif
-        #if !NETWORK_NO_TESTING_HARNESS
-        case datagramLowerHarness
-        #endif
-    }
-    var knownType: KnownType
 
     public func invokeAttachUpperProtocol(
         _ upperProtocol: PairedLinkage,
@@ -211,81 +106,71 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        // TODO: TFPDEBUG avoid switching on reference.reference
-        /*
-        try reference.handleCallFromUpperProtocol(state: &reference.context.state) { state throws(NetworkError) in
-            switch reference.reference {
-            case .none: fatalError("Cannot attach to empty protocol")
-            case .udp(let index):
-                try state.udpInstances[index].attachUpperProtocol(
-                    upperProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            case .ip(let index):
-                try state.ipInstances[index].attachUpperProtocol(
-                    upperProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            #if !NETWORK_NO_SWIFT_QUIC
-            case .quicDatagram(var instance):
-                try instance.attachUpperProtocol(
-                    upperProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance):
-                try instance.attachUpperProtocol(
-                    upperProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            #endif
-            #endif
-            default: fatalError("Protocol cannot accept attachUpperProtocol call")
-            }
-        }
-         */
     }
 
-    public func invokeReceiveDatagrams(
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+    }
+
+    public func detach(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) {
+    }
+
+    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+    }
+
+    public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        return nil
+    }
+
+    public func getMetrics(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        requestedNetworkMetric: RequestedNetworkMetrics
+    ) -> NetworkMetrics? {
+        return nil
+    }
+
+    public func receiveDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int
     ) throws(NetworkError) -> FrameArray? {
-//        try reference.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
         return nil
     }
-    public func invokeGetDatagramsToSend(
+    public func getDatagramsToSend(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
-//        try reference.getDatagramsToSend(
-//            state: &state,
-//            from,
-//            maximumDatagramCount: maximumDatagramCount,
-//            minimumDatagramSize: minimumDatagramSize
-//        )
         return nil
     }
-    public func invokeSendDatagrams(
+    public func sendDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
-//        try reference.sendDatagrams(state: &state, from, datagrams: datagrams)
+        var datagrams = datagrams
+        datagrams.finalizeAllFramesAsFailed()
     }
 }
 
@@ -305,7 +190,6 @@ public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
     }
 
     public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -353,7 +237,47 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
+    }
+
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+    }
+
+    public func detach(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) {
+    }
+
+    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    }
+
+    public func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+    }
+
+    public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        return nil
+    }
+
+    public func getMetrics(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        requestedNetworkMetric: RequestedNetworkMetrics
+    ) -> NetworkMetrics? {
+        return nil
     }
 
     public func invokeAttachNewDatagramFlowProtocol(
@@ -363,13 +287,6 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> Self {
-//        try reference.attachNewDatagramFlowProtocol(
-//            from,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
         return .init(reference: from)
     }
 
@@ -380,13 +297,6 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-//        try reference.attachUpperDatagramProtocolToNewFlow(
-//            from,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
         return .init(reference: from)
     }
 
@@ -394,10 +304,6 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-//        try reference.attachUpperDatagramProtocolToExistingFlow(
-//            from,
-//            flowReference: flowReference
-//        )
         return .init(reference: from)
     }
 }
@@ -570,49 +476,42 @@ open class BaseNetworkProtocolStorage {
             case datagramLowerHarness(NetworkStateIndex)
         }
 
-        // TODO: TFPDEBUG: Is it the responsibility of every "subclass" of linkage to call into handleCallFromUpperProtocol? Can we make that more automatic?
-        public func invokeReceiveDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
-            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .udp(let index):
-                    return try storage!.udpInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                case .ip(let index):
-                    return try storage!.ipInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                case .datagramLowerHarness(let index):
-                    return try storage!.datagramLowerHarnesses[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                default:
-                    return nil
-                }
+        public func receiveDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+            switch protocolType {
+            case .udp(let index):
+                return try storage!.udpInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+            case .ip(let index):
+                return try storage!.ipInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+            case .datagramLowerHarness(let index):
+                return try storage!.datagramLowerHarnesses[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+            default:
+                return nil
             }
         }
         
-        public func invokeGetDatagramsToSend(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray? {
-            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .udp(let index):
-                    return try storage!.udpInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
-                case .ip(let index):
-                    return try storage!.ipInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
-                case .datagramLowerHarness(let index):
-                    return try storage!.datagramLowerHarnesses[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
-                default:
-                    return nil
-                }
+        public func getDatagramsToSend(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray? {
+            switch protocolType {
+            case .udp(let index):
+                return try storage!.udpInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+            case .ip(let index):
+                return try storage!.ipInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+            case .datagramLowerHarness(let index):
+                return try storage!.datagramLowerHarnesses[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+            default:
+                return nil
             }
         }
         
-        public func invokeSendDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, datagrams: consuming FrameArray) throws(NetworkError) {
-            try reference.handleCallFromUpperProtocol(state: &state, datagrams) { state, datagrams throws(NetworkError) in
-                switch protocolType {
-                case .udp(let index):
-                    try storage!.udpInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
-                case .ip(let index):
-                    try storage!.ipInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
-                case .datagramLowerHarness(let index):
-                    try storage!.datagramLowerHarnesses[index].sendDatagrams(state: &state, from, datagrams: datagrams)
-                default:
-                    return
-                }
+        public func sendDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, datagrams: consuming FrameArray) throws(NetworkError) {
+            switch protocolType {
+            case .udp(let index):
+                try storage!.udpInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+            case .ip(let index):
+                try storage!.ipInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+            case .datagramLowerHarness(let index):
+                try storage!.datagramLowerHarnesses[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+            default:
+                return
             }
         }
 
@@ -620,43 +519,37 @@ open class BaseNetworkProtocolStorage {
             reference.isConnected(state: &state)
         }
 
-        public func invokeConnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-            guard !reference.isNone else { return }
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .udp(let index): storage!.udpInstances[index].connect(state: &state, from)
-                case .ip(let index): storage!.ipInstances[index].connect(state: &state, from)
-                case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].connect(state: &state, from)
-                default: fatalError("Protocol cannot accept connect call")
-                }
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].connect(state: &state, from)
+            case .ip(let index): storage!.ipInstances[index].connect(state: &state, from)
+            case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].connect(state: &state, from)
+            default: fatalError("Protocol cannot accept connect call")
             }
         }
 
-        public func invokeDisconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError? = nil) {
-            guard !reference.isNone else { return }
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .udp(let index): storage!.udpInstances[index].disconnect(state: &state, from, error: error)
-                case .ip(let index): storage!.ipInstances[index].disconnect(state: &state, from, error: error)
-                case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].disconnect(state: &state, from, error: error)
-                default: fatalError("Protocol cannot accept disconnect call")
-                }
+        public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].disconnect(state: &state, from, error: error)
+            case .ip(let index): storage!.ipInstances[index].disconnect(state: &state, from, error: error)
+            case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].disconnect(state: &state, from, error: error)
+            default: fatalError("Protocol cannot accept disconnect call")
             }
         }
 
-        public func invokeDetach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-            guard !reference.isNone else { return }
-            try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .udp(let index):
-                    try storage!.udpInstances[index].detach(state: &state, from)
-                case .ip(let index):
-                    try storage!.ipInstances[index].detach(state: &state, from)
-                case .datagramLowerHarness(let index):
-                    try storage!.datagramLowerHarnesses[index].detach(state: &state, from)
-                default: fatalError("Protocol cannot accept detach call")
-                }
+        public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
+            switch protocolType {
+            case .udp(let index):
+                try storage!.udpInstances[index].detach(state: &state, from)
+            case .ip(let index):
+                try storage!.ipInstances[index].detach(state: &state, from)
+            case .datagramLowerHarness(let index):
+                try storage!.datagramLowerHarnesses[index].detach(state: &state, from)
+            default: fatalError("Protocol cannot accept detach call")
             }
+        }
+
+        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].eventManager.unregister(state: &state)
@@ -671,40 +564,34 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func invokeApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .udp(let index): storage!.udpInstances[index].handleApplicationEvent(state: &state, from, event: event)
-                case .ip(let index): storage!.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
-                case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
-                default: fatalError("Protocol cannot accept handleApplicationEvent call")
-                }
+        public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
+            switch protocolType {
+            case .udp(let index): storage!.udpInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .ip(let index): storage!.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
+            default: fatalError("Protocol cannot accept handleApplicationEvent call")
             }
         }
 
-        public func invokeGetMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-            return reference.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
-                switch protocolType {
-                case .udp(let index): return storage!.udpInstances[index].getMetadata(state: &state, from)
-                case .ip(let index): return storage!.ipInstances[index].getMetadata(state: &state, from)
-                case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetadata(state: &state, from)
-                default: fatalError("Protocol cannot accept getMetadata call")
-                }
+        public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
+            switch protocolType {
+            case .udp(let index): return storage!.udpInstances[index].getMetadata(state: &state, from)
+            case .ip(let index): return storage!.ipInstances[index].getMetadata(state: &state, from)
+            case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetadata(state: &state, from)
+            default: fatalError("Protocol cannot accept getMetadata call")
             }
         }
 
-        public func invokeGetMetrics(
+        public func getMetrics(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             requestedNetworkMetric: RequestedNetworkMetrics
         ) -> NetworkMetrics? {
-            return reference.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
-                switch protocolType {
-                case .udp(let index): return storage!.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                case .ip(let index): return storage!.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                default: fatalError("Protocol cannot accept getMetrics call")
-                }
+            switch protocolType {
+            case .udp(let index): return storage!.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .ip(let index): return storage!.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            default: fatalError("Protocol cannot accept getMetrics call")
             }
         }
 
@@ -755,6 +642,47 @@ open class BaseNetworkProtocolStorage {
 
         public func invokeAttachUpperProtocol(_ upperProtocol: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
 
+        }
+
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        }
+
+        public func disconnect(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            error: NetworkError?
+        ) {
+        }
+
+        public func detach(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) throws(NetworkError) {
+        }
+
+        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        }
+
+        public func handleApplicationEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            event: ApplicationEvent
+        ) {
+        }
+
+        public func getMetadata<P: NetworkProtocol>(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) -> ProtocolMetadata<P>? {
+            return nil
+        }
+
+        public func getMetrics(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            requestedNetworkMetric: RequestedNetworkMetrics
+        ) -> NetworkMetrics? {
+            return nil
         }
 
         public func invokeAttachUpperDatagramProtocolToNewFlow(
@@ -981,66 +909,60 @@ open class BaseNetworkProtocolStorage {
             case streamLowerHarness(NetworkStateIndex)
         }
 
-        public func invokeReceiveStreamData(
+        public func receiveStreamData(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             minimumBytes: Int,
             maximumBytes: Int
         ) throws(NetworkError) -> FrameArray? {
-            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .tcp(let index):
-                    return try storage!.tcpInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
-                case .tls(let index):
-                    return try storage!.tlsInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
-                case .streamLowerHarness(let index):
-                    return try storage!.streamLowerHarnesses[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
-                default:
-                    return nil
-                }
+            switch protocolType {
+            case .tcp(let index):
+                return try storage!.tcpInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+            case .tls(let index):
+                return try storage!.tlsInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+            case .streamLowerHarness(let index):
+                return try storage!.streamLowerHarnesses[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+            default:
+                return nil
             }
         }
 
-        public func invokeGetOutboundStreamDataRoomAvailable(
+        public func getOutboundStreamDataRoomAvailable(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference
         ) throws(NetworkError) -> Int {
-            return try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .tcp(let index):
-                    return try storage!.tcpInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
-                case .tls(let index):
-                    return try storage!.tlsInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
-                case .streamLowerHarness(let index):
-                    return try storage!.streamLowerHarnesses[index].getOutboundStreamDataRoomAvailable(state: &state, from)
-                default:
-                    return 0
-                }
+            switch protocolType {
+            case .tcp(let index):
+                return try storage!.tcpInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
+            case .tls(let index):
+                return try storage!.tlsInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
+            case .streamLowerHarness(let index):
+                return try storage!.streamLowerHarnesses[index].getOutboundStreamDataRoomAvailable(state: &state, from)
+            default:
+                return 0
             }
         }
 
-        public func invokeSendStreamData(
+        public func sendStreamData(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             streamData: consuming FrameArray
         ) throws(NetworkError) {
-            try reference.handleCallFromUpperProtocol(state: &state, streamData) { state, streamData throws(NetworkError) in
-                switch protocolType {
-                case .tcp(let index):
-                    try storage!.tcpInstances[index].sendStreamData(state: &state, from, streamData: streamData)
-                case .tls(let index):
-                    try storage!.tlsInstances[index].sendStreamData(state: &state, from, streamData: streamData)
-                case .streamLowerHarness(let index):
-                    try storage!.streamLowerHarnesses[index].sendStreamData(state: &state, from, streamData: streamData)
-                default:
-                    var streamData = streamData
-                    streamData.finalizeAllFramesAsFailed()
-                    return
-                }
+            switch protocolType {
+            case .tcp(let index):
+                try storage!.tcpInstances[index].sendStreamData(state: &state, from, streamData: streamData)
+            case .tls(let index):
+                try storage!.tlsInstances[index].sendStreamData(state: &state, from, streamData: streamData)
+            case .streamLowerHarness(let index):
+                try storage!.streamLowerHarnesses[index].sendStreamData(state: &state, from, streamData: streamData)
+            default:
+                var streamData = streamData
+                streamData.finalizeAllFramesAsFailed()
+                return
             }
         }
 
-        public func invokeSendEarlyStreamData(
+        public func sendEarlyStreamData(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             streamData: consuming FrameArray
@@ -1051,7 +973,7 @@ open class BaseNetworkProtocolStorage {
             throw NetworkError.posix(ENOTSUP)
         }
 
-        public func invokeAbortInbound(
+        public func abortInbound(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             error: NetworkError?
@@ -1060,7 +982,7 @@ open class BaseNetworkProtocolStorage {
             throw NetworkError.posix(ENOTSUP)
         }
 
-        public func invokeAbortOutbound(
+        public func abortOutbound(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             error: NetworkError?
@@ -1073,44 +995,38 @@ open class BaseNetworkProtocolStorage {
             reference.isConnected(state: &state)
         }
 
-        public func invokeConnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-            guard !reference.isNone else { return }
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .tcp(let index): storage!.tcpInstances[index].connect(state: &state, from)
-                case .tls(let index): storage!.tlsInstances[index].connect(state: &state, from)
-                case .streamLowerHarness(let index): storage!.streamLowerHarnesses[index].connect(state: &state, from)
-                default: fatalError("Protocol cannot accept connect call")
-                }
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+            switch protocolType {
+            case .tcp(let index): storage!.tcpInstances[index].connect(state: &state, from)
+            case .tls(let index): storage!.tlsInstances[index].connect(state: &state, from)
+            case .streamLowerHarness(let index): storage!.streamLowerHarnesses[index].connect(state: &state, from)
+            default: fatalError("Protocol cannot accept connect call")
             }
         }
 
-        public func invokeDisconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError? = nil) {
-            guard !reference.isNone else { return }
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .tcp(let index): storage!.tcpInstances[index].disconnect(state: &state, from, error: error)
-                case .tls(let index): storage!.tlsInstances[index].disconnect(state: &state, from, error: error)
-                case .streamLowerHarness(let index):
-                    storage!.streamLowerHarnesses[index].disconnect(state: &state, from, error: error)
-                default: fatalError("Protocol cannot accept disconnect call")
-                }
+        public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
+            switch protocolType {
+            case .tcp(let index): storage!.tcpInstances[index].disconnect(state: &state, from, error: error)
+            case .tls(let index): storage!.tlsInstances[index].disconnect(state: &state, from, error: error)
+            case .streamLowerHarness(let index):
+                storage!.streamLowerHarnesses[index].disconnect(state: &state, from, error: error)
+            default: fatalError("Protocol cannot accept disconnect call")
             }
         }
 
-        public func invokeDetach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-            guard !reference.isNone else { return }
-            try reference.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) in
-                switch protocolType {
-                case .tcp(let index):
-                    try storage!.tcpInstances[index].detach(state: &state, from)
-                case .tls(let index):
-                    try storage!.tlsInstances[index].detach(state: &state, from)
-                case .streamLowerHarness(let index):
-                    try storage!.streamLowerHarnesses[index].detach(state: &state, from)
-                default: fatalError("Protocol cannot accept detach call")
-                }
+        public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
+            switch protocolType {
+            case .tcp(let index):
+                try storage!.tcpInstances[index].detach(state: &state, from)
+            case .tls(let index):
+                try storage!.tlsInstances[index].detach(state: &state, from)
+            case .streamLowerHarness(let index):
+                try storage!.streamLowerHarnesses[index].detach(state: &state, from)
+            default: fatalError("Protocol cannot accept detach call")
             }
+        }
+
+        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
             case .tcp(let index):
                 storage!.tcpInstances[index].eventManager.unregister(state: &state)
@@ -1125,45 +1041,39 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func invokeApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
-            reference.handleCallFromUpperProtocol(state: &state) { state in
-                switch protocolType {
-                case .tcp(let index): storage!.tcpInstances[index].handleApplicationEvent(state: &state, from, event: event)
-                case .tls(let index): storage!.tlsInstances[index].handleApplicationEvent(state: &state, from, event: event)
-                case .streamLowerHarness(let index):
-                    storage!.streamLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
-                default: fatalError("Protocol cannot accept handleApplicationEvent call")
-                }
+        public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
+            switch protocolType {
+            case .tcp(let index): storage!.tcpInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .tls(let index): storage!.tlsInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .streamLowerHarness(let index):
+                storage!.streamLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
+            default: fatalError("Protocol cannot accept handleApplicationEvent call")
             }
         }
 
-        public func invokeGetMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-            return reference.handleCallFromUpperProtocol(state: &state) { state -> ProtocolMetadata<P>? in
-                switch protocolType {
-                case .tcp(let index): return storage!.tcpInstances[index].getMetadata(state: &state, from)
-                case .tls(let index): return storage!.tlsInstances[index].getMetadata(state: &state, from)
-                case .streamLowerHarness(let index):
-                    return storage!.streamLowerHarnesses[index].getMetadata(state: &state, from)
-                default: fatalError("Protocol cannot accept getMetadata call")
-                }
+        public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
+            switch protocolType {
+            case .tcp(let index): return storage!.tcpInstances[index].getMetadata(state: &state, from)
+            case .tls(let index): return storage!.tlsInstances[index].getMetadata(state: &state, from)
+            case .streamLowerHarness(let index):
+                return storage!.streamLowerHarnesses[index].getMetadata(state: &state, from)
+            default: fatalError("Protocol cannot accept getMetadata call")
             }
         }
 
-        public func invokeGetMetrics(
+        public func getMetrics(
             state: inout NetworkContext.State,
             _ from: ProtocolInstanceReference,
             requestedNetworkMetric: RequestedNetworkMetrics
         ) -> NetworkMetrics? {
-            return reference.handleCallFromUpperProtocol(state: &state) { state -> NetworkMetrics? in
-                switch protocolType {
-                case .tcp(let index):
-                    return storage!.tcpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                case .tls(let index):
-                    return storage!.tlsInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                case .streamLowerHarness(let index):
-                    return storage!.streamLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-                default: fatalError("Protocol cannot accept getMetrics call")
-                }
+            switch protocolType {
+            case .tcp(let index):
+                return storage!.tcpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .tls(let index):
+                return storage!.tlsInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .streamLowerHarness(let index):
+                return storage!.streamLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            default: fatalError("Protocol cannot accept getMetrics call")
             }
         }
 
@@ -1226,6 +1136,47 @@ open class BaseNetworkProtocolStorage {
             path: PathProperties?
         ) throws(NetworkError) {
 
+        }
+
+        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        }
+
+        public func disconnect(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            error: NetworkError?
+        ) {
+        }
+
+        public func detach(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) throws(NetworkError) {
+        }
+
+        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        }
+
+        public func handleApplicationEvent(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            event: ApplicationEvent
+        ) {
+        }
+
+        public func getMetadata<P: NetworkProtocol>(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference
+        ) -> ProtocolMetadata<P>? {
+            return nil
+        }
+
+        public func getMetrics(
+            state: inout NetworkContext.State,
+            _ from: ProtocolInstanceReference,
+            requestedNetworkMetric: RequestedNetworkMetrics
+        ) -> NetworkMetrics? {
+            return nil
         }
 
         public func invokeAttachUpperStreamProtocolToNewFlow(

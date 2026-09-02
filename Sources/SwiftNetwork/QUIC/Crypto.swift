@@ -363,7 +363,8 @@ extension QUICCrypto: SwiftTLSQUICInstance {
 
 @available(Network 0.1.0, *)
 extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
-    typealias LowerProtocol = DefaultOutboundStreamLinkage
+    typealias LinkageFamily = DefaultStreamLinkageFamily
+    typealias LowerProtocol = LinkageFamily.Lower
 
     var context: NetworkContext { parentConnection!.context }
 

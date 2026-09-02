@@ -38,6 +38,7 @@ public protocol UpperHarnessProtocol: TopDatapathProtocol, LoggableProtocol {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtocol {
+    public typealias LinkageFamily = LinkageFamily
     public typealias LowerProtocol = LinkageFamily.Lower
 
     // Completions: called once!

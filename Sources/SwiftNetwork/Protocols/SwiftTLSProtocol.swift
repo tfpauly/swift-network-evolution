@@ -458,12 +458,15 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
 
         final class EncryptionLevelHandler: TopStreamProtocol, ProtocolInstanceContainer {
-            typealias LowerProtocol = DefaultOutboundStreamLinkage
+            // Shadows the enclosing generic parameter of the same name: this handler always
+            // uses the default stream linkages, independent of the parent's linkage family.
+            typealias LinkageFamily = DefaultStreamLinkageFamily
+            typealias LowerProtocol = LinkageFamily.Lower
 
             var lower = DefaultOutboundStreamLinkage()
 
             let level: SwiftTLSOptions.EncryptionLevel
-            var parentInstance: SwiftTLSQUICOnlyInstance<LinkageFamily>? {
+            var parentInstance: SwiftTLSQUICOnlyInstance? {
                 didSet {
                     // The context comes from parentInstance, so the reference can only be
                     // built once a parent has been assigned.
