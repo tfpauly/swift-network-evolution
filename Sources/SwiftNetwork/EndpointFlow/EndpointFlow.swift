@@ -113,8 +113,8 @@ final class EndpointFlow: CustomDebugStringConvertible {
     var privateStorage = EndpointFlowPrivateStorage()
 
     enum FlowProtocol {
-        case stream(StreamEndpointFlowProtocol)
-        case datagram(DatagramEndpointFlowProtocol)
+        case stream(StreamEndpointFlowProtocol<BaseStreamLinkageFamily>)
+        case datagram(DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>)
     }
     var flowProtocol: FlowProtocol? = nil
 

@@ -385,12 +385,12 @@ extension QUICStreamInstance {
         flowControlState.largestInboundByteOffsetReceived
     }
 
-    func updateFlowControlWithEnqueuedBytesToSend(_ bytes: UInt64, connection: QUICConnection) {
+    func updateFlowControlWithEnqueuedBytesToSend(_ bytes: UInt64, connection: QUICConnection<Families>) {
         flowControlState.pendingOutboundBytesToSend += bytes
         connection.flowControlState.pendingOutboundBytesToSend += bytes
     }
 
-    func updateFlowControlWithSentBytes(_ bytes: UInt64, connection: QUICConnection) {
+    func updateFlowControlWithSentBytes(_ bytes: UInt64, connection: QUICConnection<Families>) {
         precondition(bytes <= flowControlState.pendingOutboundBytesToSend)
         precondition(bytes <= connection.flowControlState.pendingOutboundBytesToSend)
 
@@ -400,7 +400,7 @@ extension QUICStreamInstance {
         connection.flowControlState.totalOutboundBytesSent += bytes
     }
 
-    func removePendingOutboundBytesFromFlowControl(connection: QUICConnection) {
+    func removePendingOutboundBytesFromFlowControl(connection: QUICConnection<Families>) {
         let pendingBytes = flowControlState.pendingOutboundBytesToSend
         flowControlState.pendingOutboundBytesToSend = 0
 
@@ -417,7 +417,7 @@ extension QUICStreamInstance {
         }
     }
 
-    func updateFlowControlWithInboundBytesDelivered(_ bytes: UInt64, connection: QUICConnection) {
+    func updateFlowControlWithInboundBytesDelivered(_ bytes: UInt64, connection: QUICConnection<Families>) {
         flowControlState.totalInboundBytesDelivered += bytes
         flowControlState.inboundBytesDeliveredSinceLastUpdate += bytes
         connection.flowControlState.totalInboundBytesDelivered += bytes
@@ -430,7 +430,7 @@ extension QUICStreamInstance {
 
     func updateFlowControlWithTotalInOrderInboundBytesRead(
         _ newTotalInbound: UInt64,
-        connection: QUICConnection,
+        connection: QUICConnection<Families>,
         updateStream: Bool = true,
         updateConnection: Bool = true
     ) {
@@ -468,7 +468,7 @@ extension QUICStreamInstance {
         )
     }
 
-    func sendInboundFlowControlCreditIfNeeded(connection: QUICConnection) {
+    func sendInboundFlowControlCreditIfNeeded(connection: QUICConnection<Families>) {
         if shouldSendInboundFlowControlCredit {
             // If we should send stream credit, send both stream and connection credit
             sendInboundFlowControlCredit(
@@ -485,7 +485,7 @@ extension QUICStreamInstance {
         }
     }
 
-    func sendInboundFlowControlCreditForStreamDataBlocked(connection: QUICConnection) {
+    func sendInboundFlowControlCreditForStreamDataBlocked(connection: QUICConnection<Families>) {
         // Ignore STREAM_DATA_BLOCKED once we have received a FIN
         // or a RESET_STREAM.
         guard !receiveState.isSizeKnown else {
@@ -501,7 +501,7 @@ extension QUICStreamInstance {
 
     @inline(always)
     fileprivate func sendInboundFlowControlCredit(
-        connection: QUICConnection,
+        connection: QUICConnection<Families>,
         sendStreamCredit: Bool,
         sendConnectionCredit: Bool
     ) {
@@ -521,7 +521,7 @@ extension QUICStreamInstance {
         }
     }
 
-    func availableRemoteReceiveWindow(for connection: QUICConnection) -> UInt64 {
+    func availableRemoteReceiveWindow(for connection: QUICConnection<Families>) -> UInt64 {
         let connectionFlowControl = connection.flowControlState.remainingOutboundBytesAllowed
         let streamFlowControl = self.flowControlState.remainingOutboundBytesAllowed
         return min(connectionFlowControl, streamFlowControl)
@@ -542,7 +542,7 @@ extension QUICStreamInstance {
         return true
     }
 
-    func updateOutboundFlowControlCredit(connection: QUICConnection) {
+    func updateOutboundFlowControlCredit(connection: QUICConnection<Families>) {
         let credit: Int
         if receivedStopSending {
             credit = 0
@@ -557,7 +557,7 @@ extension QUICStreamInstance {
         self.maximumStreamDataSize = Int(credit)
     }
 
-    fileprivate func maximumUnreadOutboundBytesAllowed(connection: QUICConnection) -> UInt64? {
+    fileprivate func maximumUnreadOutboundBytesAllowed(connection: QUICConnection<Families>) -> UInt64? {
         guard
             connection.flowControlState.outboundMaxData
                 >= connection.flowControlState.totalOutboundBytesSent
@@ -610,7 +610,7 @@ extension QUICStreamInstance {
     @inline(always)
     func updateLastReceivedOffset(
         to newLastReceivedOffset: UInt64,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) -> UInt64? {
         let currentValue = flowControlState.largestInboundByteOffsetReceived
         guard newLastReceivedOffset >= currentValue else { return nil }
@@ -644,7 +644,7 @@ extension QUICStreamInstance {
     }
 
     @inline(always)
-    func startTrackingInboundFlowControlInterval(connection: QUICConnection) {
+    func startTrackingInboundFlowControlInterval(connection: QUICConnection<Families>) {
         // Start of a new measurement interval
         if flowControlStreamState.receiveHighWaterMarkTime == .zero {
             flowControlStreamState.receiveHighWaterMarkTime = connection.now
@@ -656,7 +656,7 @@ extension QUICStreamInstance {
     @inline(always)
     func updateInboundFlowControlCredit(
         dataLengthAdded: UInt64,
-        connection: QUICConnection,
+        connection: QUICConnection<Families>,
         connectionOnly: Bool
     ) {
 
@@ -696,7 +696,7 @@ extension QUICStreamInstance {
     @inline(always)
     fileprivate func updateMaximumUnreadInboundBytesAllowed(
         dataLengthAdded: UInt64,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) -> Bool {
         guard dataLengthAdded > 0 else { return false }
 
@@ -746,7 +746,7 @@ extension QUICStreamInstance {
     @inline(always)
     fileprivate func computeReceiveHighWaterMarkIncrease(
         dataLength: UInt64,
-        connection: QUICConnection,
+        connection: QUICConnection<Families>,
         now: NetworkClock.Instant
     ) -> UInt64 {
         let receiveHighWaterMarkTime = flowControlStreamState.receiveHighWaterMarkTime

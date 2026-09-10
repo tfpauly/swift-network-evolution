@@ -134,8 +134,7 @@ final class QUICStreamLoad {
                 remote: ipv4Server,
                 parameters: clientParameters,
                 path: path,
-                context: context,
-                listenerProtocol: clientListenerLinkage!
+                context: context
             )
             guard let clientInput else {
                 group.leave()
@@ -210,8 +209,8 @@ final class QUICStreamLoad {
                 remote: ipv4Client,
                 parameters: serverParameters,
                 path: serverPath,
-                context: serverParameters.context,
-                listenerProtocol: serverListenerLinkage
+                context: serverParameters.context
+//                listenerProtocol: serverListenerLinkage
             )
             guard let serverInput else {
                 group.leave()
@@ -273,19 +272,19 @@ final class QUICStreamLoad {
             let streamStart = NetworkClock.Instant.now
 
             let myIndex = index
+            // TODO: TFPDEBUG FIX THIS
             let clientStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "Client\(myIndex)",
                 local: ipv4Client,
                 remote: ipv4Server,
                 parameters: clientParameters,
                 path: path,
-                context: context,
-                listenerProtocol: clientListenerLinkage
+                context: context
             )
-            guard let clientStream else {
-                group.leave()
-                return
-            }
+//            guard let clientStream else {
+//                group.leave()
+//                return
+//            }
 
             clientStream.start()
 

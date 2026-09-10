@@ -25,9 +25,9 @@ import XCTest
 @available(Network 0.1.0, *)
 final class PacerTests: XCTestCase {
 
-    var connection: QUICConnection!
+    var connection: QUICConnection<DefaultQUICLinkageFamilies>!
     override func setUp() {
-        connection = QUICConnection(context: NetworkContext.implicitContext)
+        connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     }
 
     func testGetSendTime() {
@@ -35,7 +35,7 @@ final class PacerTests: XCTestCase {
         pacer.rate = 1_000_000
         pacer.burstSize = 0
 
-        let path = QUICPath(parent: connection)
+        let path = QUICDefaultPath(parent: connection)
 
         let packetLength: UInt16 = 1000
         var sendTimeAbsolute = NetworkClock.Instant(nanoseconds: 0)
@@ -113,7 +113,7 @@ final class PacerTests: XCTestCase {
 
     func testPacerBurstLimit() {
 
-        let path = QUICPath(parent: connection)
+        let path = QUICDefaultPath(parent: connection)
         path.pacePackets = true
         path.set(interface: nil, priority: 1, isInitial: true)
         // startupRate is 10 Mbps, this will affect the pacing time

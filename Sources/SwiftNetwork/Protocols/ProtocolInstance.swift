@@ -329,14 +329,6 @@ public protocol ProtocolInstanceContainer: AnyObject {
         at index: Int?,
         _ body: (inout any ListenerHandler) throws(E) -> R
     ) throws(E) -> R
-    func accessDatagramListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any DatagramListenerHandler) throws(E) -> R
-    ) throws(E) -> R
-    func accessStreamListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any StreamListenerHandler) throws(E) -> R
-    ) throws(E) -> R
     func accessInboundDataHandler<R, E: Error>(
         at index: Int?,
         _ body: (inout any InboundDataHandler) throws(E) -> R
@@ -426,18 +418,6 @@ extension ProtocolInstanceContainer {
     public func accessListenerHandler<R, E: Error>(
         at index: Int?,
         _ body: (inout any ListenerHandler) throws(E) -> R
-    ) throws(E) -> R {
-        fatalError("Unimplemented container function")
-    }
-    public func accessDatagramListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any DatagramListenerHandler) throws(E) -> R
-    ) throws(E) -> R {
-        fatalError("Unimplemented container function")
-    }
-    public func accessStreamListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any StreamListenerHandler) throws(E) -> R
     ) throws(E) -> R {
         fatalError("Unimplemented container function")
     }
@@ -586,26 +566,6 @@ extension ProtocolInstanceContainer where Self: ListenerHandler {
         _ body: (inout any ListenerHandler) throws(E) -> R
     ) throws(E) -> R {
         var selfAccess: (any ListenerHandler) = self
-        return try body(&selfAccess)
-    }
-}
-@available(Network 0.1.0, *)
-extension ProtocolInstanceContainer where Self: DatagramListenerHandler {
-    public func accessDatagramListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any DatagramListenerHandler) throws(E) -> R
-    ) throws(E) -> R {
-        var selfAccess: (any DatagramListenerHandler) = self
-        return try body(&selfAccess)
-    }
-}
-@available(Network 0.1.0, *)
-extension ProtocolInstanceContainer where Self: StreamListenerHandler {
-    public func accessStreamListenerHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any StreamListenerHandler) throws(E) -> R
-    ) throws(E) -> R {
-        var selfAccess: (any StreamListenerHandler) = self
         return try body(&selfAccess)
     }
 }

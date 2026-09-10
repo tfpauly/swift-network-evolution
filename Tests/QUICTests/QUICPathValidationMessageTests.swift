@@ -25,12 +25,12 @@ import XCTest
 @available(Network 0.1.0, *)
 class QUICPathValidationMessageTests: XCTestCase {
     let logString = "PathValidationTests"
-    var connection: QUICConnection!
-    var path: QUICPath!  // NOTE: This path immediately transitions to cid assigned due to setup()
+    var connection: QUICConnection<DefaultQUICLinkageFamilies>!
+    var path: QUICDefaultPath!  // NOTE: This path immediately transitions to cid assigned due to setup()
 
     override func setUp() {
-        connection = QUICConnection(context: NetworkContext.implicitContext)
-        path = QUICPath(parent: connection)
+        connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        path = QUICDefaultPath(parent: connection)
         path.set(interface: nil, priority: 0, isInitial: true)
         path.assignDCID(QUICConnectionID(8))
     }

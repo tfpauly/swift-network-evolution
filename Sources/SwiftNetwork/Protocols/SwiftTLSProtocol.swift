@@ -53,11 +53,12 @@ public typealias TLSProtocol = SwiftTLSProtocol
 #endif
 
 @available(Network 0.1.0, *)
-protocol SwiftTLSQUICInstance: AnyObject {
+protocol SwiftTLSQUICInstance<LinkageFamily>: AnyObject {
+    associatedtype LinkageFamily: StreamLinkageFamily
     func getLowerLinkage(
         for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: DefaultInboundStreamLinkage
-    ) -> DefaultOutboundStreamLinkage
+        upperLinkage: LinkageFamily.Upper
+    ) -> LinkageFamily.Lower
     func updateSecret(_ secret: [UInt8], for level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
     func updateEncryptionLevel(_ level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
     func updateSessionTickets(_ sessionTicketArray: [[UInt8]])
@@ -426,8 +427,8 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
     }
 
-    final class SwiftTLSQUICOnlyInstance<LinkageFamily: StreamLinkageFamily> {
-        var handle: SwiftTLSInstance<LinkageFamily>
+    final class SwiftTLSQUICOnlyInstance<TLSLinkageFamily: StreamLinkageFamily> {
+        var handle: SwiftTLSInstance<TLSLinkageFamily>
 
         var isConnected = false
         var isServer = false
@@ -446,7 +447,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         var options: SwiftTLSProtocolOptions
 
         fileprivate init(
-            _ handle: SwiftTLSInstance<LinkageFamily>,
+            _ handle: SwiftTLSInstance<TLSLinkageFamily>,
             _ options: SwiftTLSProtocolOptions,
             _ parameters: Parameters?
         ) {
@@ -458,12 +459,10 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
 
         final class EncryptionLevelHandler: TopStreamProtocol, ProtocolInstanceContainer {
-            // Shadows the enclosing generic parameter of the same name: this handler always
-            // uses the default stream linkages, independent of the parent's linkage family.
-            typealias LinkageFamily = DefaultStreamLinkageFamily
+            typealias LinkageFamily = TLSLinkageFamily
             typealias LowerProtocol = LinkageFamily.Lower
 
-            var lower = DefaultOutboundStreamLinkage()
+            var lower = LowerProtocol()
 
             let level: SwiftTLSOptions.EncryptionLevel
             var parentInstance: SwiftTLSQUICOnlyInstance? {
@@ -486,7 +485,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             func destroy() {
                 if !lower.isDetached {
                     try? lower.invokeDetach(state: &context.state, reference)
-                    lower = DefaultOutboundStreamLinkage()
+                    lower = LowerProtocol()
                 }
                 parentInstance = nil
             }
@@ -733,22 +732,22 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             earlyDataHandler.parentInstance = self
             handshakeDataHandler.parentInstance = self
             applicationDataHandler.parentInstance = self
-            initialDataHandler.lower = quicInstance.getLowerLinkage(
-                for: .initial,
-                upperLinkage: initialDataHandler.asUpper
-            )
-            earlyDataHandler.lower = quicInstance.getLowerLinkage(
-                for: .earlyData,
-                upperLinkage: earlyDataHandler.asUpper
-            )
-            handshakeDataHandler.lower = quicInstance.getLowerLinkage(
-                for: .handshake,
-                upperLinkage: handshakeDataHandler.asUpper
-            )
-            applicationDataHandler.lower = quicInstance.getLowerLinkage(
-                for: .application,
-                upperLinkage: applicationDataHandler.asUpper
-            )
+//            initialDataHandler.lower = quicInstance.getLowerLinkage(
+//                for: .initial,
+//                upperLinkage: initialDataHandler.asUpper
+//            )
+//            earlyDataHandler.lower = quicInstance.getLowerLinkage(
+//                for: .earlyData,
+//                upperLinkage: earlyDataHandler.asUpper
+//            )
+//            handshakeDataHandler.lower = quicInstance.getLowerLinkage(
+//                for: .handshake,
+//                upperLinkage: handshakeDataHandler.asUpper
+//            )
+//            applicationDataHandler.lower = quicInstance.getLowerLinkage(
+//                for: .application,
+//                upperLinkage: applicationDataHandler.asUpper
+//            )
 
             #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
             let contextBoundSelf = ContextBound(self, context: self.handle.context)

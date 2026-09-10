@@ -23,30 +23,9 @@ internal import os
 #endif
 
 @available(Network 0.1.0, *)
-protocol AbstractEndpointFlowProtocol: InboundDataHandler, LoggableProtocol {
-    func teardown()
-}
-
-@available(Network 0.1.0, *)
-class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceContainer, AbstractEndpointFlowProtocol {
-    typealias LowerProtocol = LinkageType.PairedLinkage
-
-    #if !NETWORK_EMBEDDED
-    func accessUpper<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any UpperProtocolHandler) throws(E) -> R
-    ) throws(E) -> R {
-        var selfAccess: (any UpperProtocolHandler) = self
-        return try body(&selfAccess)
-    }
-    func accessInboundDataHandler<R, E: Error>(
-        at index: Int?,
-        _ body: (inout any InboundDataHandler) throws(E) -> R
-    ) throws(E) -> R {
-        var selfAccess: (any InboundDataHandler) = self
-        return try body(&selfAccess)
-    }
-    #endif
+class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtocol {
+    typealias LinkageFamily = LinkageFamily
+    typealias LowerProtocol = LinkageFamily.Lower
 
     // Completions: called once!
     struct Completions {
@@ -71,7 +50,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     let reference: ProtocolInstanceReference
     var lower = LowerProtocol()
-//    var asUpper: LinkageType.PairedLinkage.PairedLinkage { .init(reference: reference) }
 
     var eventManager = ProtocolEventManager()
 
@@ -80,32 +58,13 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     var parameters: Parameters
     var path: PathProperties
 
-    // TODO: TFPDEBUG Remove this once we have fixed listeners
-    fileprivate init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext
-    ) {
-        log.logPrefix = "[EndpointFlowProtocol:\(identifier)]"
-        self.context = context
-        self.local = local
-        self.remote = remote
-        self.parameters = parameters
-        self.path = path
-        reference = .init(context: context, eventManager: &self.eventManager)
-    }
-
     init(
         identifier: String = "",
         local: Endpoint?,
         remote: Endpoint,
         parameters: Parameters,
         path: PathProperties,
-        context: NetworkContext,
-        lowerProtocol: LinkageType.PairedLinkage
+        context: NetworkContext
     ) throws(NetworkError) {
         log.logPrefix = "[EndpointFlowProtocol:\(identifier)]"
         self.context = context
@@ -113,25 +72,10 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        self.lower = lowerProtocol
-        // Must be initialized before asUpper is used, since asUpper derives from reference.
         reference = .init(context: context, eventManager: &self.eventManager)
-//        try lowerProtocol.invokeAttachUpperProtocol(
-//            asUpper,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
     }
 
-    func attachLowerProtocol(
-        _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
-        throw NetworkError.posix(EINVAL)
-    }
-
-    func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    func handleConnectedEvent(state: inout NetworkContext.State) {
         log.debug("Received connected event")
         if let completion = completions.connected {
             completion(nil)
@@ -141,7 +85,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     func handleDisconnectedEvent(
         state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         error: NetworkError?
     ) {
         log.debug("Received disconnected event")
@@ -166,7 +109,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
         log.debug("Received inbound data available event")
         // Clear the slot before invoking: the completion may synchronously
         // re-arm the waiter (when receiveStreamData returns nil because the
@@ -180,7 +123,6 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func handleOutboundRoomAvailableEvent(
         state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
     ) {
         log.debug("Received outbound room available event")
         if let completion = self.completions.outputRoomAvailable {
@@ -189,25 +131,10 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
         }
     }
 
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-        log.debug("Received network protocol event: \(event)")
-    }
-
     public func start() {
         log.debug("Starting flow")
-        fromExternal { state in
-            lower.invokeConnect(state: &state, reference)
-        }
-    }
+        invokeConnect()
 
-    public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal { state in
-            lower.invokeApplicationEvent(state: &state, reference, event: event)
-        }
     }
 
     public func start(_ completion: @escaping (NetworkError?) -> Void) {
@@ -217,9 +144,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func stop() {
         log.debug("Stopping flow")
-        fromExternal { state in
-            lower.invokeDisconnect(state: &state, reference)
-        }
+        invokeDisconnect(error: nil)
     }
 
     public func teardown() {
@@ -236,9 +161,7 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
 
     public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
-        fromExternal { state in
-            lower.invokeDisconnect(state: &state, reference, error: error)
-        }
+        invokeDisconnect(error: error)
     }
 
     public func waitForOutputRoomAvailable(_ completion: @escaping () -> Void) {
@@ -256,52 +179,10 @@ class EndpointFlowProtocol<LinkageType: InboundDataLinkage>: ProtocolInstanceCon
     public func waitForDisconnected(completion: @escaping (NetworkError) -> Void) {
         completions.disconnected = completion
     }
-
-    final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal { state in
-            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
-                return nil
-            }
-            return metadata
-        }
-    }
-
-    public func setApplicationError(_ applicationError: UInt64, applicationErrorReason: String) {
-        if let metadata: ProtocolMetadata<QUICProtocol> = self.getMetadata() {
-            metadata.perProtocolMetadata?.quicConnectionMetadata?.applicationError = applicationError
-            metadata.perProtocolMetadata?.quicConnectionMetadata?.applicationErrorReason = applicationErrorReason
-        }
-    }
 }
 
 @available(Network 0.1.0, *)
-final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDatagramLinkage>, InboundDatagramHandler {
-
-    convenience init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: DefaultDatagramListenerLinkage
-    ) throws(NetworkError) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        self.lower = try listenerProtocol.invokeAttachUpperDatagramProtocolToNewFlow(
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
-    }
+final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: EndpointFlowProtocol<LinkageFamily>, TopDatagramProtocol {
 
     func write(_ datagram: consuming Frame) -> Bool {
         fromExternal { state in
@@ -365,18 +246,7 @@ final class DatagramEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundDat
 }
 
 @available(Network 0.1.0, *)
-final class StreamEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundStreamLinkage>, InboundStreamHandler {
-
-    func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {}
-    func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {}
+final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: EndpointFlowProtocol<LinkageFamily>, TopStreamProtocol {
 
     override public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
@@ -389,63 +259,6 @@ final class StreamEndpointFlowProtocol: EndpointFlowProtocol<DefaultInboundStrea
             }
             lower.invokeDisconnect(state: &state, reference, error: error)
         }
-    }
-
-    func attachLowerStreamProtocolToExistingFlow(
-        listener: DefaultStreamListenerLinkage,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) {
-        throw NetworkError.posix(EINVAL)
-    }
-
-    convenience init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: DefaultStreamListenerLinkage
-    ) throws(NetworkError) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        self.lower = try listenerProtocol.invokeAttachUpperStreamProtocolToNewFlow(
-            reference,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
-    }
-
-    convenience init(
-        identifier: String = "",
-        local: Endpoint?,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: DefaultStreamListenerLinkage,
-        existingFlowReference: ProtocolInstanceReference
-    ) throws(NetworkError) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        self.lower = try listenerProtocol.invokeAttachUpperStreamProtocolToExistingFlow(
-            reference,
-            flowReference: existingFlowReference
-        )
     }
 
     private func invokeSendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {

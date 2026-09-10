@@ -49,657 +49,661 @@ struct PacketContainerEntry: ~Copyable, NetworkComparable {
     }
 }
 
+// Per-packet-number-space recovery state. Lifted out of Recovery so that it stays
+// non-generic: it holds no linkage-family-dependent state.
 @available(Network 0.1.0, *)
-struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
-    struct InnerState: ~Copyable, PrefixedLoggable {
-        var log: LogPrefixer
-        var ackElicitingPacketsInFlight = 0
-        var timeOfLastSentAckElicitingPacket = NetworkClock.Instant.zero
-        var largestSentPacketNumber = PacketNumber.none
-        var largestAckedPNSentTime = NetworkClock.Instant.zero
-        var lossTime = NetworkClock.Instant.zero
-        var currentAckBitstring = AckBitstring()
-        var prevAckBitstring = AckBitstring()
-        var largerPacketCount = 0
+struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
+    var log: LogPrefixer
+    var ackElicitingPacketsInFlight = 0
+    var timeOfLastSentAckElicitingPacket = NetworkClock.Instant.zero
+    var largestSentPacketNumber = PacketNumber.none
+    var largestAckedPNSentTime = NetworkClock.Instant.zero
+    var lossTime = NetworkClock.Instant.zero
+    var currentAckBitstring = AckBitstring()
+    var prevAckBitstring = AckBitstring()
+    var largerPacketCount = 0
 
-        // Persistent Congestion Detection Variables
-        var largestLostPacketNumber = PacketNumber.none
-        var largestLostSentTime = NetworkClock.Instant.zero
-        var smallestLostSentTime = NetworkClock.Instant.maximum
+    // Persistent Congestion Detection Variables
+    var largestLostPacketNumber = PacketNumber.none
+    var largestLostSentTime = NetworkClock.Instant.zero
+    var smallestLostSentTime = NetworkClock.Instant.maximum
 
-        // Non-ack Eliciting Packets
-        var oldestNonAckElicitingSentTime = NetworkClock.Instant.zero
+    // Non-ack Eliciting Packets
+    var oldestNonAckElicitingSentTime = NetworkClock.Instant.zero
 
-        // Number of packets acked that were sent with ECT after validation
-        var totalEctAcked = 0
+    // Number of packets acked that were sent with ECT after validation
+    var totalEctAcked = 0
 
-        // Reordering Thresholds.
-        var packetThreshold = Constants.packetReorderThreshold
-        var timeThreshold = Constants.timeReorderThreshold
+    // Reordering Thresholds.
+    var packetThreshold = Constants.packetReorderThreshold
+    var timeThreshold = Constants.timeReorderThreshold
 
-        // Entries are always added in order of packet number (larger numbers appended to the end)
-        var outstandingPackets = NetworkUniqueDeque<PacketContainerEntry>(minimumCapacity: 10)
+    // Entries are always added in order of packet number (larger numbers appended to the end)
+    var outstandingPackets = NetworkUniqueDeque<PacketContainerEntry>(minimumCapacity: 10)
 
-        var hasOutstandingPackets: Bool {
-            !outstandingPackets.isEmpty
+    var hasOutstandingPackets: Bool {
+        !outstandingPackets.isEmpty
+    }
+
+    mutating func iterateSentPacketEntries(_ access: (inout PacketContainerEntry) -> Bool) {
+        let count = outstandingPackets.count
+        for i in 0..<count {
+            let shouldContinue = access(&outstandingPackets[i])
+            if !shouldContinue { break }
         }
+    }
 
-        mutating func iterateSentPacketEntries(_ access: (inout PacketContainerEntry) -> Bool) {
-            let count = outstandingPackets.count
-            for i in 0..<count {
-                let shouldContinue = access(&outstandingPackets[i])
-                if !shouldContinue { break }
+    mutating func insertSentPacket(_ packet: consuming SentPacketRecord, sentTime: NetworkClock.Instant) {
+        log.datapath("Adding \(packet.number) in space \(packet.numberSpace)")
+        if packet.largerPacket {
+            largerPacketCount += 1
+        }
+        outstandingPackets.append(PacketContainerEntry(packet, sentTime: sentTime))
+    }
+
+    @_optimize(speed)
+    func indexOfPacketNumber(_ packetNumber: PacketNumber) -> Int? {
+        guard !outstandingPackets.isEmpty else { return nil }
+        var left = 0
+        var right = outstandingPackets.count - 1
+        while left <= right {
+            let middle = left + (right - left) / 2
+            let middlePacketNumber = outstandingPackets[middle].packet.number
+            if outstandingPackets[left].packet.number == packetNumber {
+                return left
+            } else if outstandingPackets[right].packet.number == packetNumber {
+                return right
+            } else if middlePacketNumber == packetNumber {
+                return middle
+            } else if middlePacketNumber < packetNumber {
+                left = middle + 1
+            } else {
+                right = middle - 1
             }
         }
+        return nil
+    }
 
-        mutating func insertSentPacket(_ packet: consuming SentPacketRecord, sentTime: NetworkClock.Instant) {
-            log.datapath("Adding \(packet.number) in space \(packet.numberSpace)")
-            if packet.largerPacket {
-                largerPacketCount += 1
+    @_optimize(speed)
+    mutating func removeSentPacket(_ packetNumber: PacketNumber) -> PacketContainerEntry? {
+        if let index = indexOfPacketNumber(packetNumber) {
+            let removedEntry = outstandingPackets.remove(at: index)
+            if removedEntry.packet.largerPacket, largerPacketCount > 0 {
+                largerPacketCount -= 1
             }
-            outstandingPackets.append(PacketContainerEntry(packet, sentTime: sentTime))
+            return removedEntry
         }
+        return nil
+    }
 
-        @_optimize(speed)
-        func indexOfPacketNumber(_ packetNumber: PacketNumber) -> Int? {
-            guard !outstandingPackets.isEmpty else { return nil }
-            var left = 0
-            var right = outstandingPackets.count - 1
-            while left <= right {
-                let middle = left + (right - left) / 2
-                let middlePacketNumber = outstandingPackets[middle].packet.number
-                if outstandingPackets[left].packet.number == packetNumber {
-                    return left
-                } else if outstandingPackets[right].packet.number == packetNumber {
-                    return right
-                } else if middlePacketNumber == packetNumber {
-                    return middle
-                } else if middlePacketNumber < packetNumber {
-                    left = middle + 1
-                } else {
-                    right = middle - 1
-                }
-            }
-            return nil
-        }
+    func findSentPacketEntry<R>(index: Int, access: (borrowing PacketContainerEntry) -> R) -> R {
+        access(outstandingPackets[index])
+    }
 
-        @_optimize(speed)
-        mutating func removeSentPacket(_ packetNumber: PacketNumber) -> PacketContainerEntry? {
-            if let index = indexOfPacketNumber(packetNumber) {
-                let removedEntry = outstandingPackets.remove(at: index)
-                if removedEntry.packet.largerPacket, largerPacketCount > 0 {
-                    largerPacketCount -= 1
-                }
-                return removedEntry
-            }
-            return nil
-        }
+    @discardableResult
+    func findSentPacketEntry(
+        packetNumber: PacketNumber,
+        access: (borrowing PacketContainerEntry) -> Void
+    ) -> Bool {
+        guard let index = indexOfPacketNumber(packetNumber) else { return false }
+        access(outstandingPackets[index])
+        return true
+    }
 
-        func findSentPacketEntry<R>(index: Int, access: (borrowing PacketContainerEntry) -> R) -> R {
-            access(outstandingPackets[index])
-        }
+    mutating func modifySentPacketEntry(
+        packetNumber: PacketNumber,
+        access: (inout PacketContainerEntry) -> Void
+    ) {
+        guard let index = indexOfPacketNumber(packetNumber) else { return }
+        access(&outstandingPackets[index])
+    }
 
-        @discardableResult
-        func findSentPacketEntry(
-            packetNumber: PacketNumber,
-            access: (borrowing PacketContainerEntry) -> Void
-        ) -> Bool {
-            guard let index = indexOfPacketNumber(packetNumber) else { return false }
-            access(outstandingPackets[index])
-            return true
-        }
-
-        mutating func modifySentPacketEntry(
-            packetNumber: PacketNumber,
-            access: (inout PacketContainerEntry) -> Void
-        ) {
-            guard let index = indexOfPacketNumber(packetNumber) else { return }
-            access(&outstandingPackets[index])
-        }
-
-        mutating func reset(connection: QUICConnection?) {
-            iterateSentPacketEntries { entry in
-                guard entry.packet.isInFlightEligible, entry.lostTime == .zero else {
-                    return true
-                }
-
-                let pathID = entry.packet.sentPath
-                guard let path = connection?.path(for: pathID) else {
-                    return true
-                }
-
-                let sentLength = entry.packet.totalLength
-                connection?.log.datapath("Discarding packet of length \(sentLength)")
-                path.congestionControlPacketDiscarded(bytesSent: sentLength, qlog: connection?.qLog)
+    mutating func reset<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>?) {
+        iterateSentPacketEntries { entry in
+            guard entry.packet.isInFlightEligible, entry.lostTime == .zero else {
                 return true
             }
-            outstandingPackets.removeAll()
-            ackElicitingPacketsInFlight = 0
-            timeOfLastSentAckElicitingPacket = .zero
-            largestSentPacketNumber = PacketNumber.none
-            largestAckedPNSentTime = .zero
-            lossTime = .zero
-            currentAckBitstring = AckBitstring()
-            prevAckBitstring = AckBitstring()
-            largerPacketCount = 0
 
-            // Persistent Congestion Detection Variables.
-            largestLostPacketNumber = PacketNumber.none
-            largestLostSentTime = .zero
-            smallestLostSentTime = .maximum
-
-            // Non-ack Eliciting Packets.
-            oldestNonAckElicitingSentTime = .zero
-
-            // Number of packets acked that were sent with ECT after validation.
-            totalEctAcked = 0
-
-            // Reorder Threshold.
-            packetThreshold = Constants.packetReorderThreshold
-            timeThreshold = Constants.timeReorderThreshold
-        }
-
-        func notifyLossToPath(
-            packetNumber: PacketNumber,
-            pathID: MultiplexingPathIdentifier,
-            bytesLost: Int,
-            connection: QUICConnection
-        ) -> Bool {
-            guard let path = connection.path(for: pathID) else {
-                return false
-            }
-            var reducedCongestionWindow: Bool = false
-            log.datapath(
-                "In-flight bytes declared lost on path \(pathID), largest lost packet \(largestLostPacketNumber) was sent at \(largestLostSentTime)"
-            )
-            reducedCongestionWindow = path.congestionControlPacketsLost(
-                bytesLost: bytesLost,
-                largestLostSentTime: largestLostSentTime,
-                mss: path.mss,
-                smoothedRTT: path.rtt.smoothedRTT
-            )
-            if reducedCongestionWindow {
-                log.datapath(
-                    "\(packetNumber) detected lost on path \(pathID) and caused congestion window reduction"
-                )
-            }
-            return reducedCongestionWindow
-        }
-
-        mutating func updateCongestionOnPath(
-            _ pathID: MultiplexingPathIdentifier,
-            connection: QUICConnection
-        ) {
-            guard let path = connection.path(for: pathID) else {
-                return
+            let pathID = entry.packet.sentPath
+            guard let path = connection?.path(for: pathID) else {
+                return true
             }
 
-            //
-            // Collapse congestion window if in persistent congestion.
-            //
-            // RFC 9002 says:
-            // "Since network congestion is not affected by packet
-            // number spaces, persistent congestion SHOULD consider
-            // packets sent across packet number spaces. A sender that
-            // does not have state for all packet number spaces or an
-            // implementation that cannot compare send times across
-            // packet number spaces MAY use state for just the packet
-            // number space that was acknowledged. This might result in
-            // erroneously declaring persistent congestion, but it will
-            // not lead to a failure to detect persistent congestion."
-            //
-            // It's not clear why it will not lead to a failure to detect
-            // persistent congestion but one assumption is that other
-            // limits (lack of decryption keys and anti-amplification)
-            // imply that it will be unlikely that limited number of
-            // packets sent during handshake will cause persistent
-            // congestion. Due to this and due to historical reasons we
-            // opted to continue tracking persistent congestion per-PN
-            // space.
-            //
-
-            if Recovery.inPersistentCongestion(
-                rtt: path.rtt,
-                largestTime: largestLostSentTime,
-                smallestTime: smallestLostSentTime
-            ) {
-                log.datapath(
-                    "Persistent congestion detected on path \(path.identifier), setting congestion window to minimum"
-                )
-                path.congestionControlPersistentCongestion(mss: path.mss, qlog: nil)
-                log.datapath(
-                    "Congestion window of path \(path.identifier) is now \(path.congestionControlWindow)"
-                )
-                if path.pacer.enabled {
-                    path.resetPacer()
-                }
-                // Reset the smallest lost sent time.
-                smallestLostSentTime = NetworkClock.Instant.maximum
-                // Endpoints SHOULD set the minRTT to the newest RTT sample after persistent congestion is established.
-                path.rtt.minRTT = path.rtt.latestRTT
-            }
-        }
-
-        mutating func declarePacketLost(
-            _ lostPackets: [PacketIdentifier],
-            connection: QUICConnection
-        ) {
-            // We assume that the packets are in packet-number order. Verify that
-            // the sent time of each packet is after that of the earlier packet.
-            var totalLength: Int = 0
-            let lostPacketCount = lostPackets.count
-            for lostPacketIndex in 0..<lostPacketCount {
-                let isLastPacket = (lostPacketIndex == (lostPacketCount - 1))
-                let lostPacketIdentifier = lostPackets[lostPacketIndex]
-                var reducedCongestionWindow = false
-                var smallestLostSentTime = self.smallestLostSentTime
-                var largestLostSentTime = self.largestLostSentTime
-                var largestLostPacketNumber = self.largestLostPacketNumber
-                var pathID: MultiplexingPathIdentifier = .none
-
-                findSentPacketEntry(packetNumber: lostPacketIdentifier.number) { entry in
-                    if entry.packet.isInFlightEligible {
-                        totalLength += entry.packet.totalLength
-                    }
-
-                    if entry.packet.isECNValidationPacket, let path = connection.path(for: entry.packet.sentPath) {
-                        path.ecnState?.validationPacketLost()
-                    }
-
-                    if largestLostPacketNumber + 1 != entry.packet.number {
-                        // Not a continuous loss, reset sent times.
-                        smallestLostSentTime = entry.sentTime
-                    } else {
-                        smallestLostSentTime = min(
-                            smallestLostSentTime,
-                            entry.sentTime
-                        )
-                    }
-
-                    if _slowPath(largestLostSentTime > entry.sentTime) {
-                        connection.log.fault("Later packets should always be sent later")
-                    }
-                    largestLostSentTime = entry.sentTime
-                    largestLostPacketNumber = entry.packet.number
-
-                    if _slowPath(largestLostSentTime < smallestLostSentTime) {
-                        connection.log.fault("Later packets should have later sent time")
-                    }
-                    Recovery.logPacketLost(
-                        packet: entry.packet,
-                        trigger: .reordering,
-                        connection: connection
-                    )
-
-                    if isLastPacket {
-                        reducedCongestionWindow = notifyLossToPath(
-                            packetNumber: entry.packet.number,
-                            pathID: entry.packet.sentPath,
-                            bytesLost: totalLength,
-                            connection: connection
-                        )
-                        pathID = entry.packet.sentPath
-                    }
-                }
-
-                self.smallestLostSentTime = smallestLostSentTime
-                self.largestLostSentTime = largestLostSentTime
-                self.largestLostPacketNumber = largestLostPacketNumber
-
-                if reducedCongestionWindow, let lastPacketIdentifier = lostPackets.last {
-                    modifySentPacketEntry(packetNumber: lastPacketIdentifier.number) { entry in
-                        entry.reducedCongestionWindow = true
-                    }
-                }
-
-                updateCongestionOnPath(pathID, connection: connection)
-            }
-        }
-
-        mutating func packetAcked(
-            sentPath: QUICPath,
-            sentEntry: borrowing PacketContainerEntry,
-            connection: QUICConnection
-        ) {
-            if sentEntry.lostTime == .zero && sentEntry.packet.isInFlightEligible {
-                if sentEntry.packet.isAckEliciting {
-                    if ackElicitingPacketsInFlight > 0 {
-                        ackElicitingPacketsInFlight -= 1
-                    } else {
-                        log.fault("Cannot decrement ackElicitingPacketsInFlight below zero")
-                    }
-                    let number = sentEntry.packet.number
-                    log.datapath(
-                        "Ack eliciting packet \(number) acked, decrementing ackElicitingPacketsInFlight to: \(ackElicitingPacketsInFlight)"
-                    )
-
-                    Recovery.logAckElicitingPacketsInFlight(
-                        packetCount: ackElicitingPacketsInFlight,
-                        connection: connection
-                    )
-                } else {
-                    let number = sentEntry.packet.number
-
-                    log.datapath("Non-Ack eliciting packet \(number) acked")
-                }
-                sentPath.congestionControlPacketsAcked(
-                    bytesAcked: sentEntry.packet.isInFlightEligible ? sentEntry.packet.totalLength : 0,
-                    sentTime: sentEntry.sentTime
-                )
-            }
-
-            // Acknowledge the data sent with the packet
-            connection.acknowledged(
-                sentEntry.packet,
-                packetNumber: sentEntry.packet.number,
-                packetNumberSpace: sentEntry.packet.numberSpace,
-                sentPath: sentPath
-            )
-        }
-
-        mutating func spuriousLoss(
-            packetNumber: PacketNumber,
-            packetNumberSpace: PacketNumberSpace,
-            packetSentTime: NetworkClock.Instant,
-            ackedTime: NetworkClock.Instant,
-            sRTT: NetworkDuration,
-            latestRTT: NetworkDuration,
-            path: QUICPath,
-            connection: QUICConnection
-        ) {
-            if Recovery.adaptiveTimeThreshold {
-                let timeNeeded = packetSentTime.duration(to: ackedTime)
-                let maxRTT = max(latestRTT, sRTT)
-                while maxRTT + (maxRTT >> timeThreshold) < timeNeeded
-                    && timeThreshold > 2
-                {
-                    // This will ensure that time resilience is RTT + 1/4 RTT.
-                    timeThreshold -= 1
-                    log.datapath(
-                        "Updated reorder time threshold to \(timeThreshold)"
-                    )
-                }
-            }
-            if Recovery.adaptivePacketThreshold {
-                let largestAckedPacketNumber = connection.largestAckedPacketNumber(
-                    space: packetNumberSpace
-                )
-                let newThreshold =
-                    (largestAckedPacketNumber - packetNumber) + Int64(1)
-                if packetThreshold < newThreshold
-                    && newThreshold < Recovery.maxPacketReorderThreshold
-                {
-                    // Less than 20
-                    packetThreshold = max(packetThreshold, newThreshold)
-                    log.datapath(
-                        "Updated reorder packet threshold to \(packetThreshold)"
-                    )
-                }
-            }
-        }
-
-        private mutating func findNewlyAckedPackets(
-            ackFrame: FrameAck,
-            path: QUICPath
-        ) -> AckBitstringSequence {
-            var oldestSentPacketNumber: PacketNumber? = nil
-            if !outstandingPackets.isEmpty {
-                oldestSentPacketNumber = outstandingPackets[0].packet.number
-            }
-            guard let oldestSentPacketNumber else {
-                log.datapath(
-                    "No outstanding packets for number space \(ackFrame.packetNumberSpace)"
-                )
-                return AckBitstringSequence.empty
-            }
-            if oldestSentPacketNumber > ackFrame.largest {
-                log.datapath(
-                    "Oldest sent \(oldestSentPacketNumber) after largest acked \(ackFrame.largest), stopping"
-                )
-                return AckBitstringSequence.empty
-            }
-            precondition(oldestSentPacketNumber.isValid())
-            currentAckBitstring.reinit(
-                frame: ackFrame,
-                oldestPN: oldestSentPacketNumber
-            )
-
-            return prevAckBitstring.xor(
-                other: &currentAckBitstring,
-                firstPN: oldestSentPacketNumber,
-                lastPN: ackFrame.largest
-            )
-        }
-
-        @inline(__always)
-        mutating func findNewlyAckedPackets(
-            ackFrame: FrameAck,
-            path: QUICPath,
-            now: NetworkClock.Instant,
-            connection: QUICConnection
-        ) -> Bool {
-            let packetNumberSpace = ackFrame.packetNumberSpace
-            var newlyECTAcked: UInt64 = 0
-
-            let newlyAckedPacketNumbers = findNewlyAckedPackets(ackFrame: ackFrame, path: path)
-
-            for newlyAckedPacketNumber in newlyAckedPacketNumbers {
-                let ackedEntry = removeSentPacket(newlyAckedPacketNumber)
-                guard let ackedEntry else { continue }
-
-                // We should count all newly acked packets that were originally
-                // sent with either ECT(0) or ECT(1).
-                // Non-ack eliciting packets (ACK, PADDING, CONNECTION_CLOSE)
-                // are currently only checked for congestion marks on them for
-                // L4S
-                if ackedEntry.packet.ectMarked, ackedEntry.packet.sentPath != .none {
-                    newlyECTAcked += 1
-                }
-
-                guard let sentPath = connection.path(for: ackedEntry.packet.sentPath) else {
-                    continue
-                }
-
-                if ackedEntry.lostTime != .zero {
-                    let sRTT = sentPath.rtt.smoothedRTT
-                    let latestRTT = sentPath.rtt.latestRTT
-                    spuriousLoss(
-                        packetNumber: ackedEntry.packet.number,
-                        packetNumberSpace: packetNumberSpace,
-                        packetSentTime: ackedEntry.sentTime,
-                        ackedTime: now,
-                        sRTT: sRTT,
-                        latestRTT: latestRTT,
-                        path: path,
-                        connection: connection
-                    )
-                    if ackedEntry.reducedCongestionWindow {
-                        path.congestionControlSpuriousRetransmit(qlog: connection.qLog)
-                    }
-                }
-
-                packetAcked(
-                    sentPath: sentPath,
-                    sentEntry: ackedEntry,
-                    connection: connection
-                )
-            }
-
-            // Process ECN after packet_acked.
-            // Update the total acked packets that were sent with ECT
-            // for application pns
-            var previousLargestAcked = PacketNumber.none
-            totalEctAcked = Int(newlyECTAcked)
-
-            let largestAckedPacketNumber = connection.largestAckedPacketNumber(
-                space: packetNumberSpace
-            )
-            if largestAckedPacketNumber.value >= 0 {
-                previousLargestAcked = largestAckedPacketNumber
-            }
-
-            let ceCount =
-                path.ecnState?.validateAck(
-                    ecn: connection.ecn,
-                    frame: ackFrame,
-                    previousLargestAcked: previousLargestAcked,
-                    newlyAckedECNPackets: newlyECTAcked
-                ) ?? 0
-            connection.stats.increment(
-                .ecnCapablePacketsAcknowledged,
-                by: Int(newlyECTAcked)
-            )
-            connection.stats.increment(.ecnCapablePacketsMarked, by: ceCount)
-            // Process ECN only after we reach capable
-            if path.ecnState?.state == .capable {
-                if packetNumberSpace == .applicationData {
-                    log.fault("We got validated before applicationData")
-                }
-                // Process ECN only if there are any newly ACKed ECT packets
-                if newlyECTAcked > 0 {
-                    let sRTT = path.rtt.smoothedRTT
-                    path.congestionControlProcessECN(
-                        ceCount: ceCount,
-                        packetsAcked: totalEctAcked,
-                        largestSentPN: largestSentPacketNumber.value,
-                        largestAckedPN: largestAckedPacketNumber.value,
-                        largestAckedSentTime: largestAckedPNSentTime,
-                        mss: path.mss,
-                        smoothedRTT: sRTT
-                    )
-                }
-            }
-            swap(&prevAckBitstring, &currentAckBitstring)
+            let sentLength = entry.packet.totalLength
+            connection?.log.datapath("Discarding packet of length \(sentLength)")
+            path.congestionControlPacketDiscarded(bytesSent: sentLength, qlog: connection?.qLog)
             return true
         }
+        outstandingPackets.removeAll()
+        ackElicitingPacketsInFlight = 0
+        timeOfLastSentAckElicitingPacket = .zero
+        largestSentPacketNumber = PacketNumber.none
+        largestAckedPNSentTime = .zero
+        lossTime = .zero
+        currentAckBitstring = AckBitstring()
+        prevAckBitstring = AckBitstring()
+        largerPacketCount = 0
 
-        @_optimize(speed)
-        mutating func sentPacket(
-            _ sentPacket: consuming SentPacketRecord,
-            time: NetworkClock.Instant,
-            connection: QUICConnection
-        ) {
-            guard let sentPath = connection.path(for: sentPacket.sentPath) else {
-                log.fault("Sent packet with no valid path")
-                return
-            }
-            let packetNumberSpace = sentPacket.numberSpace
-            let packetNumber = sentPacket.number
-            log.datapath("Loss recovery: sent \(packetNumberSpace) \(packetNumber)")
+        // Persistent Congestion Detection Variables.
+        largestLostPacketNumber = PacketNumber.none
+        largestLostSentTime = .zero
+        smallestLostSentTime = .maximum
 
-            guard largestSentPacketNumber == .none || packetNumber >= largestSentPacketNumber else {
-                log.fault(
-                    "Should not send \(packetNumber) after \(largestSentPacketNumber)"
-                )
-                return
-            }
+        // Non-ack Eliciting Packets.
+        oldestNonAckElicitingSentTime = .zero
 
-            largestSentPacketNumber = packetNumber
-            if sentPacket.totalLength > sentPath.minimumMSS,
-                sentPacket.totalLength <= sentPath.mss
-            {
-                sentPacket.largerPacket = true
-            }
-            // Remove old non-ack eliciting packets. Currently, non-ack eliciting packets are added only for L4S.
-            if connection.isL4SEnabled {
-                removeStalePackets(
-                    packetNumberSpace: packetNumberSpace,
-                    path: sentPath,
-                    time: time
-                )
-            }
-            // Save this sent packet in our list of transmitted packets.
-            let isInFlightEligible = sentPacket.isInFlightEligible
-            let isAckEliciting = sentPacket.isAckEliciting
-            let sentLength = sentPacket.totalLength
+        // Number of packets acked that were sent with ECT after validation.
+        totalEctAcked = 0
 
-            // Tracking all in-flight-eligible packets in recovery so their bytes
-            // are counted in bytesInFlight and properly decremented on ACK or loss.
-            // Non-in-flight packets (e.g. ACK-only) are skipped since they don't consume
-            // congestion window. For L4S, we also track non-in-flight packets.
-            guard isInFlightEligible || connection.isL4SEnabled else {
-                return
-            }
-            insertSentPacket(
-                sentPacket,
-                sentTime: time
+        // Reorder Threshold.
+        packetThreshold = Constants.packetReorderThreshold
+        timeThreshold = Constants.timeReorderThreshold
+    }
+
+    func notifyLossToPath<Families: QUICLinkageFamilies>(
+        packetNumber: PacketNumber,
+        pathID: MultiplexingPathIdentifier,
+        bytesLost: Int,
+        connection: QUICConnection<Families>
+    ) -> Bool {
+        guard let path = connection.path(for: pathID) else {
+            return false
+        }
+        var reducedCongestionWindow: Bool = false
+        log.datapath(
+            "In-flight bytes declared lost on path \(pathID), largest lost packet \(largestLostPacketNumber) was sent at \(largestLostSentTime)"
+        )
+        reducedCongestionWindow = path.congestionControlPacketsLost(
+            bytesLost: bytesLost,
+            largestLostSentTime: largestLostSentTime,
+            mss: path.mss,
+            smoothedRTT: path.rtt.smoothedRTT
+        )
+        if reducedCongestionWindow {
+            log.datapath(
+                "\(packetNumber) detected lost on path \(pathID) and caused congestion window reduction"
             )
+        }
+        return reducedCongestionWindow
+    }
 
-            // By definition, any packet containing crypto or ack-eliciting frames counts for bytes in flight.
-            if isInFlightEligible {
-                if isAckEliciting {
-                    timeOfLastSentAckElicitingPacket = time
-                    ackElicitingPacketsInFlight += 1
+    mutating func updateCongestionOnPath<Families: QUICLinkageFamilies>(
+        _ pathID: MultiplexingPathIdentifier,
+        connection: QUICConnection<Families>
+    ) {
+        guard let path = connection.path(for: pathID) else {
+            return
+        }
 
-                    log.datapath(
-                        "Ack eliciting packet \(packetNumber) sent, incrementing ackElicitingPacketsInFlight to: \(ackElicitingPacketsInFlight)"
-                    )
+        //
+        // Collapse congestion window if in persistent congestion.
+        //
+        // RFC 9002 says:
+        // "Since network congestion is not affected by packet
+        // number spaces, persistent congestion SHOULD consider
+        // packets sent across packet number spaces. A sender that
+        // does not have state for all packet number spaces or an
+        // implementation that cannot compare send times across
+        // packet number spaces MAY use state for just the packet
+        // number space that was acknowledged. This might result in
+        // erroneously declaring persistent congestion, but it will
+        // not lead to a failure to detect persistent congestion."
+        //
+        // It's not clear why it will not lead to a failure to detect
+        // persistent congestion but one assumption is that other
+        // limits (lack of decryption keys and anti-amplification)
+        // imply that it will be unlikely that limited number of
+        // packets sent during handshake will cause persistent
+        // congestion. Due to this and due to historical reasons we
+        // opted to continue tracking persistent congestion per-PN
+        // space.
+        //
 
-                } else {
-                    log.datapath("Non-Ack eliciting packet \(packetNumber) sent")
+        if RecoveryConstants.inPersistentCongestion(
+            rtt: path.rtt,
+            largestTime: largestLostSentTime,
+            smallestTime: smallestLostSentTime
+        ) {
+            log.datapath(
+                "Persistent congestion detected on path \(path.identifier), setting congestion window to minimum"
+            )
+            path.congestionControlPersistentCongestion(mss: path.mss, qlog: nil)
+            log.datapath(
+                "Congestion window of path \(path.identifier) is now \(path.congestionControlWindow)"
+            )
+            if path.pacer.enabled {
+                path.resetPacer()
+            }
+            // Reset the smallest lost sent time.
+            smallestLostSentTime = NetworkClock.Instant.maximum
+            // Endpoints SHOULD set the minRTT to the newest RTT sample after persistent congestion is established.
+            path.rtt.minRTT = path.rtt.latestRTT
+        }
+    }
 
+    mutating func declarePacketLost<Families: QUICLinkageFamilies>(
+        _ lostPackets: [PacketIdentifier],
+        connection: QUICConnection<Families>
+    ) {
+        // We assume that the packets are in packet-number order. Verify that
+        // the sent time of each packet is after that of the earlier packet.
+        var totalLength: Int = 0
+        let lostPacketCount = lostPackets.count
+        for lostPacketIndex in 0..<lostPacketCount {
+            let isLastPacket = (lostPacketIndex == (lostPacketCount - 1))
+            let lostPacketIdentifier = lostPackets[lostPacketIndex]
+            var reducedCongestionWindow = false
+            var smallestLostSentTime = self.smallestLostSentTime
+            var largestLostSentTime = self.largestLostSentTime
+            var largestLostPacketNumber = self.largestLostPacketNumber
+            var pathID: MultiplexingPathIdentifier = .none
+
+            findSentPacketEntry(packetNumber: lostPacketIdentifier.number) { entry in
+                if entry.packet.isInFlightEligible {
+                    totalLength += entry.packet.totalLength
                 }
-                sentPath.congestionControlPacketsSent(bytesSent: sentLength, qlog: connection.qLog)
+
+                if entry.packet.isECNValidationPacket, let path = connection.path(for: entry.packet.sentPath) {
+                    path.ecnState?.validationPacketLost()
+                }
+
+                if largestLostPacketNumber + 1 != entry.packet.number {
+                    // Not a continuous loss, reset sent times.
+                    smallestLostSentTime = entry.sentTime
+                } else {
+                    smallestLostSentTime = min(
+                        smallestLostSentTime,
+                        entry.sentTime
+                    )
+                }
+
+                if _slowPath(largestLostSentTime > entry.sentTime) {
+                    connection.log.fault("Later packets should always be sent later")
+                }
+                largestLostSentTime = entry.sentTime
+                largestLostPacketNumber = entry.packet.number
+
+                if _slowPath(largestLostSentTime < smallestLostSentTime) {
+                    connection.log.fault("Later packets should have later sent time")
+                }
+                Recovery.logPacketLost(
+                    packet: entry.packet,
+                    trigger: .reordering,
+                    connection: connection
+                )
+
+                if isLastPacket {
+                    reducedCongestionWindow = notifyLossToPath(
+                        packetNumber: entry.packet.number,
+                        pathID: entry.packet.sentPath,
+                        bytesLost: totalLength,
+                        connection: connection
+                    )
+                    pathID = entry.packet.sentPath
+                }
+            }
+
+            self.smallestLostSentTime = smallestLostSentTime
+            self.largestLostSentTime = largestLostSentTime
+            self.largestLostPacketNumber = largestLostPacketNumber
+
+            if reducedCongestionWindow, let lastPacketIdentifier = lostPackets.last {
+                modifySentPacketEntry(packetNumber: lastPacketIdentifier.number) { entry in
+                    entry.reducedCongestionWindow = true
+                }
+            }
+
+            updateCongestionOnPath(pathID, connection: connection)
+        }
+    }
+
+    mutating func packetAcked<Families: QUICLinkageFamilies>(
+        sentPath: QUICPath<Families>,
+        sentEntry: borrowing PacketContainerEntry,
+        connection: QUICConnection<Families>
+    ) {
+        if sentEntry.lostTime == .zero && sentEntry.packet.isInFlightEligible {
+            if sentEntry.packet.isAckEliciting {
+                if ackElicitingPacketsInFlight > 0 {
+                    ackElicitingPacketsInFlight -= 1
+                } else {
+                    log.fault("Cannot decrement ackElicitingPacketsInFlight below zero")
+                }
+                let number = sentEntry.packet.number
+                log.datapath(
+                    "Ack eliciting packet \(number) acked, decrementing ackElicitingPacketsInFlight to: \(ackElicitingPacketsInFlight)"
+                )
+
                 Recovery.logAckElicitingPacketsInFlight(
                     packetCount: ackElicitingPacketsInFlight,
                     connection: connection
                 )
-            }
-        }
-
-        func removeStalePackets(
-            packetNumberSpace: PacketNumberSpace,
-            path: QUICPath?,
-            time: NetworkClock.Instant
-        ) {
-            // To be handled for L4S
-        }
-
-        @discardableResult
-        mutating func recordSentPackets(
-            _ packets: consuming NetworkUniqueDeque<SentPacketRecord>,
-            connection: QUICConnection
-        ) -> Bool {
-            if packets.isEmpty {
-                return false
-            }
-
-            while let packet = packets.popFirst() {
-                sentPacket(packet, time: connection.now, connection: connection)
-            }
-
-            return true
-        }
-    }
-
-    struct PathState: ~Copyable {
-        var PTOCount: Int = 0
-        var PTOPeriod: NetworkDuration = .zero
-        var lossDelay: NetworkDuration = .zero
-
-        func getMaxPTODrainTime(idleTimeout: NetworkDuration) -> NetworkDuration {
-            // The closing and draining connection states exist to ensure that connections close cleanly
-            // and that delayed or reordered packets are properly discarded. These states SHOULD persist
-            // for at least three times the current PTO interval
-            let ptoDrainPeriod = PTOPeriod * 3
-            if ptoDrainPeriod < idleTimeout {
-                return NetworkDuration.milliseconds(ptoDrainPeriod.milliseconds)
             } else {
-                return idleTimeout
+                let number = sentEntry.packet.number
+
+                log.datapath("Non-Ack eliciting packet \(number) acked")
+            }
+            sentPath.congestionControlPacketsAcked(
+                bytesAcked: sentEntry.packet.isInFlightEligible ? sentEntry.packet.totalLength : 0,
+                sentTime: sentEntry.sentTime
+            )
+        }
+
+        // Acknowledge the data sent with the packet
+        connection.acknowledged(
+            sentEntry.packet,
+            packetNumber: sentEntry.packet.number,
+            packetNumberSpace: sentEntry.packet.numberSpace,
+            sentPath: sentPath
+        )
+    }
+
+    mutating func spuriousLoss<Families: QUICLinkageFamilies>(
+        packetNumber: PacketNumber,
+        packetNumberSpace: PacketNumberSpace,
+        packetSentTime: NetworkClock.Instant,
+        ackedTime: NetworkClock.Instant,
+        sRTT: NetworkDuration,
+        latestRTT: NetworkDuration,
+        path: QUICPath<Families>,
+        connection: QUICConnection<Families>
+    ) {
+        if RecoveryConstants.adaptiveTimeThreshold {
+            let timeNeeded = packetSentTime.duration(to: ackedTime)
+            let maxRTT = max(latestRTT, sRTT)
+            while maxRTT + (maxRTT >> timeThreshold) < timeNeeded
+                && timeThreshold > 2
+            {
+                // This will ensure that time resilience is RTT + 1/4 RTT.
+                timeThreshold -= 1
+                log.datapath(
+                    "Updated reorder time threshold to \(timeThreshold)"
+                )
+            }
+        }
+        if RecoveryConstants.adaptivePacketThreshold {
+            let largestAckedPacketNumber = connection.largestAckedPacketNumber(
+                space: packetNumberSpace
+            )
+            let newThreshold =
+                (largestAckedPacketNumber - packetNumber) + Int64(1)
+            if packetThreshold < newThreshold
+                && newThreshold < RecoveryConstants.maxPacketReorderThreshold
+            {
+                // Less than 20
+                packetThreshold = max(packetThreshold, newThreshold)
+                log.datapath(
+                    "Updated reorder packet threshold to \(packetThreshold)"
+                )
             }
         }
     }
 
-    var log: LogPrefixer
-    var connection: QUICConnection?
-    private var initialInnerState: InnerState
-    private var handshakeInnerState: InnerState
-    private var applicationDataInnerState: InnerState
-    var timerID: Timer.TimerID?
-    var receivedHandshakeAck: Bool = false
-    var received1RTTAck: Bool = false
-    private(set) var computedTimeout: NetworkDuration = .zero
+    private mutating func findNewlyAckedPackets<Families: QUICLinkageFamilies>(
+        ackFrame: FrameAck,
+        path: QUICPath<Families>
+    ) -> AckBitstringSequence {
+        var oldestSentPacketNumber: PacketNumber? = nil
+        if !outstandingPackets.isEmpty {
+            oldestSentPacketNumber = outstandingPackets[0].packet.number
+        }
+        guard let oldestSentPacketNumber else {
+            log.datapath(
+                "No outstanding packets for number space \(ackFrame.packetNumberSpace)"
+            )
+            return AckBitstringSequence.empty
+        }
+        if oldestSentPacketNumber > ackFrame.largest {
+            log.datapath(
+                "Oldest sent \(oldestSentPacketNumber) after largest acked \(ackFrame.largest), stopping"
+            )
+            return AckBitstringSequence.empty
+        }
+        precondition(oldestSentPacketNumber.isValid())
+        currentAckBitstring.reinit(
+            frame: ackFrame,
+            oldestPN: oldestSentPacketNumber
+        )
 
+        return prevAckBitstring.xor(
+            other: &currentAckBitstring,
+            firstPN: oldestSentPacketNumber,
+            lastPN: ackFrame.largest
+        )
+    }
+
+    @inline(__always)
+    mutating func findNewlyAckedPackets<Families: QUICLinkageFamilies>(
+        ackFrame: FrameAck,
+        path: QUICPath<Families>,
+        now: NetworkClock.Instant,
+        connection: QUICConnection<Families>
+    ) -> Bool {
+        let packetNumberSpace = ackFrame.packetNumberSpace
+        var newlyECTAcked: UInt64 = 0
+
+        let newlyAckedPacketNumbers = findNewlyAckedPackets(ackFrame: ackFrame, path: path)
+
+        for newlyAckedPacketNumber in newlyAckedPacketNumbers {
+            let ackedEntry = removeSentPacket(newlyAckedPacketNumber)
+            guard let ackedEntry else { continue }
+
+            // We should count all newly acked packets that were originally
+            // sent with either ECT(0) or ECT(1).
+            // Non-ack eliciting packets (ACK, PADDING, CONNECTION_CLOSE)
+            // are currently only checked for congestion marks on them for
+            // L4S
+            if ackedEntry.packet.ectMarked, ackedEntry.packet.sentPath != .none {
+                newlyECTAcked += 1
+            }
+
+            guard let sentPath = connection.path(for: ackedEntry.packet.sentPath) else {
+                continue
+            }
+
+            if ackedEntry.lostTime != .zero {
+                let sRTT = sentPath.rtt.smoothedRTT
+                let latestRTT = sentPath.rtt.latestRTT
+                spuriousLoss(
+                    packetNumber: ackedEntry.packet.number,
+                    packetNumberSpace: packetNumberSpace,
+                    packetSentTime: ackedEntry.sentTime,
+                    ackedTime: now,
+                    sRTT: sRTT,
+                    latestRTT: latestRTT,
+                    path: path,
+                    connection: connection
+                )
+                if ackedEntry.reducedCongestionWindow {
+                    path.congestionControlSpuriousRetransmit(qlog: connection.qLog)
+                }
+            }
+
+            packetAcked(
+                sentPath: sentPath,
+                sentEntry: ackedEntry,
+                connection: connection
+            )
+        }
+
+        // Process ECN after packet_acked.
+        // Update the total acked packets that were sent with ECT
+        // for application pns
+        var previousLargestAcked = PacketNumber.none
+        totalEctAcked = Int(newlyECTAcked)
+
+        let largestAckedPacketNumber = connection.largestAckedPacketNumber(
+            space: packetNumberSpace
+        )
+        if largestAckedPacketNumber.value >= 0 {
+            previousLargestAcked = largestAckedPacketNumber
+        }
+
+        let ceCount =
+            path.ecnState?.validateAck(
+                ecn: connection.ecn,
+                frame: ackFrame,
+                previousLargestAcked: previousLargestAcked,
+                newlyAckedECNPackets: newlyECTAcked
+            ) ?? 0
+        connection.stats.increment(
+            .ecnCapablePacketsAcknowledged,
+            by: Int(newlyECTAcked)
+        )
+        connection.stats.increment(.ecnCapablePacketsMarked, by: ceCount)
+        // Process ECN only after we reach capable
+        if path.ecnState?.state == .capable {
+            if packetNumberSpace == .applicationData {
+                log.fault("We got validated before applicationData")
+            }
+            // Process ECN only if there are any newly ACKed ECT packets
+            if newlyECTAcked > 0 {
+                let sRTT = path.rtt.smoothedRTT
+                path.congestionControlProcessECN(
+                    ceCount: ceCount,
+                    packetsAcked: totalEctAcked,
+                    largestSentPN: largestSentPacketNumber.value,
+                    largestAckedPN: largestAckedPacketNumber.value,
+                    largestAckedSentTime: largestAckedPNSentTime,
+                    mss: path.mss,
+                    smoothedRTT: sRTT
+                )
+            }
+        }
+        swap(&prevAckBitstring, &currentAckBitstring)
+        return true
+    }
+
+    @_optimize(speed)
+    mutating func sentPacket<Families: QUICLinkageFamilies>(
+        _ sentPacket: consuming SentPacketRecord,
+        time: NetworkClock.Instant,
+        connection: QUICConnection<Families>
+    ) {
+        guard let sentPath = connection.path(for: sentPacket.sentPath) else {
+            log.fault("Sent packet with no valid path")
+            return
+        }
+        let packetNumberSpace = sentPacket.numberSpace
+        let packetNumber = sentPacket.number
+        log.datapath("Loss recovery: sent \(packetNumberSpace) \(packetNumber)")
+
+        guard largestSentPacketNumber == .none || packetNumber >= largestSentPacketNumber else {
+            log.fault(
+                "Should not send \(packetNumber) after \(largestSentPacketNumber)"
+            )
+            return
+        }
+
+        largestSentPacketNumber = packetNumber
+        if sentPacket.totalLength > sentPath.minimumMSS,
+            sentPacket.totalLength <= sentPath.mss
+        {
+            sentPacket.largerPacket = true
+        }
+        // Remove old non-ack eliciting packets. Currently, non-ack eliciting packets are added only for L4S.
+        if connection.isL4SEnabled {
+            removeStalePackets(
+                packetNumberSpace: packetNumberSpace,
+                path: sentPath,
+                time: time
+            )
+        }
+        // Save this sent packet in our list of transmitted packets.
+        let isInFlightEligible = sentPacket.isInFlightEligible
+        let isAckEliciting = sentPacket.isAckEliciting
+        let sentLength = sentPacket.totalLength
+
+        // Tracking all in-flight-eligible packets in recovery so their bytes
+        // are counted in bytesInFlight and properly decremented on ACK or loss.
+        // Non-in-flight packets (e.g. ACK-only) are skipped since they don't consume
+        // congestion window. For L4S, we also track non-in-flight packets.
+        guard isInFlightEligible || connection.isL4SEnabled else {
+            return
+        }
+        insertSentPacket(
+            sentPacket,
+            sentTime: time
+        )
+
+        // By definition, any packet containing crypto or ack-eliciting frames counts for bytes in flight.
+        if isInFlightEligible {
+            if isAckEliciting {
+                timeOfLastSentAckElicitingPacket = time
+                ackElicitingPacketsInFlight += 1
+
+                log.datapath(
+                    "Ack eliciting packet \(packetNumber) sent, incrementing ackElicitingPacketsInFlight to: \(ackElicitingPacketsInFlight)"
+                )
+
+            } else {
+                log.datapath("Non-Ack eliciting packet \(packetNumber) sent")
+
+            }
+            sentPath.congestionControlPacketsSent(bytesSent: sentLength, qlog: connection.qLog)
+            Recovery.logAckElicitingPacketsInFlight(
+                packetCount: ackElicitingPacketsInFlight,
+                connection: connection
+            )
+        }
+    }
+
+    func removeStalePackets<Families: QUICLinkageFamilies>(
+        packetNumberSpace: PacketNumberSpace,
+        path: QUICPath<Families>?,
+        time: NetworkClock.Instant
+    ) {
+        // To be handled for L4S
+    }
+
+    @discardableResult
+    mutating func recordSentPackets<Families: QUICLinkageFamilies>(
+        _ packets: consuming NetworkUniqueDeque<SentPacketRecord>,
+        connection: QUICConnection<Families>
+    ) -> Bool {
+        if packets.isEmpty {
+            return false
+        }
+
+        while let packet = packets.popFirst() {
+            sentPacket(packet, time: connection.now, connection: connection)
+        }
+
+        return true
+    }
+}
+
+// Per-path recovery state. Lifted out of Recovery for the same reason, and because
+// QUICPath stores one directly.
+@available(Network 0.1.0, *)
+struct RecoveryPathState: ~Copyable {
+    var PTOCount: Int = 0
+    var PTOPeriod: NetworkDuration = .zero
+    var lossDelay: NetworkDuration = .zero
+
+    func getMaxPTODrainTime(idleTimeout: NetworkDuration) -> NetworkDuration {
+        // The closing and draining connection states exist to ensure that connections close cleanly
+        // and that delayed or reordered packets are properly discarded. These states SHOULD persist
+        // for at least three times the current PTO interval
+        let ptoDrainPeriod = PTOPeriod * 3
+        if ptoDrainPeriod < idleTimeout {
+            return NetworkDuration.milliseconds(ptoDrainPeriod.milliseconds)
+        } else {
+            return idleTimeout
+        }
+    }
+}
+
+@available(Network 0.1.0, *)
+enum RecoveryEarliestTimeType {
+    case lossTime
+    case lastSentAckElicitingTime
+}
+
+// Constants for loss recovery. These live outside Recovery because a generic type cannot
+// have static stored properties.
+@available(Network 0.1.0, *)
+enum RecoveryConstants {
     static let adaptiveTimeThreshold: Bool = true
     static let adaptivePacketThreshold: Bool = true
     static let maxPacketReorderThreshold: Int64 = 20
@@ -707,27 +711,77 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
 
     static let lossRecoveryBuckets: Int = 199
     static func lossRecoveryHash(pn: Int) -> Int {
-        pn % Recovery.lossRecoveryBuckets
+        pn % RecoveryConstants.lossRecoveryBuckets
     }
 
-    enum EarliestTimeType {
-        case lossTime
-        case lastSentAckElicitingTime
+    static func PTOPeriod(
+        sRTT: NetworkDuration,
+        variance: NetworkDuration,
+        ackDelay: NetworkDuration
+    ) -> NetworkDuration {
+        sRTT + max(4 * variance, RecoveryConstants.timerGranularity) + ackDelay
     }
 
-    init(connection: QUICConnection? = nil, timerID: Timer.TimerID? = nil, logPrefixer: LogPrefixer) {
+    static func computedPTO(rtt: borrowing RTT) -> NetworkDuration {
+        if rtt.hasInitialMeasurement {
+            return PTOPeriod(
+                sRTT: rtt.smoothedRTT,
+                variance: rtt.RTTVariance,
+                ackDelay: rtt.remoteMaxAckDelay
+            )
+        } else {
+            let (sRTT, varRTT) = rtt.cachedRTT
+            return PTOPeriod(sRTT: sRTT, variance: varRTT, ackDelay: rtt.remoteMaxAckDelay)
+        }
+    }
+
+    static func inPersistentCongestion(
+        rtt: borrowing RTT,
+        largestTime: NetworkClock.Instant,
+        smallestTime: NetworkClock.Instant
+    ) -> Bool {
+        //
+        // RFC 9002: The persistent congestion period SHOULD NOT start
+        // until there is at least one RTT sample. Before the first RTT
+        // sample, a sender arms its PTO timer based on the initial RTT,
+        // which could be substantially larger than the actual RTT.
+        // Requiring a prior RTT sample prevents a sender from
+        // establishing persistent congestion with potentially too few probes.
+        //
+        guard rtt.hasInitialMeasurement else {
+            return false
+        }
+        let pto = RecoveryConstants.computedPTO(rtt: rtt)
+        return (largestTime >= smallestTime + pto * Constants.persistentCongestionThreshold)
+    }
+}
+
+@available(Network 0.1.0, *)
+struct Recovery<Families: QUICLinkageFamilies>: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
+    var log: LogPrefixer
+    var connection: QUICConnection<Families>?
+    private var initialInnerState: RecoveryInnerState
+    private var handshakeInnerState: RecoveryInnerState
+    private var applicationDataInnerState: RecoveryInnerState
+    var timerID: Timer.TimerID?
+    var receivedHandshakeAck: Bool = false
+    var received1RTTAck: Bool = false
+    private(set) var computedTimeout: NetworkDuration = .zero
+
+
+    init(connection: QUICConnection<Families>? = nil, timerID: Timer.TimerID? = nil, logPrefixer: LogPrefixer) {
         self.connection = connection
         self.timerID = timerID
         self.log = logPrefixer
-        self.initialInnerState = InnerState(log: log)
-        self.handshakeInnerState = InnerState(log: log)
-        self.applicationDataInnerState = InnerState(log: log)
+        self.initialInnerState = RecoveryInnerState(log: log)
+        self.handshakeInnerState = RecoveryInnerState(log: log)
+        self.applicationDataInnerState = RecoveryInnerState(log: log)
     }
 
     fileprivate mutating func sentPacket(
         _ sentPacket: consuming SentPacketRecord,
         time: NetworkClock.Instant,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) {
         let packetNumberSpace = sentPacket.numberSpace
         withMutableInnerState(packetNumberSpace: packetNumberSpace, packet: sentPacket) {
@@ -744,7 +798,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         inBatch = true
         shouldResetTimer = false
     }
-    mutating func endBatch(connection: QUICConnection) {
+    mutating func endBatch(connection: QUICConnection<Families>) {
         inBatch = false
         if shouldResetTimer {
             shouldResetTimer = false
@@ -755,7 +809,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     // Note: drains 'sentPackets', leaving the caller's storage empty and reusable.
     mutating func recordSentPackets(
         _ sentPackets: inout NetworkUniqueDeque<SentPacketRecord>,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) {
         while let packet = sentPackets.popFirst() {
             sentPacket(packet, time: connection.now, connection: connection)
@@ -768,7 +822,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     }
 
     func applyToAllInnerStatesImmutable(
-        closure: (borrowing InnerState, PacketNumberSpace) -> Void
+        closure: (borrowing RecoveryInnerState, PacketNumberSpace) -> Void
     ) {
         closure(initialInnerState, .initial)
         closure(handshakeInnerState, .handshake)
@@ -776,7 +830,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     }
 
     mutating func applyToAllInnerStatesMutable(
-        closure: (inout InnerState, PacketNumberSpace) -> Void
+        closure: (inout RecoveryInnerState, PacketNumberSpace) -> Void
     ) {
         closure(&initialInnerState, .initial)
         closure(&handshakeInnerState, .handshake)
@@ -786,7 +840,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     @discardableResult
     mutating func withMutableInnerState<R>(
         packetNumberSpace: PacketNumberSpace,
-        closure: (inout InnerState) -> R
+        closure: (inout RecoveryInnerState) -> R
     ) -> R {
         switch packetNumberSpace {
         case .initial: return closure(&initialInnerState)
@@ -799,7 +853,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     mutating func withMutableInnerState<R>(
         packetNumberSpace: PacketNumberSpace,
         packet: consuming SentPacketRecord,
-        closure: (inout InnerState, consuming SentPacketRecord) -> R
+        closure: (inout RecoveryInnerState, consuming SentPacketRecord) -> R
     ) -> R {
         switch packetNumberSpace {
         case .initial: return closure(&initialInnerState, packet)
@@ -811,7 +865,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     @discardableResult
     func withImmutableInnerState<R>(
         packetNumberSpace: PacketNumberSpace,
-        closure: (_: borrowing InnerState) -> R
+        closure: (_: borrowing RecoveryInnerState) -> R
     ) -> R {
         switch packetNumberSpace {
         case .initial: return closure(initialInnerState)
@@ -830,7 +884,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         }
     }
 
-    static func logAckElicitingPacketsInFlight(packetCount: Int, connection: QUICConnection) {
+    static func logAckElicitingPacketsInFlight(packetCount: Int, connection: QUICConnection<Families>) {
         #if QlogOutput
         if let qLog = connection.qLog {
             qLog.congestionControlUpdated(packetsInFlight: UInt64(packetCount))
@@ -841,7 +895,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     static func logPacketLost(
         packet: borrowing SentPacketRecord,
         trigger: QLogPacketLostTrigger,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) {
         #if QlogOutput
         if let qLog = connection.qLog {
@@ -856,12 +910,12 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     mutating func findLostPacketInner(
         pnSpace: PacketNumberSpace,
         timeNow: NetworkClock.Instant,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) -> Bool {
         connection.applyToAllPaths { path in
             let maxRTT = max(path.rtt.latestRTT, path.rtt.smoothedRTT)
             let lossDelay = withImmutableInnerState(packetNumberSpace: pnSpace) {
-                max(Recovery.timerGranularity, maxRTT + (maxRTT >> $0.timeThreshold))
+                max(RecoveryConstants.timerGranularity, maxRTT + (maxRTT >> $0.timeThreshold))
             }
             path.recoveryState.lossDelay = lossDelay
         }
@@ -953,7 +1007,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
 
     mutating func retransmitPackets(
         _ lostPackets: [PacketIdentifier],
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) {
         for identifier in lostPackets {
             var discardInitialRecoveryState = false
@@ -987,9 +1041,9 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     @discardableResult
     mutating func findLostPacket(
         pnSpace: PacketNumberSpace? = nil,
-        path: QUICPath? = nil,
+        path: QUICPath<Families>? = nil,
         timeNow: NetworkClock.Instant = NetworkClock.Instant.now,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) -> Bool {
         var packetLost = false
         if let pnSpace {
@@ -1034,7 +1088,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         return packetLost
     }
 
-    mutating func removeLostPackets(ackedPath: QUICPath, now: NetworkClock.Instant) {
+    mutating func removeLostPackets(ackedPath: QUICPath<Families>, now: NetworkClock.Instant) {
         applyToAllInnerStatesMutable { innerState, pnSpace in
             var index = 0
             while index < innerState.outstandingPackets.count {
@@ -1055,15 +1109,15 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         }
     }
 
-    func peerCompletedValidation(connection: QUICConnection) -> Bool {
+    func peerCompletedValidation(connection: QUICConnection<Families>) -> Bool {
         connection.isServer || connection.isHandshakeConfirmed || receivedHandshakeAck
             || received1RTTAck
     }
 
     func updateEarliestTime(
-        innerState: borrowing InnerState,
+        innerState: borrowing RecoveryInnerState,
         innerPNSpace: PacketNumberSpace,
-        earliestTimeType: EarliestTimeType,
+        earliestTimeType: RecoveryEarliestTimeType,
         handshakeCompleted: Bool,
         currentEarliestTime: NetworkClock.Instant
     ) -> (NetworkClock.Instant, PacketNumberSpace)? {
@@ -1084,8 +1138,8 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     }
 
     func getEarliestTime(
-        earliestTimeType: EarliestTimeType,
-        connection: QUICConnection
+        earliestTimeType: RecoveryEarliestTimeType,
+        connection: QUICConnection<Families>
     ) -> (NetworkClock.Instant, PacketNumberSpace) {
         var earliestTime: NetworkClock.Instant = .zero
         var pnSpace: PacketNumberSpace = .initial
@@ -1103,7 +1157,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         return (earliestTime, pnSpace)
     }
 
-    func setTimer(delay: NetworkDuration, connection: QUICConnection) {
+    func setTimer(delay: NetworkDuration, connection: QUICConnection<Families>) {
         guard let timerID = timerID else {
             return
         }
@@ -1115,12 +1169,12 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         log.datapath("Reset loss recovery timer [T\(timerID)] to \(delay)")
     }
 
-    func resetPTOCount(path: QUICPath) {
+    func resetPTOCount(path: QUICPath<Families>) {
         path.recoveryState.PTOCount = 0
         log.datapath("PTO count reset to 0")
     }
 
-    mutating func sendPTO(connection: QUICConnection, path: QUICPath) {
+    mutating func sendPTO(connection: QUICConnection<Families>, path: QUICPath<Families>) {
         var sentPTO = false
 
         var discardInitialRecoveryState = false
@@ -1276,7 +1330,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
             return
         }
         let (lossTime, _) = getEarliestTime(
-            earliestTimeType: EarliestTimeType.lossTime,
+            earliestTimeType: RecoveryEarliestTimeType.lossTime,
             connection: connection
         )
         if lossTime != .zero {
@@ -1291,48 +1345,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
         resetTimer(connection: connection)
     }
 
-    static func PTOPeriod(
-        sRTT: NetworkDuration,
-        variance: NetworkDuration,
-        ackDelay: NetworkDuration
-    ) -> NetworkDuration {
-        sRTT + max(4 * variance, Recovery.timerGranularity) + ackDelay
-    }
-
-    static func computedPTO(rtt: borrowing RTT) -> NetworkDuration {
-        if rtt.hasInitialMeasurement {
-            return PTOPeriod(
-                sRTT: rtt.smoothedRTT,
-                variance: rtt.RTTVariance,
-                ackDelay: rtt.remoteMaxAckDelay
-            )
-        } else {
-            let (sRTT, varRTT) = rtt.cachedRTT
-            return PTOPeriod(sRTT: sRTT, variance: varRTT, ackDelay: rtt.remoteMaxAckDelay)
-        }
-    }
-
-    static func inPersistentCongestion(
-        rtt: borrowing RTT,
-        largestTime: NetworkClock.Instant,
-        smallestTime: NetworkClock.Instant
-    ) -> Bool {
-        //
-        // RFC 9002: The persistent congestion period SHOULD NOT start
-        // until there is at least one RTT sample. Before the first RTT
-        // sample, a sender arms its PTO timer based on the initial RTT,
-        // which could be substantially larger than the actual RTT.
-        // Requiring a prior RTT sample prevents a sender from
-        // establishing persistent congestion with potentially too few probes.
-        //
-        guard rtt.hasInitialMeasurement else {
-            return false
-        }
-        let pto = self.computedPTO(rtt: rtt)
-        return (largestTime >= smallestTime + pto * Constants.persistentCongestionThreshold)
-    }
-
-    mutating func resetTimer(connection: QUICConnection) {
+    mutating func resetTimer(connection: QUICConnection<Families>) {
         // if there are ack eliciting packets on any of the innerStates, the L4S error should not be emitted
         if totalAckElicitingPacketsInFlight == 0 && peerCompletedValidation(connection: connection) {
             log.datapath("No ack eliciting packets in flight, cancelling timer")
@@ -1380,7 +1393,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
                     path.recoveryState.PTOPeriod = .zero
                     return
                 }
-                timeout = Recovery.computedPTO(rtt: path.rtt)
+                timeout = RecoveryConstants.computedPTO(rtt: path.rtt)
                 timeout = timeout << path.recoveryState.PTOCount
                 path.recoveryState.PTOPeriod = timeout
                 // Check if sentTime has already elapsed
@@ -1428,7 +1441,7 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
 
     mutating func resetPNSpace(
         packetNumberSpace: PacketNumberSpace,
-        connection: QUICConnection
+        connection: QUICConnection<Families>
     ) {
         withMutableInnerState(packetNumberSpace: packetNumberSpace) {
             innerState in
@@ -1442,8 +1455,8 @@ struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
 
     mutating func receivedAck(
         ack: consuming FrameAck,
-        ackedPath: QUICPath,
-        connection: QUICConnection
+        ackedPath: QUICPath<Families>,
+        connection: QUICConnection<Families>
     ) {
         let packetNumberSpace = ack.packetNumberSpace
         if packetNumberSpace == PacketNumberSpace.handshake {

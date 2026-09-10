@@ -176,13 +176,12 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
                 remote: clientEndpoint,
                 parameters: serverParameters,
                 path: serverPath,
-                context: serverParameters.context,
-                listenerProtocol: serverListenerLinkage
+                context: serverParameters.context
             )
-            XCTAssertNotNil(serverUpperHarness, "Failed to attach QUIC to server upper harness")
-            guard let serverUpperHarness else {
-                return
-            }
+//            XCTAssertNotNil(serverUpperHarness, "Failed to attach QUIC to server upper harness")
+//            guard let serverUpperHarness else {
+//                return
+//            }
 
             let serverLowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: serverParameters.context)
             serverLowerHarness.maximumOutputSize = 9000

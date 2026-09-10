@@ -46,7 +46,7 @@ let ackTestsLogPrefixer: LogPrefixer = LogPrefixer("[AckTests]")
 
 @available(Network 0.1.0, *)
 final class AckTests: XCTestCase {
-    var ack = Ack(logPrefixer: ackTestsLogPrefixer)
+    var ack = QUICDefaultAck(logPrefixer: ackTestsLogPrefixer)
 
     override func setUp() {
         ack.delaySize = 2
@@ -405,7 +405,7 @@ final class AckTests: XCTestCase {
             delay: 0,
             ranges: [FrameAckRange(gap: 0, range: 0)]
         )
-        for block in Ack.blockSequence(frame: frame) {
+        for block in AckBlockSequence.blocks(frame: frame) {
             XCTAssertEqual(block.start, 100)
             XCTAssertEqual(block.end, 100)
         }
@@ -419,7 +419,7 @@ final class AckTests: XCTestCase {
             ranges: [FrameAckRange(gap: 0, range: 10)]
         )
 
-        for block in Ack.blockSequence(frame: frame) {
+        for block in AckBlockSequence.blocks(frame: frame) {
             XCTAssertEqual(block.start, 0)
             XCTAssertEqual(block.end, 10)
         }
@@ -434,7 +434,7 @@ final class AckTests: XCTestCase {
         )
         var blockNumber = 0
 
-        for block in Ack.blockSequence(frame: frame) {
+        for block in AckBlockSequence.blocks(frame: frame) {
             if blockNumber == 0 {
                 XCTAssertEqual(block.start, 5)
                 XCTAssertEqual(block.end, 7)
@@ -872,7 +872,7 @@ final class AckTests: XCTestCase {
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 6)
         XCTAssertGreaterThan(
             ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData),
-            Ack.pingThreshold
+            AckConstants.pingThreshold
         )
 
         let pingExpectation = XCTestExpectation(description: "Wait for ping callback")
@@ -907,7 +907,7 @@ final class AckTests: XCTestCase {
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 4)
         XCTAssertLessThanOrEqual(
             ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData),
-            Ack.pingThreshold
+            AckConstants.pingThreshold
         )
 
         // Since the ping threshold was not hit here pingFrameRequested should be false
@@ -976,7 +976,7 @@ final class AckTests: XCTestCase {
             ]
         )
 
-        let seq = Ack.blockSequence(frame: frame)
+        let seq = AckBlockSequence.blocks(frame: frame)
 
         var emittedBlocks = 0
         for block in seq {
@@ -1004,7 +1004,7 @@ final class AckTests: XCTestCase {
             ]
         )
 
-        let seq = Ack.blockSequence(frame: frame)
+        let seq = AckBlockSequence.blocks(frame: frame)
 
         var emittedBlocks = 0
         for _ in seq {
@@ -1013,7 +1013,7 @@ final class AckTests: XCTestCase {
         XCTAssertEqual(emittedBlocks, 0)
     }
 
-    // Appending more than Ack.maxAckBlocks (256) separate blocks must cause the
+    // Appending more than AckConstants.maxAckBlocks (256) separate blocks must cause the
     // oldest (lowest-PN) block to be dropped when the ACK is sized/assembled, and
     // the block count must converge to 256.
     func testAckMaxBlocksCap() {
@@ -1025,7 +1025,7 @@ final class AckTests: XCTestCase {
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 257)
 
         // Sizing the ACK drives AckSpace.build(), which trims one block because the
-        // count (257) exceeds Ack.maxAckBlocks.
+        // count (257) exceeds AckConstants.maxAckBlocks.
         XCTAssertGreaterThan(ack.size(for: .applicationData), 0)
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 256)
 
@@ -1039,13 +1039,13 @@ final class AckTests: XCTestCase {
         ack.acknowledged(packetNumberSpace: .applicationData, between: 0, and: 0)
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 256)
 
-        // The cap is stable: 256 is not > Ack.maxAckBlocks, so a second sizing
+        // The cap is stable: 256 is not > AckConstants.maxAckBlocks, so a second sizing
         // removes nothing.
         XCTAssertGreaterThan(ack.size(for: .applicationData), 0)
         XCTAssertEqual(ack.blocksForPacketNumberSpace(packetNumberSpace: .applicationData), 256)
     }
 
-    // Exactly Ack.maxAckBlocks (256) blocks must not trigger trimming: the guard
+    // Exactly AckConstants.maxAckBlocks (256) blocks must not trigger trimming: the guard
     // is "> 256", not ">= 256".
     func testAckMaxBlocksBoundary() {
         for i in 0..<256 {

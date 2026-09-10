@@ -287,8 +287,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 remote: serverEndpoint,
                 parameters: clientParameters,
                 path: clientPath,
-                context: clientParameters.context,
-                listenerProtocol: clientListenerLinkage
+                context: clientParameters.context
             )
             XCTAssertNotNil(clientUpperHarness, "Failed to attach stack to client upper harness")
             guard let clientUpperHarness else {
@@ -329,8 +328,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 remote: clientEndpoint,
                 parameters: serverParameters,
                 path: serverPath,
-                context: serverParameters.context,
-                listenerProtocol: serverListenerLinkage
+                context: serverParameters.context
             )
             XCTAssertNotNil(serverUpperHarness, "Failed to attach QUIC to server upper harness")
             guard let serverUpperHarness else {

@@ -218,13 +218,6 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
-    public func setApplicationError(_ applicationError: UInt64, applicationErrorReason: String) {
-        if let metadata: ProtocolMetadata<QUICProtocol> = self.getMetadata() {
-            metadata.perProtocolMetadata?.quicConnectionMetadata?.applicationError = applicationError
-            metadata.perProtocolMetadata?.quicConnectionMetadata?.applicationErrorReason = applicationErrorReason
-        }
-    }
-
     public func invokeDataStallEvent() {
         invokeApplicationEvent(.dataStall)
     }
@@ -247,37 +240,6 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
-
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: LinkageFamily.Listener
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try listenerProtocol.invokeAttachUpperDatagramProtocolToNewFlow(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
-    }
-
     public func write(_ datagram: [UInt8]) -> Bool {
         do throws(NetworkError) {
             let frames = try invokeGetDatagramsToSend(maximumDatagramCount: 1, minimumDatagramSize: datagram.count)
@@ -372,36 +334,6 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
             return
         }
         completions.outboundAborted = completion
-    }
-
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: LinkageFamily.Listener
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try listenerProtocol.invokeAttachUpperStreamProtocolToNewFlow(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
     }
 
     public func write(_ bytes: [UInt8], sendFIN: Bool = false, earlyData: Bool = false) -> Bool {
@@ -755,7 +687,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         }
     }
 
-    fileprivate init(
+    public init(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -771,26 +703,6 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
         self.path = path
         reference = .init(context: context, eventManager: &self.eventManager)
     }
-
-    #if !NETWORK_EMBEDDED
-    public init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        listenerProtocol: LinkageFamily.Listener
-    ) {
-        log.logPrefix = "[NewFlowHarness:\(identifier)]"
-        self.context = context
-        self.local = local
-        self.remote = remote
-        self.parameters = parameters
-        self.path = path
-        reference = .init(context: context, eventManager: &self.eventManager)
-    }
-    #endif
 
     public func waitForDisconnected(completion: @escaping () -> Void) {
         if receivedDisconnected {
@@ -851,36 +763,6 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 @available(Network 0.1.0, *)
 public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFlowHarness<LinkageFamily, DatagramUpperHarness<LinkageFamily>> {
 
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        datagramListenerProtocol: LinkageFamily.Listener
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try datagramListenerProtocol.invokeAttachNewDatagramFlowProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
-    }
-
     public override func handleNewInboundFlowEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -890,7 +772,7 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
         log.debug(
             "Received new inbound flow event with reference \(flowReference) with flowMetadata: \(flowMetadata.debugDescription)"
         )
-        do throws(NetworkError) {
+//        do throws(NetworkError) {
             let newUpperHarness = HarnessType(
                 identifier: "Inbound",
                 local: local,
@@ -899,56 +781,27 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
                 path: path,
                 context: context
             )
-            newUpperHarness.lower = try lower.invokeAttachUpperDatagramProtocolToExistingFlow(
-                newUpperHarness.reference,
-                flowReference: flowReference
-            )
+            // TODO: TFPDEBUG fix this
+//            newUpperHarness.lower = try lower.invokeAttachUpperProtocolToExistingFlow(_:existingProtocol:)
+//                newUpperHarness.reference,
+//                flowReference: flowReference
+//            )
             upperHarnesses.append(newUpperHarness)
             newUpperHarness.flowMetadata = flowMetadata
             newUpperHarness.invokeConnect(state: &state)
             if let newFlowCompletion = completions.newFlow.popFirst() {
                 newFlowCompletion()
             }
-        } catch {
-            log.error("Failed to attach new inbound flow")
-            return
-        }
+//        } catch {
+//            log.error("Failed to attach new inbound flow")
+//            return
+//        }
     }
 }
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHarness<LinkageFamily, StreamUpperHarness<LinkageFamily>> {
 
-    public convenience init?(
-        identifier: String = "",
-        local: Endpoint,
-        remote: Endpoint,
-        parameters: Parameters,
-        path: PathProperties,
-        context: NetworkContext,
-        streamListenerProtocol: LinkageFamily.Listener
-    ) {
-        self.init(
-            identifier: identifier,
-            local: local,
-            remote: remote,
-            parameters: parameters,
-            path: path,
-            context: context
-        )
-        do throws(NetworkError) {
-            self.lower = try streamListenerProtocol.invokeAttachNewStreamFlowProtocol(
-                reference,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            return nil
-        }
-    }
-
     public override func handleNewInboundFlowEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -958,7 +811,7 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
         log.debug(
             "Received new inbound flow event with reference \(flowReference) with flowMetadata: \(flowMetadata.debugDescription)"
         )
-        do throws(NetworkError) {
+//        do throws(NetworkError) {
             let newUpperHarness = HarnessType(
                 identifier: "Inbound",
                 local: local,
@@ -967,20 +820,21 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
                 path: path,
                 context: context
             )
-            newUpperHarness.lower = try lower.invokeAttachUpperStreamProtocolToExistingFlow(
-                newUpperHarness.reference,
-                flowReference: flowReference
-            )
+            // TODO: TFPDEBUG FIX THIS
+//            newUpperHarness.lower = try lower.invokeAttachUpperStreamProtocolToExistingFlow(
+//                newUpperHarness.reference,
+//                flowReference: flowReference
+//            )
             upperHarnesses.append(newUpperHarness)
             newUpperHarness.flowMetadata = flowMetadata
             newUpperHarness.invokeConnect(state: &state)
             if let newFlowCompletion = completions.newFlow.popFirst() {
                 newFlowCompletion()
             }
-        } catch {
-            log.error("Failed to attach new inbound flow")
-            return
-        }
+//        } catch {
+//            log.error("Failed to attach new inbound flow")
+//            return
+//        }
     }
 }
 

@@ -43,20 +43,20 @@ internal import os
 public struct QUICLoopbackState {
     public let context: NetworkContext
     public var clientApplicationLayers: [StreamUpperHarness<DefaultStreamLinkageFamily>]
-    public let clientInstance: QUICConnection
+    public let clientInstance: QUICConnection<DefaultQUICLinkageFamilies>
     public let clientNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>
     public let serverApplicationLayer: NewStreamFlowHarness<DefaultStreamLinkageFamily>
     public let serverNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>
-    public let serverInstance: QUICConnection
+    public let serverInstance: QUICConnection<DefaultQUICLinkageFamilies>
     public let clientNewFlowHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
     public init(
         context: NetworkContext,
         clientApplicationLayers: [StreamUpperHarness<DefaultStreamLinkageFamily>],
-        clientInstance: QUICConnection,
+        clientInstance: QUICConnection<DefaultQUICLinkageFamilies>,
         clientNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
         serverApplicationLayer: NewStreamFlowHarness<DefaultStreamLinkageFamily>,
         serverNetworkLayer: DatagramLowerHarness<DefaultDatagramLinkageFamily>,
-        serverInstance: QUICConnection,
+        serverInstance: QUICConnection<DefaultQUICLinkageFamilies>,
         clientNewFlowHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>?
     ) {
         self.context = context
@@ -73,7 +73,7 @@ public struct QUICLoopbackState {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICClientEndpointResult {
-    public var instance: QUICConnection
+    public var instance: QUICConnection<DefaultQUICLinkageFamilies>
     public var parameters: Parameters
     public var upperHandler: StreamUpperHarness<DefaultStreamLinkageFamily>
     public var lowerHandler: DatagramLowerHarness<DefaultDatagramLinkageFamily>
@@ -83,7 +83,7 @@ public struct QUICClientEndpointResult {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICServerEndpointResult {
-    public var instance: QUICConnection
+    public var instance: QUICConnection<DefaultQUICLinkageFamilies>
     public var parameters: Parameters
     public var upperHandler: NewStreamFlowHarness<DefaultStreamLinkageFamily>
     public var lowerHandler: DatagramLowerHarness<DefaultDatagramLinkageFamily>
@@ -138,7 +138,7 @@ public final class QUICBenchmarkUtility {
     }
 
     public func createClientEndpoint(
-        instance: QUICProtocol.Instance,
+        instance: QUICConnection<DefaultQUICLinkageFamilies>,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -161,12 +161,8 @@ public final class QUICBenchmarkUtility {
             remote: remoteEndpoint,
             parameters: parameters,
             path: path,
-            context: context,
-            listenerProtocol: listenerLinkage
+            context: context
         )
-        guard let streamHandler else {
-            return nil
-        }
         let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: context)
         do {
             try instance.attachLowerDatagramProtocolForNewPath(
@@ -190,7 +186,7 @@ public final class QUICBenchmarkUtility {
     }
 
     public func createServerEndpoint(
-        instance: QUICProtocol.Instance,
+        instance: QUICConnection<DefaultQUICLinkageFamilies>,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -213,12 +209,12 @@ public final class QUICBenchmarkUtility {
             parameters: serverParameters,
             path: serverPath,
             context: context,
-            streamListenerProtocol: listenerLinkage
+//            streamListenerProtocol: listenerLinkage
         )
-        guard let serverNewFlowHandler else {
-            logger.log("Failed to create server new flow handler")
-            return nil
-        }
+//        guard let serverNewFlowHandler else {
+//            logger.log("Failed to create server new flow handler")
+//            return nil
+//        }
 
         let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: context)
         do {

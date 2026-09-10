@@ -27,11 +27,11 @@ let quicStreamTestsLogPrefixer = LogPrefixer("[QUICStreamTests]")
 
 @available(Network 0.1.0, *)
 final class QUICStreamTests: XCTestCase {
-    var stream: QUICStreamInstance!
-    var connection = QUICConnection(context: NetworkContext.implicitContext)
+    var stream: QUICDefaultStream!
+    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
 
     override func setUp() {
-        stream = QUICStreamInstance(parent: connection, inbound: false)
+        stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: quicStreamTestsLogPrefixer
@@ -56,13 +56,13 @@ final class QUICStreamTests: XCTestCase {
 
 @available(Network 0.1.0, *)
 final class QUICStreamIDStateTests: XCTestCase {
-    var streamsState = QUICStreamIDState(.unidirectional)
-    var connection = QUICConnection(context: NetworkContext.implicitContext)
-    var stream: QUICStreamInstance!
+    var streamsState = QUICDefaultStreamIDState(.unidirectional)
+    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+    var stream: QUICDefaultStream!
     var logPrefix = LogPrefixer("[QUICStreamTests]")
 
     override func setUp() {
-        stream = QUICStreamInstance(parent: connection, inbound: false)
+        stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: quicStreamTestsLogPrefixer
@@ -92,14 +92,14 @@ final class QUICStreamIDStateTests: XCTestCase {
 
 @available(Network 0.1.0, *)
 final class QUICStreamListTests: XCTestCase {
-    var connection = QUICConnection(context: NetworkContext.implicitContext)
+    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     var logPrefix = LogPrefixer("[QUICStreamListTests]")
 
     func testQUICStreamList() {
         var unblockedList = QUICStreamList.unblockedSendStreamList()
         var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
         XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: quicStreamTestsLogPrefixer
@@ -113,7 +113,7 @@ final class QUICStreamListTests: XCTestCase {
     func testQUICStreamListPreventDuplicate() {
         var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
         XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: quicStreamTestsLogPrefixer
@@ -130,7 +130,7 @@ final class QUICStreamListTests: XCTestCase {
         var unblockedList = QUICStreamList.unblockedSendStreamList()
         var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
         XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: quicStreamTestsLogPrefixer

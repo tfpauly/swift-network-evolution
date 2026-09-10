@@ -26,10 +26,10 @@ import XCTest
 final class FlowControlTests: XCTestCase {
     func testOutboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection(
+        let connection = QUICConnection<DefaultQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: logPrefixer
@@ -62,15 +62,15 @@ final class FlowControlTests: XCTestCase {
 
     func testInboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection(
+        let connection = QUICConnection<DefaultQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: logPrefixer
         )
-        let newPath = QUICPath(parent: connection)
+        let newPath = QUICDefaultPath(parent: connection)
 
         newPath.mss = 1200
         connection.currentPath = newPath
@@ -99,10 +99,10 @@ final class FlowControlTests: XCTestCase {
 
     func testDuplicateResetStreamOverflow() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection(
+        let connection = QUICConnection<DefaultQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(
             streamID: QUICStreamID(0),
             logPrefixer: logPrefixer

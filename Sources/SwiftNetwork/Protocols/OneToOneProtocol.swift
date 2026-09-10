@@ -305,10 +305,6 @@ where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundStreamLinkag
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable {
-    // TODO: TFPDEBUG REMOVE OR FIX
-    var asUpper: LowerProtocol.PairedLinkage { .init() }
-    var asLower: UpperProtocol.PairedLinkage { .init() }
-
     internal func validate(
         upper upperProtocol: ProtocolInstanceReference,
         _ label: String
@@ -733,22 +729,6 @@ extension OneToOneDatagramProtocol where Self: ~Copyable {
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundStreamLinkage {
-    public mutating func attachLowerStreamProtocolToExistingFlow<Listener: StreamListenerLinkage>(
-        listener: Listener,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) where Listener.PairedLinkage.DataLinkage == LowerProtocol {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        if upper.isDetached {
-            passthroughEvents = false
-        }
-        self.lower = try listener.invokeAttachUpperStreamProtocolToExistingFlow(
-            effectiveSelfReference,
-            flowReference: flowReference
-        )
-    }
-
     public mutating func invokeReceiveStreamData(
         state: inout NetworkContext.State,
         minimumBytes: Int,

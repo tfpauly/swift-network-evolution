@@ -74,8 +74,8 @@ class QUICTestHarness {
         let clientReference: ProtocolInstanceReference
         let serverReference: ProtocolInstanceReference
 
-        let clientInstance: QUICProtocol.Instance
-        let serverInstance: QUICProtocol.Instance
+        let clientInstance: QUICConnection<DefaultQUICLinkageFamilies>
+        let serverInstance: QUICConnection<DefaultQUICLinkageFamilies>
     }
     var state: QUICHarnessState? = nil
 
@@ -154,7 +154,7 @@ class QUICTestHarness {
             clientParameters.context = self.context
             clientParameters.isServer = false
 
-            let clientInstance = QUICProtocol.Instance(context: self.context)
+            let clientInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: self.context)
             let clientReference = clientInstance.reference
             self.updateQUICOptions(clientOptions, server: false, datagram: datagram)
             clientOptions.setLogID(
@@ -182,7 +182,7 @@ class QUICTestHarness {
             serverParameters.context = self.context
             serverParameters.isServer = true
 
-            let serverInstance = QUICProtocol.Instance(context: self.context)
+            let serverInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: self.context)
             let serverReference = serverInstance.reference
             serverOptions.setLogID(
                 prefix: "L",
@@ -212,8 +212,7 @@ class QUICTestHarness {
                 remote: self.serverEndpoint,
                 parameters: clientParameters,
                 path: clientPath,
-                context: self.context,
-                listenerProtocol: clientLinkage
+                context: self.context
             )
 //            do {
 //                try clientReference.attachLowerDatagramProtocolForNewPath(
@@ -234,8 +233,7 @@ class QUICTestHarness {
                 remote: self.clientEndpoint,
                 parameters: serverParameters,
                 path: serverPath,
-                context: self.context,
-                listenerProtocol: serverLinkage
+                context: self.context
             )
 //            do {
 //                try serverReference.attachLowerDatagramProtocolForNewPath(
@@ -254,6 +252,7 @@ class QUICTestHarness {
             let serverDatagramHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
 
             if datagram {
+                // TODO: FIX THIS
                 let clientDatagramLinkage = DefaultDatagramListenerLinkage(reference: clientReference)
                 clientDatagramHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client",
@@ -261,8 +260,7 @@ class QUICTestHarness {
                     remote: self.serverEndpoint,
                     parameters: clientParameters,
                     path: clientPath,
-                    context: self.context,
-                    listenerProtocol: clientDatagramLinkage
+                    context: self.context
                 )
 
                 let serverDatagramLinkage = DefaultDatagramListenerLinkage(reference: serverReference)
@@ -272,19 +270,18 @@ class QUICTestHarness {
                     remote: self.clientEndpoint,
                     parameters: serverParameters,
                     path: serverPath,
-                    context: self.context,
-                    listenerProtocol: serverDatagramLinkage
+                    context: self.context
                 )
             } else {
                 clientDatagramHarness = nil
                 serverDatagramHarness = nil
             }
 
-            guard let serverHarness, let clientHarness else {
-                // Fail fast
-                handshakeExpectation.fulfill()
-                return
-            }
+//            guard let serverHarness, let clientHarness else {
+//                // Fail fast
+//                handshakeExpectation.fulfill()
+//                return
+//            }
 
             self.state = QUICHarnessState(
                 clientHarness: clientHarness,
@@ -362,7 +359,7 @@ class QUICTestHarness {
         quicOptions: ProtocolOptions<QUICProtocol> = QUICProtocol.options(),
         serverInitiated: Bool = false
     ) -> StreamUpperHarness<DefaultStreamLinkageFamily>? {
-        var handlerInstance: QUICProtocol.Instance?
+        var handlerInstance: QUICConnection<DefaultQUICLinkageFamilies>?
         if serverInitiated {
             handlerInstance = state?.serverInstance
         } else {
@@ -397,14 +394,13 @@ class QUICTestHarness {
                 remote: self.serverEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
             )
             XCTAssertNotNil(streamUpperHarness, "Failed to attach new QUIC stream")
-            guard let streamUpperHarness else {
-                newStreamExpectation.fulfill()
-                return
-            }
+//            guard let streamUpperHarness else {
+//                newStreamExpectation.fulfill()
+//                return
+//            }
             upperHarness = streamUpperHarness
 
             guard let upperHarness else {
@@ -465,20 +461,21 @@ class QUICTestHarness {
             path.effectiveMTU = 1500
 
             let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
+            // TODO: TFPDEBUG fix this
             let datagramUpperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: identifier,
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
+//                listenerProtocol: listenerLinkage
             )
-            XCTAssertNotNil(datagramUpperHarness, "Failed to attach new QUIC datagram flow")
-            guard let datagramUpperHarness else {
-                newFlowExpectation.fulfill()
-                return
-            }
+//            XCTAssertNotNil(datagramUpperHarness, "Failed to attach new QUIC datagram flow")
+//            guard let datagramUpperHarness else {
+//                newFlowExpectation.fulfill()
+//                return
+//            }
             upperHarness = datagramUpperHarness
 
             guard let upperHarness else {
@@ -1609,13 +1606,12 @@ class QUICTestHarness {
                 remote: self.serverEndpoint,
                 parameters: parameters,
                 path: path,
-                context: self.context,
-                listenerProtocol: listenerLinkage
+                context: self.context
             )
-            XCTAssertNotNil(ninthStream, "Failed to attach new QUIC stream")
-            guard let ninthStream else {
-                return
-            }
+//            XCTAssertNotNil(ninthStream, "Failed to attach new QUIC stream")
+//            guard let ninthStream else {
+//                return
+//            }
             // This stream should be added as pending because its over the stream limit
             ninthStream.start()
             self.state?.clientHarness.upperHarnesses.append(ninthStream)

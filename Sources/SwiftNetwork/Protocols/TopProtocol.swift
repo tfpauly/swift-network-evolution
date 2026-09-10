@@ -322,9 +322,6 @@ extension TopDatagramProtocol where Self: ~Copyable, Self: ~Copyable {
 
 @available(Network 0.1.0, *)
 extension TopProtocolHandler where Self: ~Copyable {
-    // TODO: TFPDEBUG remove
-    var asUpper: LowerProtocol.PairedLinkage { .init() }
-
     internal func validate(
         lower lowerProtocol: ProtocolInstanceReference,
         _ label: String
@@ -406,23 +403,6 @@ extension TopDatapathProtocol where Self: ~Copyable {
     public func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {}
 
     public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {}
-}
-
-@available(Network 0.1.0, *)
-extension TopProtocolHandler
-where Self: ~Copyable, LinkageFamily: StreamLinkageFamily, LinkageFamily.Lower == LowerProtocol {
-    public mutating func attachLowerStreamProtocolToExistingFlow<Listener: StreamListenerLinkage>(
-        listener: Listener,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) where Listener.PairedLinkage.DataLinkage == LinkageFamily.Lower {
-        guard lower.isDetached else {
-            throw NetworkError.posix(EALREADY)
-        }
-        self.lower = try listener.invokeAttachUpperStreamProtocolToExistingFlow(
-            reference,
-            flowReference: flowReference
-        )
-    }
 }
 
 @available(Network 0.1.0, *)

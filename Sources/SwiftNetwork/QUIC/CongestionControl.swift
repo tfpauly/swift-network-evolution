@@ -87,9 +87,9 @@ enum CongestionControl {
         }
     }
 
-    mutating func ackEnd(
+    mutating func ackEnd<Families: QUICLinkageFamilies>(
         rtt: borrowing RTT,
-        path: QUICPath?,
+        path: QUICPath<Families>?,
         mss: Int,
         packetsLost: Bool,
         qlog: QLog? = nil
@@ -141,7 +141,8 @@ enum CongestionControl {
         }
     }
 
-    mutating func packetsLost(
+    mutating func packetsLost<Families: QUICLinkageFamilies>(
+        path: QUICPath<Families>?,
         bytesLost: Int,
         largestLostSentTime: NetworkClock.Instant,
         mss: Int,
@@ -150,6 +151,7 @@ enum CongestionControl {
         switch self {
         case .cubic(algorithm: var cubic):
             let reducedCongestionWindow = cubic.packetLost(
+                path: path,
                 bytesLost: bytesLost,
                 largestLostSentTime: largestLostSentTime,
                 mss: mss,
@@ -160,6 +162,7 @@ enum CongestionControl {
         #if !NETWORK_EMBEDDED
         case .ledbat(algorithm: var ledbat):
             let reducedCongestionWindow = ledbat.packetLost(
+                path: path,
                 bytesLost: bytesLost,
                 largestLostSentTime: largestLostSentTime,
                 mss: mss,
@@ -169,6 +172,7 @@ enum CongestionControl {
             return reducedCongestionWindow
         case .prague(algorithm: var prague):
             let reducedCongestionWindow = prague.packetLost(
+                path: path,
                 bytesLost: bytesLost,
                 largestLostSentTime: largestLostSentTime,
                 mss: mss,
@@ -324,9 +328,9 @@ protocol CongestionControlProtocol: PrefixedLoggable {
         qlog: QLog?
     )
     mutating func reset(mss: Int, qlog: QLog?)
-    mutating func ackEnd(
+    mutating func ackEnd<Families: QUICLinkageFamilies>(
         rtt: borrowing RTT,
-        path: QUICPath?,
+        path: QUICPath<Families>?,
         mss: Int,
         packetsLost: Bool,
         qlog: QLog?
@@ -334,8 +338,8 @@ protocol CongestionControlProtocol: PrefixedLoggable {
     mutating func spuriousRetransmit(qlog: QLog?)
     mutating func idleTimeout(mss: Int, qlog: QLog?)
     mutating func enterRecovery(mss: Int, qlog: QLog?)
-    mutating func processECN(
-        path: QUICPath?,
+    mutating func processECN<Families: QUICLinkageFamilies>(
+        path: QUICPath<Families>?,
         ceCount: Int,
         packetsAcked: Int,
         largestSentPN: Int64,
@@ -345,8 +349,8 @@ protocol CongestionControlProtocol: PrefixedLoggable {
         smoothedRTT: NetworkDuration,
         qlog: QLog?
     )
-    mutating func packetLost(
-        path: QUICPath?,
+    mutating func packetLost<Families: QUICLinkageFamilies>(
+        path: QUICPath<Families>?,
         bytesLost: Int,
         largestLostSentTime: NetworkClock.Instant,
         mss: Int,

@@ -49,16 +49,16 @@ enum PacketBuilderError: Int, Error {
 
 @available(Network 0.1.0, *)
 extension Packet {
-    static func build(
+    static func build<Families: QUICLinkageFamilies>(
         into outboundFrame: inout Frame,
         number: PacketNumber,
         lastAcked: PacketNumber,
         keyState: PacketKeyState,
-        path: QUICPath,
+        path: QUICPath<Families>,
         tagSize: UInt8,
         pendingItems: inout PendingItems,
         sentPacketRecord: inout SentPacketRecord,
-        connection: QUICConnection,
+        connection: QUICConnection<Families>,
         availableCongestionWindow: UInt64,
         token: [UInt8]?,
         stats: inout Statistics,

@@ -49,27 +49,33 @@ internal import CryptoKit
 #endif
 #endif
 
+// Buffer limit for crypto reassembly. Lives outside QUICCrypto because a generic type
+// cannot have static stored properties.
 @available(Network 0.1.0, *)
-final class QUICCrypto {
+enum QUICCryptoConstants {
+    static let bufferLimit: Int = 4 * 1024
+}
+
+@available(Network 0.1.0, *)
+final class QUICCrypto<Families: QUICLinkageFamilies> {
     var eventManager = ProtocolEventManager()
 
-    // Set in start(with:), once parentConnection (which provides the context) is available.
-    var reference = ProtocolInstanceReference()
+    var reference: ProtocolInstanceReference
 
-    var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance<DefaultStreamLinkageFamily>
+    var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance<LinkageFamily>
 
     var outboundCryptoInitialOffset: Int = 0
     var outboundCrypto1RTTOffset: Int = 0
     var outboundCryptoHandshakeOffset: Int = 0
 
-    var parentConnection: QUICConnection?
+    var parentConnection: QUICConnection<Families>?
 
-    var tlsLinkage = DefaultOutboundStreamLinkage()  // Linkage for control path on top of TLS
+    var tlsLinkage = LowerProtocol()  // Linkage for control path on top of TLS
 
-    var initialLinkage = DefaultInboundStreamLinkage()
-    var earlyDataLinkage = DefaultInboundStreamLinkage()
-    var handshakeLinkage = DefaultInboundStreamLinkage()
-    var applicationLinkage = DefaultInboundStreamLinkage()
+    var initialLinkage = UpperProtocol()
+    var earlyDataLinkage = UpperProtocol()
+    var handshakeLinkage = UpperProtocol()
+    var applicationLinkage = UpperProtocol()
 
     var initialReassemblyQueue = ReassemblyQueue()
     var handshakeReassemblyQueue = ReassemblyQueue()
@@ -89,27 +95,23 @@ final class QUICCrypto {
 
     var enableEarlyData = false
 
-    static let bufferLimit: Int = 4 * 1024
-
     // TODO: TFPDEBUG FIX THIS
-    var asUpper: DefaultInboundStreamLinkage { .init() }
-    var asLower: DefaultOutboundStreamLinkage { .init() }
+    var asLower: LowerProtocol { .init() }
 
     struct cryptoQueuedPackets {
     }
     var cryptoQueue = Deque<cryptoQueuedPackets>()
 
     init(context: NetworkContext) {
-        tlsInstance = SwiftTLSProtocol.SwiftTLSInstance<DefaultStreamLinkageFamily>(context: context)
+        reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        tlsInstance = SwiftTLSProtocol.SwiftTLSInstance<LinkageFamily>(context: context)
     }
 
     func start(
-        with parentConnection: QUICConnection,
+        with parentConnection: QUICConnection<Families>,
         tlsOptions inputTLSOptions: SwiftTLSProtocol.Options
     ) -> Bool {
         self.parentConnection = parentConnection
-        // Build the reference now that the context (via parentConnection) is available.
-        self.reference = .init()
 
         initialReassemblyQueue.log = NetworkLoggerState("[TLS-Initial]")
         handshakeReassemblyQueue.log = NetworkLoggerState("[TLS-Handshake]")
@@ -123,12 +125,6 @@ final class QUICCrypto {
         if let transportParameterBytes = try? parentConnection.localTransportParameters.serialize() {
             mutableTLSOptions.quicTransportParameters = transportParameterBytes
         }
-
-        #if IMPORT_SWIFTTLS
-        #if canImport(SwiftTLS)
-        mutableTLSOptions.quicInstance = self
-        #endif
-        #endif
 
         let tlsOptions = SwiftTLSProtocol.options()
         tlsOptions.setLogID(
@@ -220,8 +216,8 @@ final class QUICCrypto {
 extension QUICCrypto: SwiftTLSQUICInstance {
     func getLowerLinkage(
         for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: DefaultInboundStreamLinkage
-    ) -> DefaultOutboundStreamLinkage {
+        upperLinkage: UpperProtocol
+    ) -> LowerProtocol {
         switch level {
         case .initial: initialLinkage = upperLinkage
         case .earlyData: earlyDataLinkage = upperLinkage
@@ -363,12 +359,12 @@ extension QUICCrypto: SwiftTLSQUICInstance {
 
 @available(Network 0.1.0, *)
 extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
-    typealias LinkageFamily = DefaultStreamLinkageFamily
+    typealias LinkageFamily = Families.StreamFlowLinkageFamily
     typealias LowerProtocol = LinkageFamily.Lower
 
     var context: NetworkContext { parentConnection!.context }
 
-    var lower: DefaultOutboundStreamLinkage {
+    var lower: LowerProtocol {
         get { tlsLinkage }
         set { tlsLinkage = newValue }
     }
@@ -417,12 +413,12 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
         for packetNumberSpace: PacketNumberSpace,
         reassemblyQueue: inout ReassemblyQueue,
         frameArray: inout FrameArray,
-        linkage: DefaultInboundStreamLinkage,
+        linkage: UpperProtocol,
         state: inout NetworkContext.State
     ) -> Bool {
 
         let bufferLimitForPNSpace =
-            packetNumberSpace == .handshake ? 2 * QUICCrypto.bufferLimit : QUICCrypto.bufferLimit
+            packetNumberSpace == .handshake ? 2 * QUICCryptoConstants.bufferLimit : QUICCryptoConstants.bufferLimit
         guard reassemblyQueue.size <= bufferLimitForPNSpace else {
             parentConnection?.log.error(
                 "Read crypto buffer size \(reassemblyQueue.size) is larger than limit \(bufferLimitForPNSpace)"
@@ -496,7 +492,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
 // Per-Level Sending Callbacks
 @available(Network 0.1.0, *)
 extension QUICCrypto: OutboundStreamHandler {
-    typealias UpperProtocol = DefaultInboundStreamLinkage
+    typealias UpperProtocol = LinkageFamily.Upper
 
     func attachUpperProtocol(
         _ upperProtocol: UpperProtocol,
@@ -510,8 +506,10 @@ extension QUICCrypto: OutboundStreamHandler {
     func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {}
 
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        // TODO: TFPDEBUG FIX THIS
-        DefaultInboundStreamLinkage().deliverConnectedEvent(state: &state, reference)
+        if from == initialLinkage.reference { initialLinkage.deliverConnectedEvent(state: &state, reference) }
+        if from == earlyDataLinkage.reference { earlyDataLinkage.deliverConnectedEvent(state: &state, reference) }
+        if from == handshakeLinkage.reference { handshakeLinkage.deliverConnectedEvent(state: &state, reference) }
+        if from == applicationLinkage.reference { applicationLinkage.deliverConnectedEvent(state: &state, reference) }
     }
 
     func disconnect(

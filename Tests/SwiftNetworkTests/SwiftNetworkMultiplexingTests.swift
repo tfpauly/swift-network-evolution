@@ -52,14 +52,14 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
 
             let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
 
+            // TODO: TFPDEBUG fix these
             listenerHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Listener1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
             )
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
             guard let listenerHarness else {
@@ -72,8 +72,8 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
+//                listenerProtocol: listenerLinkage
             )
 
             XCTAssertNotNil(upperHarness1, "Failed to attach multiplexing test to upper harness")
@@ -153,19 +153,20 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
             instance.triggerNewFlowCreation()
             XCTAssertEqual(listenerHarness.upperHarnesses.count, 1, "Listener expects to have 1 inbound flows")
 
+            // TODO: FIX THIS
             let upperHarness2 = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client2",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
+//                listenerProtocol: listenerLinkage
             )
             XCTAssertNotNil(upperHarness2, "Failed to attach multiplexing test to inbound harness 2")
-            guard let upperHarness2 else {
-                return
-            }
+//            guard let upperHarness2 else {
+//                return
+//            }
 
             upperHarness2.start { _ in }
 
@@ -175,13 +176,13 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
+//                listenerProtocol: listenerLinkage
             )
             XCTAssertNotNil(upperHarness3, "Failed to attach multiplexing test to inbound harness 3")
-            guard let upperHarness3 else {
-                return
-            }
+//            guard let upperHarness3 else {
+//                return
+//            }
 
             upperHarness3.start { _ in }
 
@@ -241,8 +242,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 remote: remoteEndpoint,
                 parameters: parameters,
                 path: path,
-                context: parameters.context,
-                listenerProtocol: listenerLinkage
+                context: parameters.context
             )
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
             guard let listenerHarness else {
@@ -271,20 +271,15 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
             }
 
             for index in 0..<upperHarnessCount {
+                // TODO: TFPDEBUG FIX THIS
                 let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
                     identifier: "Client\(index)",
                     local: localEndpoint,
                     remote: remoteEndpoint,
                     parameters: parameters,
                     path: path,
-                    context: parameters.context,
-                    listenerProtocol: listenerLinkage
+                    context: parameters.context
                 )
-                XCTAssertNotNil(upperHarness, "Failed to attach multiplexing test to upper harness")
-                guard let upperHarness else {
-                    expectation.fulfill()
-                    return
-                }
 
                 upperHarnesses.append(upperHarness)
                 upperHarness.start { connected in

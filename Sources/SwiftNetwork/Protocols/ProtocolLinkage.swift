@@ -192,56 +192,18 @@ extension InboundFlowLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol ListenerLinkage: LowerProtocolLinkage where PairedLinkage: InboundFlowLinkage {
-    #if !NETWORK_EMBEDDED
     func invokeAttachUpperProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
+        _ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Self.PairedLinkage.DataLinkage
+    ) throws(NetworkError)
 
     func invokeAttachUpperProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> Self.PairedLinkage.DataLinkage
-    #endif
-}
-
-@available(Network 0.1.0, *)
-extension ListenerLinkage {
-    #if !NETWORK_EMBEDDED
-    public func invokeAttachUpperProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Self.PairedLinkage.DataLinkage {
-        throw .posix(1)
-//        try reference.attachUpperProtocolToNewFlow(
-//            from,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-//        return .init(reference: from)
-    }
-
-    public func invokeAttachUpperProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> Self.PairedLinkage.DataLinkage {
-        throw .posix(1)
-
-//        try reference.attachUpperProtocolToExistingFlow(
-//            from,
-//            flowReference: flowReference
-//        )
-//        return .init(reference: from)
-    }
-    #endif
+        _ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage,
+        existingFlow: PairedLinkage.DataLinkage
+    ) throws(NetworkError)
 }
 
 @_spi(ProtocolProvider)
@@ -465,67 +427,9 @@ extension InboundStreamLinkage {
     }
 }
 
-/// A stub inbound stream linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundStreamLinkage: InboundStreamLinkage {
-    public typealias PairedLinkage = DefaultOutboundStreamLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-    }
-
-    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-}
-
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OutboundStreamLinkage: OutboundDataLinkage where PairedLinkage: InboundStreamLinkage {
-
     func receiveStreamData(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -641,140 +545,13 @@ public extension OutboundStreamLinkage {
     }
 }
 
-/// A stub outbound stream linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultOutboundStreamLinkage: OutboundStreamLinkage {
-    public typealias PairedLinkage = DefaultInboundStreamLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
-    }
-
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-
-    public func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        minimumBytes: Int,
-        maximumBytes: Int
-    ) throws(NetworkError) -> FrameArray? {
-        return nil
-    }
-    public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) -> Int {
-        return 0
-    }
-    public func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
-    ) throws(NetworkError) {
-        var streamData = streamData
-        streamData.finalizeAllFramesAsFailed()
-    }
-
-    public func sendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
-    ) throws(NetworkError) {
-        var streamData = streamData
-        streamData.finalizeAllFramesAsFailed()
-    }
-
-    public func abortInbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) throws(NetworkError) {
-    }
-    public func abortOutbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) throws(NetworkError) {
-    }
-}
-
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol InboundDatagramFlowLinkage: InboundFlowLinkage where PairedLinkage: DatagramListenerLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol DatagramListenerLinkage: ListenerLinkage where PairedLinkage: InboundDatagramFlowLinkage {
-    func invokeAttachUpperDatagramProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> PairedLinkage.DataLinkage
-
-    func invokeAttachNewDatagramFlowProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Self
-
-    func invokeAttachUpperDatagramProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> PairedLinkage.DataLinkage
-}
+public protocol DatagramListenerLinkage: ListenerLinkage where PairedLinkage: InboundDatagramFlowLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -782,206 +559,4 @@ public protocol InboundStreamFlowLinkage: InboundFlowLinkage where PairedLinkage
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol StreamListenerLinkage: ListenerLinkage where PairedLinkage: InboundStreamFlowLinkage {
-    func invokeAttachUpperStreamProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> PairedLinkage.DataLinkage
-
-    func invokeAttachNewStreamFlowProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Self
-
-    func invokeAttachUpperStreamProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> PairedLinkage.DataLinkage
-}
-
-/// A stub inbound stream flow linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundStreamFlowLinkage: InboundStreamFlowLinkage {
-    public typealias PairedLinkage = DefaultStreamListenerLinkage
-    public typealias DataLinkage = DefaultOutboundStreamLinkage
-
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-
-    }
-
-    public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
-    ) {
-
-    }
-}
-
-/// A stub stream listener linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
-    public typealias PairedLinkage = DefaultInboundStreamFlowLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        // TODO: TFPDEBUG, concrete calls
-    }
-
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-
-    public func invokeAttachNewStreamFlowProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> Self {
-//        try reference.attachNewStreamFlowProtocol(
-//            from,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-        return .init()
-    }
-
-    public func invokeAttachUpperStreamProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> DefaultOutboundStreamLinkage {
-//        try reference.attachUpperStreamProtocolToNewFlow(
-//            from,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-        return .init()
-    }
-
-    public func invokeAttachUpperStreamProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> DefaultOutboundStreamLinkage {
-//        try reference.attachUpperStreamProtocolToExistingFlow(
-//            from,
-//            flowReference: flowReference
-//        )
-        return .init()
-    }
-}
-
-// TODO: For linkages, if you need to customize, you wrap up another concrete linkage. If you have your type, you catch that an invoke the function directly, and if it's generic, you pass it through to the inner linkage.
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol InboundMessageLinkage: InboundDataLinkage {
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol OutboundMessageLinkage: OutboundDataLinkage where PairedLinkage: InboundMessageLinkage {
-
-    associatedtype OutboundMessageType: ~Copyable
-
-    func invokeReceiveMessage(
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) -> OutboundMessageType?
-
-    func invokeSendMessage(
-        _ from: ProtocolInstanceReference,
-        message: consuming OutboundMessageType
-    ) throws(NetworkError)
-
-}
+public protocol StreamListenerLinkage: ListenerLinkage where PairedLinkage: InboundStreamFlowLinkage { }

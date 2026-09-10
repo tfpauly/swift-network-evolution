@@ -27,7 +27,7 @@ let migrationTestsLogPrefixer: LogPrefixer = LogPrefixer("[MigrationTests]")
 
 @available(Network 0.1.0, *)
 final class MigrationTests: XCTestCase {
-    var connection = QUICConnection(context: .implicitContext)
+    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: .implicitContext)
 
     static let oldCID = QUICConnectionID([0xA1, 0xA2, 0xA3, 0xA4])!
     static let newCID = QUICConnectionID([0xB1, 0xB2, 0xB3, 0xB4])!
@@ -36,7 +36,7 @@ final class MigrationTests: XCTestCase {
         let expectation = XCTestExpectation()
         connection.context.async {
             try? self.connection.setup(remote: nil, local: nil, parameters: nil, path: nil)
-            self.connection.recovery = Recovery(logPrefixer: migrationTestsLogPrefixer)
+            self.connection.recovery = QUICDefaultRecovery(logPrefixer: migrationTestsLogPrefixer)
             self.connection.recovery.connection = self.connection
             expectation.fulfill()
         }
@@ -50,10 +50,10 @@ final class MigrationTests: XCTestCase {
     // Builds a path that is open for sending, backed by a lower harness, with its DCID
     // registered in `remoteCIDs` so it can be retired. `validated` drives it to the
     // validated state so `migrate(to:)` will accept it.
-    private func makePath(dcid: QUICConnectionID, sequenceNumber: UInt64, validated: Bool) -> QUICPath {
+    private func makePath(dcid: QUICConnectionID, sequenceNumber: UInt64, validated: Bool) -> QUICDefaultPath {
         let lower = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "\(sequenceNumber)", context: .implicitContext)
         lower.connect()
-        var path = QUICPath(parent: connection)
+        var path = QUICDefaultPath(parent: connection)
         path.set(interface: nil, priority: 1, isInitial: true)  // -> .routeEstablished
         path.assignDCID(dcid)  // -> .cidAssigned (open for sending)
         if validated {

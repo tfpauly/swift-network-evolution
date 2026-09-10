@@ -239,8 +239,6 @@ where LinkageFamily: DatagramLinkageFamily, LinkageFamily.Upper == UpperProtocol
 
 @available(Network 0.1.0, *)
 extension BottomProtocolHandler where Self: ~Copyable {
-//    var asLower: LinkageFamily.Lower { .init(reference: reference) }
-
     public func handleApplicationEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,

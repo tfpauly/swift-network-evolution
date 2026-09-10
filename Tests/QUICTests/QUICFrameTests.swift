@@ -60,10 +60,10 @@ extension FrameDatagram {
 class QUICFrameTests: XCTestCase {
 
     var stats: Statistics!
-    var connection: QUICConnection!
+    var connection: QUICConnection<DefaultQUICLinkageFamilies>!
 
     override func setUp() {
-        connection = QUICConnection(context: NetworkContext.implicitContext)
+        connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -732,7 +732,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         defer {
@@ -762,7 +762,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         _ = try FrameStreamSendMetadata.write(
             into: &frame,
@@ -789,7 +789,7 @@ class QUICFrameTests: XCTestCase {
 
         XCTAssertEqual(frame.unclaimedLength, 7)
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         defer {
             stream.sendBuffer.empty()
@@ -818,7 +818,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let lengthToWrite = UInt64(0)
         XCTAssertThrowsError(
@@ -897,7 +897,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         defer {
@@ -927,7 +927,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         _ = try FrameStreamSendMetadata.write(
             into: &frame,
@@ -951,7 +951,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         let length = try FrameStreamSendMetadata.write(
             into: &frame,
@@ -975,7 +975,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         XCTAssertThrowsError(
             try FrameStreamSendMetadata.write(
@@ -998,7 +998,7 @@ class QUICFrameTests: XCTestCase {
         defer {
             frame.finalize(success: true)
         }
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         let length = try FrameStreamSendMetadata.write(
             into: &frame,
@@ -1186,7 +1186,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
@@ -1213,7 +1213,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         defer {
@@ -1246,7 +1246,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
 
         // Add data to sendBuffer, it won't be sent because write is for 0 length
@@ -1273,7 +1273,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1310,7 +1310,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1348,7 +1348,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(
             copyBuffer: [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
@@ -1391,7 +1391,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: streamData)
         let sendDataBeforeOffset10 = Frame(
@@ -1434,7 +1434,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: streamData)
         let sendDataBeforeOffset10 = Frame(
@@ -1475,7 +1475,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: streamData)
         let sendDataBeforeOffset10 = Frame(
@@ -1517,7 +1517,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: streamData)
         let sendDataBeforeOffset10 = Frame(
@@ -1611,7 +1611,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1644,7 +1644,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
         _ = try FrameStreamSendMetadata.write(
             into: &frame,
@@ -1669,7 +1669,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1704,7 +1704,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1738,7 +1738,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         // Putting data in stream's send buffer, even though it should not be used,
         // just to check if that affects the test outcome
@@ -1768,7 +1768,7 @@ class QUICFrameTests: XCTestCase {
             frame.finalize(success: true)
         }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
         let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
@@ -1792,7 +1792,7 @@ class QUICFrameTests: XCTestCase {
 
     #if NETWORK_PERF_TESTS
     func testStreamHeaderSizePerformance() {
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
+        let stream = QUICDefaultStream(parent: connection, inbound: false)
         stream.setup(streamID: QUICStreamID(1), logPrefixer: .init("Test"))
         let sendData = Frame(copyBuffer: [UInt8](repeating: 0xab, count: 1400))
         stream.sendBuffer.addSendData(sendData, isLast: false)
@@ -1819,9 +1819,9 @@ class QUICFrameTests: XCTestCase {
         defer {
             frame.finalize(success: false)
         }
-        var streams: [QUICStreamInstance] = []
+        var streams: [QUICDefaultStream] = []
         for idx in 0..<1_000 {
-            let stream = QUICStreamInstance(parent: connection, inbound: false)
+            let stream = QUICDefaultStream(parent: connection, inbound: false)
             stream.setup(
                 streamID: QUICStreamID(UInt64(idx))!,
                 logPrefixer: .init("Test")
@@ -3439,7 +3439,7 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testDatagramBadLengthParsing() throws {
-        let connection = QUICConnection(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
 
         let bytes: [UInt8] = [
             0x31,  // type: DATAGRAM with length

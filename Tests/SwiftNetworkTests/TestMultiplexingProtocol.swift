@@ -31,27 +31,23 @@ internal import os
 #endif
 
 @available(Network 0.1.0, *)
-final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol> {
+final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, BaseDatagramLinkageFamily> {
 
 }
 
 @available(Network 0.1.0, *)
-final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol> {
+final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, BaseDatagramLinkageFamily> {
 
 }
 
 @available(Network 0.1.0, *)
 final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     DatagramListenerHandler, HomogeneousManyToManyProtocolHandler, ProtocolInstanceContainer
-{
-    func attachNewDatagramFlowProtocol(_ from: SwiftNetwork.ProtocolInstanceReference, remote: SwiftNetwork.Endpoint?, local: SwiftNetwork.Endpoint?, parameters: SwiftNetwork.Parameters?, path: SwiftNetwork.PathProperties?) throws(SwiftNetwork.NetworkError) -> any SwiftNetwork.DatagramListenerLinkage {
-        throw NetworkError.posix(1)
-    }
-    
-    typealias UpperProtocol = DefaultInboundDatagramFlowLinkage
+{    
+    typealias UpperProtocol = Flow.LinkageFamily.InboundFlow
 
-    var inboundFlowLinkage = UpperProtocol(reference: .init())
-    var asListener: UpperProtocol.PairedLinkage { .init(reference: reference) }
+    var inboundFlowLinkage = UpperProtocol()
+    var asListener: Flow.LinkageFamily.Listener { .init() } // TODO: TFPDEBUG FIX
 
     var delayConnected = false
 

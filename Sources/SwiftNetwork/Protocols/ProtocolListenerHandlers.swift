@@ -26,82 +26,53 @@ public protocol InboundFlowHandler: ~Copyable, UpperProtocolHandler {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol ListenerHandler: ~Copyable, LowerProtocolHandler where UpperProtocol: InboundFlowLinkage {
-    #if !NETWORK_EMBEDDED
+    associatedtype Flow: LowerProtocolHandler
+
     // Create a new flow
-    mutating func attachUpperProtocolToNewFlow<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
+    mutating func attachUpperProtocolToNewFlow(
+        _ upperProtocol: Flow.UpperProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Linkage
+    ) throws(NetworkError)
 
     // Attach to an inbound flow
-    mutating func attachUpperProtocolToExistingFlow<Linkage: LowerProtocolLinkage>(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> Linkage
-    #endif
+    mutating func attachUpperProtocolToExistingFlow(
+        _ upperProtocol: Flow.UpperProtocol,
+        existingFlow: Flow.UpperProtocol.PairedLinkage
+    ) throws(NetworkError)
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol DatagramListenerHandler: ~Copyable, ListenerHandler
-where UpperProtocol.DataLinkage == DefaultOutboundDatagramLinkage {
-    mutating func attachNewDatagramFlowProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> DatagramListenerLinkage
-
-    // Create a new flow
-    mutating func attachUpperDatagramProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
-
-    // Attach to an inbound flow
-    mutating func attachUpperDatagramProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> DefaultOutboundDatagramLinkage
-}
+where UpperProtocol.DataLinkage: OutboundDatagramLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol StreamListenerHandler: ~Copyable, ListenerHandler
-where UpperProtocol: InboundStreamFlowLinkage {
-    mutating func attachNewStreamFlowProtocol(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> UpperProtocol.PairedLinkage
-
-    // Create a new flow
-    mutating func attachUpperStreamProtocolToNewFlow(
-        _ from: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) -> UpperProtocol.DataLinkage
-
-    // Attach to an inbound flow
-    mutating func attachUpperStreamProtocolToExistingFlow(
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference
-    ) throws(NetworkError) -> UpperProtocol.DataLinkage
-}
+where UpperProtocol: InboundStreamFlowLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol HeterogeneousListenerHandler: ~Copyable, ListenerHandler {
     associatedtype SecondaryUpperProtocol: InboundFlowLinkage
+
+    associatedtype SecondaryFlow: LowerProtocolHandler
+
+    // Create a new flow
+    mutating func attachUpperProtocolToNewFlow(
+        _ upperProtocol: SecondaryFlow.UpperProtocol,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError)
+
+    // Attach to an inbound flow
+    mutating func attachUpperProtocolToExistingFlow(
+        _ upperProtocol: SecondaryFlow.UpperProtocol,
+        existingFlow: SecondaryFlow.UpperProtocol.PairedLinkage
+    ) throws(NetworkError)
 }

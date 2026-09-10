@@ -28,8 +28,8 @@ struct Migration: ~Copyable {
         activeMigrationDisabled = true
     }
 
-    private func sendPendingChallenges(
-        connection: QUICConnection,
+    private func sendPendingChallenges<Families: QUICLinkageFamilies>(
+        connection: QUICConnection<Families>,
         now: NetworkClock.Instant = NetworkClock.Instant.now
     ) {
         connection.applyToAllPaths { path in
@@ -39,7 +39,7 @@ struct Migration: ~Copyable {
         }
     }
 
-    func resetTimer(connection: QUICConnection) {
+    func resetTimer<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>) {
         guard let timerID else {
             connection.log.fault("Attempt to arm the migration timer when timer ID is unset")
             return
@@ -89,13 +89,13 @@ struct Migration: ~Copyable {
         )
     }
 
-    func timerFired(connection: QUICConnection) {
+    func timerFired<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>) {
         connection.log.debug("Migration timer fired")
 
         sendPendingChallenges(connection: connection)
     }
 
-    func migrate(to path: QUICPath, connection: QUICConnection) {
+    func migrate<Families: QUICLinkageFamilies>(to path: QUICPath<Families>, connection: QUICConnection<Families>) {
         guard connection.currentPath != path else {
             return
         }
@@ -135,7 +135,7 @@ struct Migration: ~Copyable {
         }
     }
 
-    func probingPathCount(_ connection: QUICConnection) -> Int {
+    func probingPathCount<Families: QUICLinkageFamilies>(_ connection: QUICConnection<Families>) -> Int {
         var probingPaths = 0
         connection.applyToAllPaths { path in
             if path.state.isProbing {
@@ -145,7 +145,7 @@ struct Migration: ~Copyable {
         return probingPaths
     }
 
-    func handshakeConfirmed(_ connection: QUICConnection) {
+    func handshakeConfirmed<Families: QUICLinkageFamilies>(_ connection: QUICConnection<Families>) {
         // TODO: pending migration feature completion
     }
 
@@ -233,7 +233,7 @@ extension QUICConnection {
     }
 
     // Retires a path's outbound CID and queues a RETIRE_CONNECTION_ID frame for it.
-    func retireOutboundCID(forPathGoingAway path: QUICPath) {
+    func retireOutboundCID(forPathGoingAway path: QUICPath<Families>) {
         guard path.isOpenForSending, !path.hasPreAssignedCIDs, let dcid = path.dcid,
             let sequence = remoteCIDs.retire(connectionID: dcid)
         else {
@@ -245,7 +245,7 @@ extension QUICConnection {
     }
 
     // Removes a path we migrated away from.
-    func tearDownMigratedPath(_ oldPath: QUICPath) {
+    func tearDownMigratedPath(_ oldPath: QUICPath<Families>) {
         guard oldPath !== currentPath else {
             log.fault("Refusing to tear down the current path \(oldPath.identifier)")
             return

@@ -48,7 +48,7 @@ final class QUICHandshake {
         for index in 0..<iterations {
             group.enter()
             context.async {
-                let clientInstance = QUICProtocol.Instance(context: context)
+                let clientInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: context)
                 let clientOptions = self.quicBenchmarkUtility.createQUICTestOptions(datagram: false)
                 clientOptions.setLogID(
                     prefix: "C",
@@ -57,7 +57,7 @@ final class QUICHandshake {
                 )
                 clientOptions.setProtocolInstance(clientInstance.reference)
 
-                let serverInstance = QUICProtocol.Instance(context: context)
+                let serverInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: context)
                 let serverOptions = self.quicBenchmarkUtility.createQUICTestOptions(server: true, datagram: false)
                 serverOptions.setLogID(
                     prefix: "L",

@@ -32,21 +32,21 @@ let recoveryTestsLogPrefixer: LogPrefixer = LogPrefixer("[RecoveryTests]")
 
 @available(Network 0.1.0, *)
 final class RecoveryTests: XCTestCase {
-    var connection = QUICConnection(context: .implicitContext)
-    var path: QUICPath! = nil
+    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: .implicitContext)
+    var path: QUICDefaultPath! = nil
 
     override func setUp() {
         let expectation = XCTestExpectation()
         self.connection.context.async {
             try? self.connection.setup(remote: nil, local: nil, parameters: nil, path: nil)
-            self.connection.recovery = Recovery(logPrefixer: recoveryTestsLogPrefixer)
+            self.connection.recovery = QUICDefaultRecovery(logPrefixer: recoveryTestsLogPrefixer)
             self.connection.recovery.connection = self.connection
             let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
                 identifier: "Client",
                 context: .implicitContext
             )
             lowerHarness.connect()
-            var newPath = QUICPath(parent: self.connection)
+            var newPath = QUICDefaultPath(parent: self.connection)
             newPath.set(interface: nil, priority: 1, isInitial: true)
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))
@@ -63,7 +63,7 @@ final class RecoveryTests: XCTestCase {
         self.connection.currentPath = nil
     }
 
-    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection) {
+    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<DefaultQUICLinkageFamilies>) {
         var packets = NetworkUniqueDeque<SentPacketRecord>()
         packets.append(sentPacket)
         connection.recovery.recordSentPackets(&packets, connection: connection)
@@ -654,7 +654,7 @@ final class RecoveryTests: XCTestCase {
     // idle timeout closes it.
     func testValidatedPTOProbesWhenTailRetransmitProducesNothing() {
         // Register a flow and close it, so its STREAM data can never be rebuilt for retransmission.
-        let stream = QUICStreamInstance(parent: connection, inbound: true)
+        let stream = QUICDefaultStream(parent: connection, inbound: true)
         stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
         connection.multiplexedFlows[stream.identifier] = stream
         stream.closed = true
@@ -715,7 +715,7 @@ final class RecoveryTests: XCTestCase {
     func testPTOProbesWhenNewDataProducesNothing() {
         // A stream queued for service whose flow has since been torn down: it is absent from
         // `multiplexedFlows`, so writing it produces no payload.
-        let unregisteredStream = QUICStreamInstance(parent: connection, inbound: true)
+        let unregisteredStream = QUICDefaultStream(parent: connection, inbound: true)
         unregisteredStream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
         XCTAssertNil(connection.flow(for: unregisteredStream.identifier))
         connection.withPendingItems(for: .initial) { pendingItems in

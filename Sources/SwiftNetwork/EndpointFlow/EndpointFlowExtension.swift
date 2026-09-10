@@ -44,17 +44,17 @@ extension EndpointFlow {
                     throw NetworkError.posix(EINVAL)
                 }
 
-                // TODO: TFPDEBUG FIX THIS
-                let listenerLinkage = DefaultStreamListenerLinkage()
-                let flow = try StreamEndpointFlowProtocol(
+
+                let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                     identifier: String(self.identifier),
                     local: self.localEndpoint,
                     remote: self.remoteEndpoint,
                     parameters: self.parameters,
                     path: path,
-                    context: self.parameters.context,
-                    listenerProtocol: listenerLinkage
+                    context: self.parameters.context
                 )
+                let flowLinkage = BaseNetworkProtocolStorage.linkage(for: flow)
+                // TODO: TFPDEBUG Hook up lower protocol
                 self.flowProtocol = .stream(flow)
                 options.setLogID(
                     prefix: "C",
@@ -88,20 +88,18 @@ extension EndpointFlow {
                         }
                         reference = bridged
                     } else {
-                        reference = SocketStreamProtocol.instance(context: context)
+                        reference = SocketStreamProtocol<BaseStreamLinkageFamily>.instance(context: context)
                     }
                     options.setProtocolInstance(reference)
-                    // TODO: TFPDEBUG FIX THIS
-                    let linkage = DefaultOutboundStreamLinkage()
-                    let flow = try StreamEndpointFlowProtocol(
+                    let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
                         remote: effectiveRemoteEndpoint,
                         parameters: self.parameters,
                         path: path,
-                        context: context,
-                        lowerProtocol: linkage
+                        context: context
                     )
+                    // TODO: TFPDEBUG Hook up lower protocol
                     self.flowProtocol = .stream(flow)
                     options.setLogID(
                         prefix: "C",
@@ -115,15 +113,15 @@ extension EndpointFlow {
                         let (upper, lower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = UDPProtocol.instance(context: context)
                         let (ipUpper, ipLower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = IPProtocol.instance(context: context)
                         options.setProtocolInstance(upper.reference)
-                        let flow = try DatagramEndpointFlowProtocol(
+                        let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
                             remote: self.remoteEndpoint,
                             parameters: self.parameters,
                             path: path,
-                            context: context,
-                            lowerProtocol: lower
+                            context: context
                         )
+                        // TODO: TFPDEBUG Hook up lower protocol
                         self.flowProtocol = .datagram(flow)
                         options.setLogID(
                             prefix: "C",
@@ -146,17 +144,16 @@ extension EndpointFlow {
                             path: path
                         )
                     } else {
-                        let socketReference = SocketDatagramProtocol.instance(context: context)
-                        let linkage = DefaultOutboundDatagramLinkage(reference: socketReference)
-                        let flow = try DatagramEndpointFlowProtocol(
+                        let socketReference = SocketDatagramProtocol<BaseDatagramLinkageFamily>.instance(context: context)
+                        let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
                             remote: self.remoteEndpoint,
                             parameters: self.parameters,
                             path: path,
                             context: context,
-                            lowerProtocol: linkage
                         )
+                        // TODO: TFPDEBUG Hook up lower protocol
                         self.flowProtocol = .datagram(flow)
                         options.setLogID(
                             prefix: "C",
@@ -176,17 +173,15 @@ extension EndpointFlow {
                         parent: String(self.identifier),
                         protocolLogIDNumber: Int(self.identifier)
                     )
-                    // TODO: TFPDEBUG FIX THIS
-                    let listenerLinkage = DefaultStreamListenerLinkage()
-                    let flow = try StreamEndpointFlowProtocol(
+                    let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
                         remote: self.remoteEndpoint,
                         parameters: self.parameters,
                         path: path,
                         context: context,
-                        listenerProtocol: listenerLinkage
                     )
+                    // TODO: TFPDEBUG Hook up lower protocol
                     self.flowProtocol = .stream(flow)
 
 //                    if case .custom(let linkOptions) = stack.link,
@@ -240,17 +235,15 @@ extension EndpointFlow {
                             // but we're not there quite yet
                             if options.identifier == BridgeStreamProtocol.identifier {
                                 let reference = BridgeStreamProtocol.instance(context: context)
-                                // TODO: TFPDEBUG FIX THIS
-                                let linkage = DefaultOutboundStreamLinkage()
-                                let flow = try StreamEndpointFlowProtocol(
+                                let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                                     identifier: String(self.identifier),
                                     local: effectiveLocalEndpoint,
                                     remote: self.remoteEndpoint,
                                     parameters: self.parameters,
                                     path: path,
                                     context: context,
-                                    lowerProtocol: linkage
                                 )
+                                // TODO: TFPDEBUG Hook up lower protocol
                                 self.flowProtocol = .stream(flow)
                             } else {
                                 Logger.connection.error("Unknown link protocol")
@@ -271,17 +264,15 @@ extension EndpointFlow {
                             throw NetworkError.posix(EINVAL)
                         }
                         options.setProtocolInstance(reference)
-                        // TODO: TFPDEBUG FIX THIS
-                        let linkage = DefaultOutboundStreamLinkage()
-                        let flow = try StreamEndpointFlowProtocol(
+                        let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
                             remote: effectiveRemoteEndpoint,
                             parameters: parameters,
                             path: path,
                             context: context,
-                            lowerProtocol: linkage
                         )
+                        // TODO: TFPDEBUG Hook up lower protocol
                         self.flowProtocol = .stream(flow)
                         options.setLogID(
                             prefix: "C",
