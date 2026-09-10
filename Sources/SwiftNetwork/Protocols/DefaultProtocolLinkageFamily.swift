@@ -1890,7 +1890,12 @@ open class BaseNetworkProtocolStorage {
     internal var tlsInstances = NetworkGappyArray<SwiftTLSProtocol.SwiftTLSInstance<BaseStreamLinkageFamily>>()
 
     public func createTLSInstance() -> (BaseInboundStreamLinkage, BaseOutboundStreamLinkage) {
-        let instance = SwiftTLSProtocol.SwiftTLSInstance<BaseStreamLinkageFamily>(context: context)
+        // No QUIC crypto object here: this factory only wires up linkages. An instance
+        // built this way fails at connect(), which already handles the missing-crypto case.
+        let instance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<BaseStreamLinkageFamily, BaseQUICLinkageFamilies>(
+            context: context,
+            quicCrypto: nil
+        )
 
         let instanceIndex = tlsInstances.insert(instance)
 

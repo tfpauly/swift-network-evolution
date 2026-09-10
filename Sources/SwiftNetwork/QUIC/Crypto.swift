@@ -62,7 +62,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 
     var reference: ProtocolInstanceReference
 
-    var tlsInstance: SwiftTLSProtocol.SwiftTLSInstance<LinkageFamily>
+    var tlsInstance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<LinkageFamily, Families>!
 
     var outboundCryptoInitialOffset: Int = 0
     var outboundCrypto1RTTOffset: Int = 0
@@ -104,7 +104,10 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 
     init(context: NetworkContext) {
         reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
-        tlsInstance = SwiftTLSProtocol.SwiftTLSInstance<LinkageFamily>(context: context)
+        tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<LinkageFamily, Families>(
+            context: context,
+            quicCrypto: self
+        )
     }
 
     func start(
