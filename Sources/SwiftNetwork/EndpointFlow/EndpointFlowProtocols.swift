@@ -24,7 +24,7 @@ internal import os
 
 @available(Network 0.1.0, *)
 class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtocol {
-    typealias LinkageFamily = LinkageFamily
+    typealias LinkageType = LinkageFamily.Upper
     typealias LowerProtocol = LinkageFamily.Lower
 
     // Completions: called once!
@@ -134,7 +134,6 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     public func start() {
         log.debug("Starting flow")
         invokeConnect()
-
     }
 
     public func start(_ completion: @escaping (NetworkError?) -> Void) {

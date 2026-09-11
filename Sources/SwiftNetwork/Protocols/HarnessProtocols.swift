@@ -38,7 +38,7 @@ public protocol UpperHarnessProtocol: TopDatapathProtocol, LoggableProtocol {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtocol {
-    public typealias LinkageFamily = LinkageFamily
+    public typealias LinkageType = LinkageFamily.Upper
     public typealias LowerProtocol = LinkageFamily.Lower
 
     // Completions: called once!
@@ -442,7 +442,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
 @available(Network 0.1.0, *)
 public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandler, LoggableProtocol {
     public typealias UpperProtocol = LinkageFamily.Upper
-    public typealias LinkageFamily = LinkageFamily
+    public typealias LinkageType = LinkageFamily.Lower
 
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
@@ -532,13 +532,17 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
     
     public var maximumOutputSize = 1500
 
-    public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+    public func receiveDatagrams(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int
+    ) throws(NetworkError) -> FrameArray? {
         let array = pendingInboundPackets.drainArray(maximumFrameCount: maximumDatagramCount)
         log.debug("Deliver inbound datagram count: \(array.count)")
         return array
     }
 
     public func getDatagramsToSend(
+        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
@@ -551,7 +555,10 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
         return frameArray
     }
 
-    public func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+    public func sendDatagrams(
+        state: inout NetworkContext.State,
+        _ datagrams: consuming FrameArray
+    ) throws(NetworkError) {
         pendingOutboundPackets.add(frames: datagrams)
     }
 }
@@ -560,15 +567,24 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
 @available(Network 0.1.0, *)
 public class StreamLowerHarness<LinkageFamily: StreamLinkageFamily>: LowerHarness<LinkageFamily>, BottomStreamProtocol {
 
-    public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
+    public func receiveStreamData(
+        state: inout NetworkContext.State,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray? {
         pendingInboundPackets.drainArray(maximumByteCount: maximumBytes)
     }
 
-    public func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
+    public func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State
+    ) throws(NetworkError) -> Int {
         Int.max
     }
 
-    public func sendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
+    public func sendStreamData(
+        state: inout NetworkContext.State,
+        _ streamData: consuming FrameArray
+    ) throws(NetworkError) {
         pendingOutboundPackets.add(frames: streamData)
     }
 }
@@ -610,7 +626,7 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
 
     public func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+    ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
         throw NetworkError.posix(EINVAL)
     }
 

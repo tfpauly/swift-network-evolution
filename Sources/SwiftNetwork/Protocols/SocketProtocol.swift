@@ -29,8 +29,9 @@ import Dispatch
 
 @_spi(Essentials)
 @available(Network 0.1.0, *)
-public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>: BottomDatagramProtocol, ProtocolInstanceContainer {
+public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>: BottomDatagramProtocol {
     public typealias UpperProtocol = LinkageFamily.Upper
+    public typealias LinkageType = LinkageFamily.Lower
 
     public private(set) var context: NetworkContext
     public var reference: ProtocolInstanceReference
@@ -142,7 +143,10 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
 
     // MARK: - BottomDatagramProtocol
 
-    public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+    public func receiveDatagrams(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int
+    ) throws(NetworkError) -> FrameArray? {
         let result = incomingFrames.drainArray(maximumFrameCount: maximumDatagramCount)
         inputUnacknowledged = false
         if inputSourceSuspended {
@@ -153,6 +157,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     }
 
     public func getDatagramsToSend(
+        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
@@ -166,7 +171,10 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
         return frameArray
     }
 
-    public func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+    public func sendDatagrams(
+        state: inout NetworkContext.State,
+        _ datagrams: consuming FrameArray
+    ) throws(NetworkError) {
         pendingOutputFrames.add(frames: datagrams)
         serviceWrites()
     }
@@ -424,8 +432,9 @@ fileprivate struct SocketStreamDefaults {
 
 @_spi(Essentials)
 @available(Network 0.1.0, *)
-public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: BottomStreamProtocol, ProtocolInstanceContainer {
+public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: BottomStreamProtocol {
     public typealias UpperProtocol = LinkageFamily.Upper
+    public typealias LinkageType = LinkageFamily.Lower
 
     public private(set) var context: NetworkContext
     public var reference: ProtocolInstanceReference
@@ -578,7 +587,11 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
 
     // MARK: - BottomStreamProtocol
 
-    public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
+    public func receiveStreamData(
+        state: inout NetworkContext.State,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray? {
         guard !incomingFrames.isEmpty,
             incomingFrames.unclaimedLength >= minimumBytes || incomingFrames.connectionComplete
         else {
@@ -600,13 +613,18 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         return result
     }
 
-    public func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
+    public func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State
+    ) throws(NetworkError) -> Int {
         let pending = pendingOutputFrames.unclaimedLength
         if pending >= maximumOutputSize { return 0 }
         return maximumOutputSize - pending
     }
 
-    public func sendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
+    public func sendStreamData(
+        state: inout NetworkContext.State,
+        _ streamData: consuming FrameArray
+    ) throws(NetworkError) {
         pendingOutputFrames.add(frames: streamData)
         serviceWrites()
     }

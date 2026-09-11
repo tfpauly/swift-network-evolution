@@ -52,21 +52,6 @@ internal import SwiftSystem
 public typealias TLSProtocol = SwiftTLSProtocol
 #endif
 
-@available(Network 0.1.0, *)
-protocol SwiftTLSQUICInstance<LinkageFamily>: AnyObject {
-    associatedtype LinkageFamily: StreamLinkageFamily
-    func getLowerLinkage(
-        for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: LinkageFamily.Upper
-    ) -> LinkageFamily.Lower
-    func updateSecret(_ secret: [UInt8], for level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
-    func updateEncryptionLevel(_ level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool)
-    func updateSessionTickets(_ sessionTicketArray: [[UInt8]])
-    func updatePeerQUICTransportParameters(_ peerQUICTransportParameters: [UInt8], earlyData: Bool)
-    func updateEarlyDataAccepted(_ earlyDataAccepted: Bool)
-    func updateNegotiatedCiphersuite(_ ciphersuite: Int)
-}
-
 let SwiftTLSRecordProtocolMaxOutstandingReadBytes: Int = (8 * 1024 * 1024)  // 8MB
 
 // Wrapper to send a value. Ensures that the value is only accessed
@@ -239,20 +224,18 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         public func isEqual(to other: SwiftTLSMetadata, for: ProtocolCompareMode) -> Bool { true }
     }
 
-    /// The base of the TLS instance hierarchy.
-    ///
-    /// This class holds the state common to every flavor of TLS instance and satisfies the
-    /// `OneToOneStreamProtocol` conformance, but it does not implement any of the protocol
-    /// behavior itself: it is abstract. Concrete behavior lives in the subclasses,
-    /// `SwiftTLSQUICOnlyInstance` (a QUIC handshake with no record layer) and
-    /// `SwiftTLSRecordInstance` (a full record-layer TLS connection). The base implementations
-    /// below abort or throw, so a missing override surfaces immediately rather than silently
-    /// doing nothing.
-    class SwiftTLSInstance<LinkageFamily: StreamLinkageFamily>: OneToOneStreamProtocol,
-        ProtocolInstanceContainer
-    {
-        typealias UpperProtocol = LinkageFamily.Upper
-        typealias LowerProtocol = LinkageFamily.Lower
+    #if HAS_SWIFTTLS_RECORD && IMPORT_SWIFTTLS && canImport(SwiftTLS)
+    /// A TLS instance that runs a full record layer, for stacks that are not carrying QUIC.
+    final class SwiftTLSRecordInstance<TLSUpperProtocol: InboundStreamLinkage, TLSLowerProtocol: OutboundStreamLinkage>: OneToOneStreamProtocol {
+        private var recordLayer: SwiftTLSRecordLayerInstance?
+
+        private func requireRecordLayer() throws(NetworkError) -> SwiftTLSRecordLayerInstance {
+            guard let recordLayer else { throw NetworkError.posix(EINVAL) }
+            return recordLayer
+        }
+
+        typealias UpperProtocol = TLSUpperProtocol
+        typealias LowerProtocol = TLSLowerProtocol
 
         var metadata: AbstractProtocolMetadata?
         var upper = UpperProtocol()
@@ -268,126 +251,48 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
 
-        /// Reads the per-protocol TLS options out of `parameters`, which every subclass needs
-        /// before it can set itself up.
-        final func perProtocolOptions(
-            from parameters: Parameters?
-        ) throws(NetworkError) -> SwiftTLSProtocolOptions {
-            // Note: all logic about what tlsOptions are valid/required should be handled
-            // within SwiftTLS, so that logic does not need to be duplicated here and in
-            // nwswifttls.m/nwswifttlsrecord.m
-            guard let parameters,
-                let options = tlsOptions(from: parameters),
-                let protocolOptions = options.perProtocolOptions
-            else {
-                throw NetworkError.posix(EINVAL)
-            }
-            return protocolOptions
-        }
-
         func setup(
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
             path: PathProperties?
         ) throws(NetworkError) {
-            throw NetworkError.posix(ENOTSUP)
-        }
-
-        func teardown() {
-            preconditionFailure("teardown must be implemented by a SwiftTLSInstance subclass")
-        }
-
-        func connect(state: inout NetworkContext.State) {
-            preconditionFailure("connect must be implemented by a SwiftTLSInstance subclass")
-        }
-
-        func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
-            preconditionFailure("disconnect must be implemented by a SwiftTLSInstance subclass")
-        }
-
-        func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
-            preconditionFailure(
-                "handleDisconnectedEvent must be implemented by a SwiftTLSInstance subclass"
-            )
-        }
-
-        func sendStreamData(
-            state: inout NetworkContext.State,
-            _ streamData: consuming FrameArray
-        ) throws(NetworkError) {
-            throw NetworkError.posix(ENOTSUP)
-        }
-
-        func getOutboundStreamDataRoomAvailable(state: inout NetworkContext.State) throws(NetworkError) -> Int {
-            throw NetworkError.posix(ENOTSUP)
-        }
-
-        func receiveStreamData(
-            state: inout NetworkContext.State,
-            minimumBytes: Int,
-            maximumBytes: Int
-        ) throws(NetworkError) -> FrameArray? {
-            throw NetworkError.posix(ENOTSUP)
-        }
-
-        func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
-            preconditionFailure(
-                "handleInboundDataAvailableEvent must be implemented by a SwiftTLSInstance subclass"
-            )
-        }
-    }
-
-    #if HAS_SWIFTTLS_RECORD && IMPORT_SWIFTTLS && canImport(SwiftTLS)
-    /// A TLS instance that runs a full record layer, for stacks that are not carrying QUIC.
-    final class SwiftTLSRecordInstance<LinkageFamily: StreamLinkageFamily>: SwiftTLSInstance<LinkageFamily> {
-        private var recordLayer: SwiftTLSRecordLayerInstance?
-
-        private func requireRecordLayer() throws(NetworkError) -> SwiftTLSRecordLayerInstance {
-            guard let recordLayer else { throw NetworkError.posix(EINVAL) }
-            return recordLayer
-        }
-
-        override func setup(
-            remote: Endpoint?,
-            local: Endpoint?,
-            parameters: Parameters?,
-            path: PathProperties?
-        ) throws(NetworkError) {
-            let protocolOptions = try perProtocolOptions(from: parameters)
-            guard protocolOptions.tlsOptions.quicTransportParameters == nil else {
-                // QUIC transport parameters mean this should have been a QUIC-only instance.
+            guard let parameters,
+                  let options = parameters.tlsOptions(for: reference),
+                  let protocolOptions = options.perProtocolOptions,
+                  protocolOptions.tlsOptions.quicTransportParameters == nil
+            else {
                 throw NetworkError.posix(EINVAL)
             }
             recordLayer = try SwiftTLSRecordLayerInstance(self, protocolOptions, parameters)
         }
 
-        override func teardown() {
+        func teardown() {
             log.debug("")
             guard let recordLayer else { preconditionFailure("record layer unexpectedly nil") }
             recordLayer.teardown()
             self.recordLayer = nil
         }
 
-        override func connect(state: inout NetworkContext.State) {
+        func connect(state: inout NetworkContext.State) {
             log.debug("")
             guard let recordLayer else { preconditionFailure("record layer unexpectedly nil") }
             recordLayer.connect()
         }
 
-        override func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
+        func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
             log.debug("")
             guard let recordLayer else { preconditionFailure("record layer unexpectedly nil") }
             recordLayer.disconnect(error: error)
         }
 
-        override func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+        func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
             log.debug("")
             guard let recordLayer else { preconditionFailure("record layer unexpectedly nil") }
             recordLayer.handleDisconnectedEvent(error: error)
         }
 
-        override func sendStreamData(
+        func sendStreamData(
             state: inout NetworkContext.State,
             _ streamData: consuming FrameArray
         ) throws(NetworkError) {
@@ -395,14 +300,14 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             try requireRecordLayer().sendStreamData(streamData)
         }
 
-        override func getOutboundStreamDataRoomAvailable(
+        func getOutboundStreamDataRoomAvailable(
             state: inout NetworkContext.State
         ) throws(NetworkError) -> Int {
             log.debug("")
             return try requireRecordLayer().getOutboundStreamDataRoomAvailable()
         }
 
-        override func receiveStreamData(
+        func receiveStreamData(
             state: inout NetworkContext.State,
             minimumBytes: Int,
             maximumBytes: Int
@@ -414,7 +319,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             )
         }
 
-        override func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
+        func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
             log.debug("")
             guard let recordLayer else { preconditionFailure("record layer unexpectedly nil") }
             recordLayer.handleInboundDataAvailableEvent(state: &state)
@@ -422,17 +327,21 @@ public struct SwiftTLSProtocol: NetworkProtocol {
     }
     #endif
 
-
     /// A TLS instance that runs only the handshake, with QUIC carrying the records.
-    ///
-    /// In addition to the stream linkage family shared with the rest of the hierarchy, this is
-    /// generic over the QUIC linkage families, so that it can eventually hand typed linkages
-    /// back to the QUIC instance for each encryption level (see the commented-out
-    /// `getLowerLinkage` calls in `connect`).
     final class SwiftTLSQUICOnlyInstance<
-        TLSLinkageFamily: StreamLinkageFamily,
         Families: QUICLinkageFamilies
-    >: SwiftTLSInstance<TLSLinkageFamily> {
+    >: BottomStreamProtocol, OutboundStreamLinkage, ProtocolInstanceAsLinkage {
+        typealias PairedUpperLinkage = QUICCrypto<Families>
+        typealias LinkageType = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>
+
+        var metadata: AbstractProtocolMetadata?
+        var upper = LinkageType.PairedUpperLinkage()
+        private(set) var context: NetworkContext
+        var reference: ProtocolInstanceReference
+        var passthroughEvents = false
+        var log = NetworkLoggerState()
+        var eventManager = ProtocolEventManager()
+
         var isConnected = false
         var isServer = false
         #if CLIENT_ONLY
@@ -457,31 +366,41 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         /// breaks it by clearing this reference.
         private var quicCrypto: QUICCrypto<Families>?
 
-        init(context: NetworkContext, quicCrypto: QUICCrypto<Families>?) {
-            self.quicCrypto = quicCrypto
-            super.init(context: context)
+        init() {
+            quicCrypto = nil
+            context = .implicitContext
+            reference = .init()
         }
 
-        override func setup(
+        init(context: NetworkContext, quicCrypto: QUICCrypto<Families>?) {
+            self.quicCrypto = quicCrypto
+            self.context = context
+            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        }
+
+        func setup(
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
             path: PathProperties?
         ) throws(NetworkError) {
-            let protocolOptions = try perProtocolOptions(from: parameters)
-            guard protocolOptions.tlsOptions.quicTransportParameters != nil else {
-                // Without QUIC transport parameters this should have been a record-layer instance.
+            guard let parameters,
+                  let options = parameters.tlsOptions(for: reference),
+                  let protocolOptions = options.perProtocolOptions,
+                  protocolOptions.tlsOptions.quicTransportParameters != nil
+            else {
                 throw NetworkError.posix(EINVAL)
             }
             self.options = protocolOptions
-            if let parameters {
-                isServer = parameters.isServer
-            }
+            isServer = parameters.isServer
         }
 
-        final class EncryptionLevelHandler: TopStreamProtocol, ProtocolInstanceContainer {
-            typealias LinkageFamily = TLSLinkageFamily
-            typealias LowerProtocol = LinkageFamily.Lower
+        // TODO: TFPDEBUG Ensure that the event manager is removed from the context
+        final class EncryptionLevelHandler: TopStreamProtocol, InboundStreamLinkage, ProtocolInstanceAsLinkage {
+            typealias PairedLowerLinkage = QUICCrypto<Families>
+
+            typealias LinkageType = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>.EncryptionLevelHandler
+            typealias LowerProtocol = LinkageType.PairedLowerLinkage
 
             var lower = LowerProtocol()
 
@@ -502,6 +421,9 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             var eventManager = ProtocolEventManager()
 
             init(level: SwiftTLSOptions.EncryptionLevel) { self.level = level }
+            convenience init() { self.init(level: .initial) }
+
+            func invokeAttachLowerProtocol(_ lowerProtocol: QUICCrypto<Families>, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) { }
 
             func destroy() {
                 if !lower.isDetached {
@@ -696,7 +618,11 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             try? encryptionLevelHandler.sendStreamData(state: &state, FrameArray(frame: Frame(copyBuffer: message)))
         }
 
-        override func teardown() {
+        func teardown(state: inout NetworkContext.State) {
+            eventManager.unregister(state: &state)
+        }
+
+        func teardown() {
             #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
             handshaker.setAsyncContinuationHandler(nil)
             #endif
@@ -709,22 +635,12 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
         // Disconnect and the disconnected event are passed straight through: QUIC owns the
         // connection lifetime, this instance only runs the handshake.
-        override func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
-            log.debug("")
-            invokeDisconnect(state: &state, error: error)
-        }
-
-        override func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+        func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
             log.debug("")
             deliverDisconnectedEvent(state: &state, error: error)
         }
 
-        // Inbound data arrives through the per-encryption-level handlers, not here.
-        override func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
-            log.debug("")
-        }
-
-        override func connect(state: inout NetworkContext.State) {
+        func connect(state: inout NetworkContext.State) {
             guard !isConnected else {
                 // Already connected, report
                 deliverConnectedEvent(state: &state)
@@ -770,22 +686,14 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             earlyDataHandler.parentInstance = self
             handshakeDataHandler.parentInstance = self
             applicationDataHandler.parentInstance = self
-//            initialDataHandler.lower = quicCrypto.getLowerLinkage(
-//                for: .initial,
-//                upperLinkage: initialDataHandler.asUpper
-//            )
-//            earlyDataHandler.lower = quicCrypto.getLowerLinkage(
-//                for: .earlyData,
-//                upperLinkage: earlyDataHandler.asUpper
-//            )
-//            handshakeDataHandler.lower = quicCrypto.getLowerLinkage(
-//                for: .handshake,
-//                upperLinkage: handshakeDataHandler.asUpper
-//            )
-//            applicationDataHandler.lower = quicCrypto.getLowerLinkage(
-//                for: .application,
-//                upperLinkage: applicationDataHandler.asUpper
-//            )
+            initialDataHandler.lower = quicCrypto
+            quicCrypto.initialLinkage = initialDataHandler
+            earlyDataHandler.lower = quicCrypto
+            quicCrypto.earlyDataLinkage = earlyDataHandler
+            handshakeDataHandler.lower = quicCrypto
+            quicCrypto.handshakeLinkage = handshakeDataHandler
+            applicationDataHandler.lower = quicCrypto
+            quicCrypto.applicationLinkage = applicationDataHandler
 
             #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
             let contextBoundSelf = ContextBound(self, context: self.context)
@@ -849,24 +757,45 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
         // Application data never flows through the TLS instance in QUIC mode: QUIC carries the
         // records itself, so these stay unsupported rather than merely unimplemented.
-        override func sendStreamData(
+        func sendStreamData(
             state: inout NetworkContext.State,
             _ streamData: consuming FrameArray
         ) throws(NetworkError) {
             throw NetworkError.posix(ENOTSUP)
         }
 
-        override func getOutboundStreamDataRoomAvailable(
+        func sendStreamData(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, streamData: consuming FrameArray) throws(NetworkError) {
+            throw NetworkError.posix(ENOTSUP)
+        }
+
+        func getOutboundStreamDataRoomAvailable(
             state: inout NetworkContext.State
         ) throws(NetworkError) -> Int {
             throw NetworkError.posix(ENOTSUP)
         }
 
-        override func receiveStreamData(
+        func getOutboundStreamDataRoomAvailable(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) -> Int {
+            throw NetworkError.posix(ENOTSUP)
+        }
+
+        func receiveStreamData(
             state: inout NetworkContext.State,
             minimumBytes: Int,
             maximumBytes: Int
         ) throws(NetworkError) -> FrameArray? {
+            throw NetworkError.posix(ENOTSUP)
+        }
+
+        func receiveStreamData(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
+            throw NetworkError.posix(ENOTSUP)
+        }
+
+        func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
+            upper = .init()
+            teardown()
+        }
+
+        func invokeAttachUpperProtocol(_ upperProtocol: QUICCrypto<Families>, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             throw NetworkError.posix(ENOTSUP)
         }
     }

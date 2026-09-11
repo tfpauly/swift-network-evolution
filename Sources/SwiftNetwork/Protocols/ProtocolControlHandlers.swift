@@ -24,7 +24,7 @@ public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance
     /// protocol to refer to its upper.
     mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage?
+    ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage?
 
     mutating func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
     mutating func handleDisconnectedEvent(

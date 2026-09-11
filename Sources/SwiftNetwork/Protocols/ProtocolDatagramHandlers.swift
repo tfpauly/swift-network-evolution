@@ -195,12 +195,16 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
         Frame(count: dataSize)
     }
 
-    public mutating func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+    public mutating func receiveDatagrams(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int
+    ) throws(NetworkError) -> FrameArray? {
         guard !upperReceiveQueue.isEmpty else { return nil }
         return upperReceiveQueue.drainArray(maximumFrameCount: maximumDatagramCount)
     }
 
     public func getDatagramsToSend(
+        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
@@ -218,152 +222,11 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
         return returnArray
     }
 
-    public mutating func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+    public mutating func sendDatagrams(
+        state: inout NetworkContext.State,
+        _ datagrams: consuming FrameArray
+    ) throws(NetworkError) {
         upperSendQueue.add(frames: datagrams)
         serviceUpperSendQueue()
     }
 }
-
-/*
-@available(Network 0.1.0, *)
-extension ProtocolInstanceReference {
-    func receiveDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int
-    ) throws(NetworkError) -> FrameArray? {
-        guard !isNone else { return nil }
-        return try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) -> FrameArray? in
-            switch self.reference {
-            case .none: return nil
-            case .udp(let index):
-                return try state.withUDPInstance(index) { instance, state throws(NetworkError) in
-                    try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                }
-            case .ip(let index):
-                return try state.withIPInstance(index) { instance, state throws(NetworkError) in
-                    try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                }
-            #if !NETWORK_NO_SWIFT_QUIC
-            case .quicDatagram(var instance):
-                return try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-            #endif
-            #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance):
-                return try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-            #endif
-            #if !NETWORK_EMBEDDED
-            case .custom(let container, let index):
-                return try container.accessOutboundDatagramHandler(at: index) { instance throws(NetworkError) in
-                    try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
-                }
-            #endif
-            default: fatalError("Protocol cannot accept receiveDatagrams call")
-            }
-        }
-    }
-
-    func getDatagramsToSend(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int,
-        minimumDatagramSize: Int
-    ) throws(NetworkError) -> FrameArray? {
-        guard !isNone else { return nil }
-        return try self.handleCallFromUpperProtocol(state: &state) { state throws(NetworkError) -> FrameArray? in
-            switch self.reference {
-            case .none: return nil
-            case .udp(let index):
-                return try state.withUDPInstance(index) { instance, state throws(NetworkError) in
-                    try instance.getDatagramsToSend(
-                        state: &state,
-                        from,
-                        maximumDatagramCount: maximumDatagramCount,
-                        minimumDatagramSize: minimumDatagramSize
-                    )
-                }
-            case .ip(let index):
-                return try state.withIPInstance(index) { instance, state throws(NetworkError) in
-                    try instance.getDatagramsToSend(
-                        state: &state,
-                        from,
-                        maximumDatagramCount: maximumDatagramCount,
-                        minimumDatagramSize: minimumDatagramSize
-                    )
-                }
-            #if !NETWORK_NO_SWIFT_QUIC
-            case .quicDatagram(let instance):
-                return try instance.getDatagramsToSend(
-                    state: &state,
-                    from,
-                    maximumDatagramCount: maximumDatagramCount,
-                    minimumDatagramSize: minimumDatagramSize
-                )
-            #endif
-            #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance):
-                return try instance.getDatagramsToSend(
-                    state: &state,
-                    from,
-                    maximumDatagramCount: maximumDatagramCount,
-                    minimumDatagramSize: minimumDatagramSize
-                )
-            #endif
-            #if !NETWORK_EMBEDDED
-            case .custom(let container, let index):
-                return try container.accessOutboundDatagramHandler(at: index) { instance throws(NetworkError) in
-                    try instance.getDatagramsToSend(state: &state, 
-                        from,
-                        maximumDatagramCount: maximumDatagramCount,
-                        minimumDatagramSize: minimumDatagramSize
-                    )
-                }
-            #endif
-            default: fatalError("Protocol cannot accept getDatagramsToSend call")
-            }
-        }
-    }
-
-    func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        datagrams: consuming FrameArray
-    ) throws(NetworkError) {
-        guard !isNone else {
-            datagrams.finalizeAllFramesAsFailed()
-            return
-        }
-        try self.handleCallFromUpperProtocol(state: &state, datagrams) { state, datagrams throws(NetworkError) in
-            switch self.reference {
-            case .none:
-                var datagrams = datagrams
-                datagrams.finalizeAllFramesAsFailed()
-                return
-            case .udp(let index):
-                try state.withUDPInstance(index, datagrams) { instance, state, datagrams throws(NetworkError) in
-                    try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
-                }
-            case .ip(let index):
-                try state.withIPInstance(index, datagrams) { instance, state, datagrams throws(NetworkError) in
-                    try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
-                }
-            #if !NETWORK_NO_SWIFT_QUIC
-            case .quicDatagram(var instance): try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
-            #endif
-            #if !NETWORK_NO_TESTING_HARNESS
-            case .datagramLowerHarness(var instance): try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
-            #endif
-            #if !NETWORK_EMBEDDED
-            case .custom(let container, let index):
-                try container.accessOutboundDatagramHandler(at: index, datagrams) {
-                    instance,
-                    datagrams throws(NetworkError) in
-                    try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
-                }
-            #endif
-            default: fatalError("Protocol cannot accept sendDatagrams call")
-            }
-        }
-    }
-}
-*/

@@ -44,13 +44,13 @@ public struct DefaultStreamLinkageFamily: StreamLinkageFamily {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
-    public typealias PairedLinkage = DefaultOutboundDatagramLinkage
+    public typealias PairedLowerLinkage = DefaultOutboundDatagramLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) { self.reference = reference }
     public init() { self.reference = .init() }
 
     public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
+        _ lowerProtocol: PairedLowerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -90,7 +90,7 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
-    public typealias PairedLinkage = DefaultInboundDatagramLinkage
+    public typealias PairedUpperLinkage = DefaultInboundDatagramLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) {
         self.reference = reference
@@ -100,7 +100,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
     }
 
     public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -124,7 +124,7 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
     ) throws(NetworkError) {
     }
 
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func teardown(state: inout NetworkContext.State) {
     }
 
     public func handleApplicationEvent(
@@ -177,14 +177,14 @@ public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
-    public typealias PairedLinkage = DefaultDatagramListenerLinkage
+    public typealias PairedLowerLinkage = DefaultDatagramListenerLinkage
     public typealias DataLinkage = DefaultOutboundDatagramLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) { self.reference = reference }
     public init() { self.reference = .init() }
 
     public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
+        _ lowerProtocol: PairedLowerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -225,13 +225,13 @@ public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
-    public typealias PairedLinkage = DefaultInboundDatagramFlowLinkage
+    public typealias PairedUpperLinkage = DefaultInboundDatagramFlowLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init(reference: ProtocolInstanceReference) { self.reference = reference }
     public init() { self.reference = .init() }
 
     public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -262,7 +262,7 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
     ) throws(NetworkError) {
     }
 
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func teardown(state: inout NetworkContext.State) {
     }
 
     public func handleApplicationEvent(
@@ -293,12 +293,12 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultOutboundStreamLinkage: OutboundStreamLinkage {
-    public typealias PairedLinkage = DefaultInboundStreamLinkage
+    public typealias PairedUpperLinkage = DefaultInboundStreamLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init() { self.reference = .init() }
 
     public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -322,7 +322,7 @@ public struct DefaultOutboundStreamLinkage: OutboundStreamLinkage {
     ) throws(NetworkError) {
     }
 
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func teardown(state: inout NetworkContext.State) {
     }
 
     public func handleApplicationEvent(
@@ -399,12 +399,12 @@ public struct DefaultOutboundStreamLinkage: OutboundStreamLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultInboundStreamLinkage: InboundStreamLinkage {
-    public typealias PairedLinkage = DefaultOutboundStreamLinkage
+    public typealias PairedLowerLinkage = DefaultOutboundStreamLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init() { self.reference = .init() }
 
     public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
+        _ lowerProtocol: PairedLowerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -456,14 +456,14 @@ public struct DefaultInboundStreamLinkage: InboundStreamLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultInboundStreamFlowLinkage: InboundStreamFlowLinkage {
-    public typealias PairedLinkage = DefaultStreamListenerLinkage
+    public typealias PairedLowerLinkage = DefaultStreamListenerLinkage
     public typealias DataLinkage = DefaultOutboundStreamLinkage
 
     private(set) public var reference: ProtocolInstanceReference
     public init() { self.reference = .init() }
 
     public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
+        _ lowerProtocol: PairedLowerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -506,12 +506,12 @@ public struct DefaultInboundStreamFlowLinkage: InboundStreamFlowLinkage {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
-    public typealias PairedLinkage = DefaultInboundStreamFlowLinkage
+    public typealias PairedUpperLinkage = DefaultInboundStreamFlowLinkage
     private(set) public var reference: ProtocolInstanceReference
     public init() { self.reference = .init() }
 
     public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -544,7 +544,7 @@ public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
     ) throws(NetworkError) {
     }
 
-    public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func teardown(state: inout NetworkContext.State) {
     }
 
     public func handleApplicationEvent(
@@ -590,19 +590,19 @@ public struct BaseStreamLinkageFamily: StreamLinkageFamily {
 }
 
 @available(Network 0.1.0, *)
-internal struct ProtocolInstanceBox<Flow: AnyObject>: Hashable {
-    let flow: Flow
+internal struct ProtocolInstanceBox<Instance: AnyObject>: Hashable {
+    let instance: Instance
 
-    init(_ flow: Flow) {
-        self.flow = flow
+    init(_ instance: Instance) {
+        self.instance = instance
     }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.flow === rhs.flow
+        lhs.instance === rhs.instance
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(ObjectIdentifier(flow))
+        hasher.combine(ObjectIdentifier(instance))
     }
 }
 
@@ -634,7 +634,7 @@ open class BaseNetworkProtocolStorage {
             case .tcp(let index): overrideUpperLinkage = try storage!.tcpInstances[index].attachLowerProtocol(lowerProtocol)
             case .datagramUpperHarness(let index): overrideUpperLinkage = try storage!.datagramUpperHarnesses[index].attachLowerProtocol(lowerProtocol)
             case .datagramEndpointFlow(let box):
-                var flow = box.flow
+                var flow = box.instance
                 overrideUpperLinkage = try flow.attachLowerProtocol(lowerProtocol)
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
@@ -650,7 +650,7 @@ open class BaseNetworkProtocolStorage {
             case .datagramUpperHarness(let index):
                 storage!.datagramUpperHarnesses[index].handleConnectedEvent(state: &state, from)
             case .datagramEndpointFlow(let box):
-                box.flow.handleConnectedEvent(state: &state, from)
+                box.instance.handleConnectedEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleConnectedEvent call")
             }
         }
@@ -670,7 +670,7 @@ open class BaseNetworkProtocolStorage {
             case .datagramUpperHarness(let index):
                 storage!.datagramUpperHarnesses[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .datagramEndpointFlow(let box):
-                box.flow.handleDisconnectedEvent(state: &state, from, error: error)
+                box.instance.handleDisconnectedEvent(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept handleDisconnectedEvent call")
             }
         }
@@ -690,7 +690,7 @@ open class BaseNetworkProtocolStorage {
             case .datagramUpperHarness(let index):
                 storage!.datagramUpperHarnesses[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .datagramEndpointFlow(let box):
-                box.flow.handleNetworkProtocolEvent(state: &state, from, event: event)
+                box.instance.handleNetworkProtocolEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleNetworkProtocolEvent call")
             }
         }
@@ -709,7 +709,7 @@ open class BaseNetworkProtocolStorage {
             case .datagramUpperHarness(let index):
                 storage!.datagramUpperHarnesses[index].handleInboundDataAvailableEvent(state: &state, from)
             case .datagramEndpointFlow(let box):
-                box.flow.handleInboundDataAvailableEvent(state: &state, from)
+                box.instance.handleInboundDataAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleInboundDataAvailableEvent call")
             }
         }
@@ -728,12 +728,12 @@ open class BaseNetworkProtocolStorage {
             case .datagramUpperHarness(let index):
                 storage!.datagramUpperHarnesses[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .datagramEndpointFlow(let box):
-                box.flow.handleOutboundRoomAvailableEvent(state: &state, from)
+                box.instance.handleOutboundRoomAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleOutboundRoomAvailableEvent call")
             }
         }
 
-        public typealias PairedLinkage = BaseOutboundDatagramLinkage
+        public typealias PairedLowerLinkage = BaseOutboundDatagramLinkage
 
         public init() {
             self.reference = .init()
@@ -841,7 +841,7 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].eventManager.unregister(state: &state)
@@ -896,7 +896,7 @@ open class BaseNetworkProtocolStorage {
             }
         }
         
-        public typealias PairedLinkage = BaseInboundDatagramLinkage
+        public typealias PairedUpperLinkage = BaseInboundDatagramLinkage
 
         public init() {
             self.reference = .init()
@@ -941,23 +941,23 @@ open class BaseNetworkProtocolStorage {
             self.protocolType = protocolType
         }
 
-        public typealias PairedLinkage = BaseInboundDatagramFlowLinkage
+        public typealias PairedUpperLinkage = BaseInboundDatagramFlowLinkage
 
-        public func invokeAttachUpperProtocol(_ upperProtocol: PairedLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        public func invokeAttachUpperProtocol(_ upperProtocol: PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             switch protocolType {
             case .quic(let index): try storage!.quicInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
         }
 
-        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             switch protocolType {
             case .quic(let index): try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToNewFlow call")
             }
         }
 
-        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage, existingFlow: PairedLinkage.DataLinkage) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
             switch protocolType {
             case .quic(let index): _ = try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlow: existingFlow)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToExistingFlow call")
@@ -992,7 +992,7 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .quic(let index):
                 storage!.quicInstances[index].eventManager.unregister(state: &state)
@@ -1070,7 +1070,7 @@ open class BaseNetworkProtocolStorage {
         }
 
         public typealias DataLinkage = BaseOutboundDatagramLinkage
-        public typealias PairedLinkage = BaseDatagramListenerLinkage
+        public typealias PairedLowerLinkage = BaseDatagramListenerLinkage
 
         public func invokeAttachLowerProtocol(_ lowerProtocol: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             let overrideUpperLinkage: Self?
@@ -1151,7 +1151,6 @@ open class BaseNetworkProtocolStorage {
     public struct BaseInboundStreamLinkage: InboundStreamLinkage {
         enum ProtocolType: Hashable {
             case unknown
-            case tls(NetworkStateIndex)
             case streamUpperHarness(NetworkStateIndex)
             case streamEndpointFlow(ProtocolInstanceBox<StreamEndpointFlowProtocol<BaseStreamLinkageFamily>>)
         }
@@ -1165,10 +1164,9 @@ open class BaseNetworkProtocolStorage {
         ) throws(NetworkError) {
             let overrideUpperLinkage: Self?
             switch protocolType {
-            case .tls(let index): overrideUpperLinkage = try storage!.tlsInstances[index].attachLowerProtocol(lowerProtocol)
             case .streamUpperHarness(let index): overrideUpperLinkage = try storage!.streamUpperHarnesses[index].attachLowerProtocol(lowerProtocol)
             case .streamEndpointFlow(let box):
-                var flow = box.flow
+                var flow = box.instance
                 overrideUpperLinkage = try flow.attachLowerProtocol(lowerProtocol)
             default: fatalError("Protocol cannot accept attachLowerProtocol call")
             }
@@ -1178,11 +1176,10 @@ open class BaseNetworkProtocolStorage {
 
         public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
-            case .tls(let index): storage!.tlsInstances[index].handleConnectedEvent(state: &state, from)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleConnectedEvent(state: &state, from)
             case .streamEndpointFlow(let box):
-                box.flow.handleConnectedEvent(state: &state, from)
+                box.instance.handleConnectedEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleConnectedEvent call")
             }
         }
@@ -1193,12 +1190,10 @@ open class BaseNetworkProtocolStorage {
             error: NetworkError?
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .streamEndpointFlow(let box):
-                box.flow.handleDisconnectedEvent(state: &state, from, error: error)
+                box.instance.handleDisconnectedEvent(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept handleDisconnectedEvent call")
             }
         }
@@ -1209,12 +1204,10 @@ open class BaseNetworkProtocolStorage {
             event: NetworkProtocolEvent
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .streamEndpointFlow(let box):
-                box.flow.handleNetworkProtocolEvent(state: &state, from, event: event)
+                box.instance.handleNetworkProtocolEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleNetworkProtocolEvent call")
             }
         }
@@ -1224,12 +1217,10 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleInboundDataAvailableEvent(state: &state, from)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleInboundDataAvailableEvent(state: &state, from)
             case .streamEndpointFlow(let box):
-                box.flow.handleInboundDataAvailableEvent(state: &state, from)
+                box.instance.handleInboundDataAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleInboundDataAvailableEvent call")
             }
         }
@@ -1239,12 +1230,10 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .streamEndpointFlow(let box):
-                box.flow.handleOutboundRoomAvailableEvent(state: &state, from)
+                box.instance.handleOutboundRoomAvailableEvent(state: &state, from)
             default: fatalError("Protocol cannot accept handleOutboundRoomAvailableEvent call")
             }
         }
@@ -1255,12 +1244,10 @@ open class BaseNetworkProtocolStorage {
             error: NetworkError?
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleInboundAbortedEvent(state: &state, from, error: error)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleInboundAbortedEvent(state: &state, from, error: error)
             case .streamEndpointFlow(let box):
-                box.flow.handleInboundAbortedEvent(state: &state, from, error: error)
+                box.instance.handleInboundAbortedEvent(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept handleInboundAbortedEvent call")
             }
         }
@@ -1271,17 +1258,15 @@ open class BaseNetworkProtocolStorage {
             error: NetworkError?
         ) {
             switch protocolType {
-            case .tls(let index):
-                storage!.tlsInstances[index].handleOutboundAbortedEvent(state: &state, from, error: error)
             case .streamUpperHarness(let index):
                 storage!.streamUpperHarnesses[index].handleOutboundAbortedEvent(state: &state, from, error: error)
             case .streamEndpointFlow(let box):
-                box.flow.handleOutboundAbortedEvent(state: &state, from, error: error)
+                box.instance.handleOutboundAbortedEvent(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept handleOutboundAbortedEvent call")
             }
         }
 
-        public typealias PairedLinkage = BaseOutboundStreamLinkage
+        public typealias PairedLowerLinkage = BaseOutboundStreamLinkage
 
         public init() {
             self.reference = .init()
@@ -1312,7 +1297,6 @@ open class BaseNetworkProtocolStorage {
         enum ProtocolType: Hashable {
             case unknown
             case tcp(NetworkStateIndex)
-            case tls(NetworkStateIndex)
             case streamLowerHarness(NetworkStateIndex)
         }
 
@@ -1325,8 +1309,6 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .tcp(let index):
                 return try storage!.tcpInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
-            case .tls(let index):
-                return try storage!.tlsInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             case .streamLowerHarness(let index):
                 return try storage!.streamLowerHarnesses[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             default:
@@ -1341,8 +1323,6 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .tcp(let index):
                 return try storage!.tcpInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
-            case .tls(let index):
-                return try storage!.tlsInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
             case .streamLowerHarness(let index):
                 return try storage!.streamLowerHarnesses[index].getOutboundStreamDataRoomAvailable(state: &state, from)
             default:
@@ -1358,8 +1338,6 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .tcp(let index):
                 try storage!.tcpInstances[index].sendStreamData(state: &state, from, streamData: streamData)
-            case .tls(let index):
-                try storage!.tlsInstances[index].sendStreamData(state: &state, from, streamData: streamData)
             case .streamLowerHarness(let index):
                 try storage!.streamLowerHarnesses[index].sendStreamData(state: &state, from, streamData: streamData)
             default:
@@ -1405,7 +1383,6 @@ open class BaseNetworkProtocolStorage {
         public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
             case .tcp(let index): storage!.tcpInstances[index].connect(state: &state, from)
-            case .tls(let index): storage!.tlsInstances[index].connect(state: &state, from)
             case .streamLowerHarness(let index): storage!.streamLowerHarnesses[index].connect(state: &state, from)
             default: fatalError("Protocol cannot accept connect call")
             }
@@ -1414,7 +1391,6 @@ open class BaseNetworkProtocolStorage {
         public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
             switch protocolType {
             case .tcp(let index): storage!.tcpInstances[index].disconnect(state: &state, from, error: error)
-            case .tls(let index): storage!.tlsInstances[index].disconnect(state: &state, from, error: error)
             case .streamLowerHarness(let index):
                 storage!.streamLowerHarnesses[index].disconnect(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept disconnect call")
@@ -1425,22 +1401,17 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .tcp(let index):
                 try storage!.tcpInstances[index].detach(state: &state, from)
-            case .tls(let index):
-                try storage!.tlsInstances[index].detach(state: &state, from)
             case .streamLowerHarness(let index):
                 try storage!.streamLowerHarnesses[index].detach(state: &state, from)
             default: fatalError("Protocol cannot accept detach call")
             }
         }
 
-        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .tcp(let index):
                 storage!.tcpInstances[index].eventManager.unregister(state: &state)
                 storage!.tcpInstances.remove(index: index)
-            case .tls(let index):
-                storage!.tlsInstances[index].eventManager.unregister(state: &state)
-                storage!.tlsInstances.remove(index: index)
             case .streamLowerHarness(let index):
                 storage!.streamLowerHarnesses[index].eventManager.unregister(state: &state)
                 storage!.streamLowerHarnesses.remove(index: index)
@@ -1451,7 +1422,6 @@ open class BaseNetworkProtocolStorage {
         public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
             switch protocolType {
             case .tcp(let index): storage!.tcpInstances[index].handleApplicationEvent(state: &state, from, event: event)
-            case .tls(let index): storage!.tlsInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .streamLowerHarness(let index):
                 storage!.streamLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleApplicationEvent call")
@@ -1461,7 +1431,6 @@ open class BaseNetworkProtocolStorage {
         public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
             switch protocolType {
             case .tcp(let index): return storage!.tcpInstances[index].getMetadata(state: &state, from)
-            case .tls(let index): return storage!.tlsInstances[index].getMetadata(state: &state, from)
             case .streamLowerHarness(let index):
                 return storage!.streamLowerHarnesses[index].getMetadata(state: &state, from)
             default: fatalError("Protocol cannot accept getMetadata call")
@@ -1476,8 +1445,6 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .tcp(let index):
                 return storage!.tcpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
-            case .tls(let index):
-                return storage!.tlsInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .streamLowerHarness(let index):
                 return storage!.streamLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             default: fatalError("Protocol cannot accept getMetrics call")
@@ -1493,13 +1460,12 @@ open class BaseNetworkProtocolStorage {
         ) throws(NetworkError) {
             switch protocolType {
             case .tcp(let index): try storage!.tcpInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
-            case .tls(let index): try storage!.tlsInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .streamLowerHarness(let index): try storage!.streamLowerHarnesses[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept attachUpperProtocol call")
             }
         }
 
-        public typealias PairedLinkage = BaseInboundStreamLinkage
+        public typealias PairedUpperLinkage = BaseInboundStreamLinkage
 
         public init() {
             self.reference = .init()
@@ -1532,7 +1498,7 @@ open class BaseNetworkProtocolStorage {
             case quic(NetworkStateIndex)
         }
 
-        public typealias PairedLinkage = BaseInboundStreamFlowLinkage
+        public typealias PairedUpperLinkage = BaseInboundStreamFlowLinkage
 
         public init() {
             self.reference = .init()
@@ -1547,7 +1513,7 @@ open class BaseNetworkProtocolStorage {
         }
 
         public func invokeAttachUpperProtocol(
-            _ upperProtocol: PairedLinkage,
+            _ upperProtocol: PairedUpperLinkage,
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
@@ -1559,14 +1525,14 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             switch protocolType {
             case .quic(let index): try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToNewFlow call")
             }
         }
 
-        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage, existingFlow: PairedLinkage.DataLinkage) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
             switch protocolType {
             case .quic(let index): _ = try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlow: existingFlow)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToExistingFlow call")
@@ -1601,7 +1567,7 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .quic(let index):
                 storage!.quicInstances[index].eventManager.unregister(state: &state)
@@ -1667,7 +1633,7 @@ open class BaseNetworkProtocolStorage {
         }
 
         public typealias DataLinkage = BaseOutboundStreamLinkage
-        public typealias PairedLinkage = BaseStreamListenerLinkage
+        public typealias PairedLowerLinkage = BaseStreamListenerLinkage
 
         public init() {
             self.reference = .init()
@@ -1883,25 +1849,6 @@ open class BaseNetworkProtocolStorage {
             protocolType: .tcp(instanceIndex)
         )
         let outbound = BaseOutboundStreamLinkage(reference: reference, storage: self, protocolType: .tcp(instanceIndex))
-
-        return (inbound, outbound)
-    }
-
-    internal var tlsInstances = NetworkGappyArray<SwiftTLSProtocol.SwiftTLSInstance<BaseStreamLinkageFamily>>()
-
-    public func createTLSInstance() -> (BaseInboundStreamLinkage, BaseOutboundStreamLinkage) {
-        // No QUIC crypto object here: this factory only wires up linkages. An instance
-        // built this way fails at connect(), which already handles the missing-crypto case.
-        let instance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<BaseStreamLinkageFamily, BaseQUICLinkageFamilies>(
-            context: context,
-            quicCrypto: nil
-        )
-
-        let instanceIndex = tlsInstances.insert(instance)
-
-        let reference = tlsInstances[instanceIndex].reference
-        let inbound = BaseInboundStreamLinkage(reference: reference, storage: self, protocolType: .tls(instanceIndex))
-        let outbound = BaseOutboundStreamLinkage(reference: reference, storage: self, protocolType: .tls(instanceIndex))
 
         return (inbound, outbound)
     }

@@ -84,7 +84,7 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
         wait(for: [expectation])
     }
 
-    // Verifies that TCP and TLS instances can be created in the gappy arrays in the
+    // Verifies that TCP instances can be created in the gappy arrays in the
     // base storage, and that each instance gets its own linkage pair.
     func testStreamInstanceStorage() {
         let parameters = Parameters()
@@ -103,18 +103,8 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
             XCTAssertFalse(tcpUpper.isDetached, "TCP upper linkage unexpectedly detached")
             XCTAssertFalse(tcpLower.isDetached, "TCP lower linkage unexpectedly detached")
 
-            let (tlsUpper, tlsLower) = storage.createTLSInstance()
-            XCTAssertFalse(tlsUpper.isDetached, "TLS upper linkage unexpectedly detached")
-            XCTAssertFalse(tlsLower.isDetached, "TLS lower linkage unexpectedly detached")
-
             // Each linkage pair shares one reference, and the instances are distinct.
             XCTAssertEqual(tcpUpper.reference, tcpLower.reference, "TCP linkages should share a reference")
-            XCTAssertEqual(tlsUpper.reference, tlsLower.reference, "TLS linkages should share a reference")
-            XCTAssertNotEqual(
-                tcpUpper.reference,
-                tlsUpper.reference,
-                "TCP and TLS instances should have distinct references"
-            )
         }
         wait(for: [expectation])
     }

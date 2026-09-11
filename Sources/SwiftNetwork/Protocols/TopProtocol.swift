@@ -31,11 +31,16 @@ internal import os
 /// Conform to `TopStreamProtocol` or `TopDatagramProtocol`.
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol TopProtocolHandler<LinkageFamily>: ~Copyable, InboundDataHandler {
-    associatedtype LinkageFamily: DataLinkageFamily
+public protocol TopProtocolHandler<LinkageType>: ~Copyable, InboundDataHandler {
+    /// The upper linkage type that represents this protocol to the protocol below it.
+    ///
+    /// A top protocol has nothing above it, so what matters is the linkage the lower protocol
+    /// holds in order to call back up. Naming that linkage directly, rather than a whole
+    /// linkage family, lets a protocol that is itself a linkage serve as its own.
+    associatedtype LinkageType: UpperProtocolLinkage
 
     /// The type of lower protocol (toward the network) that you can attach.
-    var lower: LinkageFamily.Lower { get set }
+    var lower: LinkageType.PairedLowerLinkage { get set }
 
     /// A function the framework calls when the lower protocol connects.
     ///
@@ -56,7 +61,7 @@ public protocol TopProtocolHandler<LinkageFamily>: ~Copyable, InboundDataHandler
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol TopDatapathProtocol: ~Copyable, TopProtocolHandler
-where LinkageFamily.Lower == LowerProtocol {
+where LinkageType.PairedLowerLinkage == LowerProtocol {
 
     /// A function the framework calls when the lower protocol has inbound data available to read.
     ///
@@ -153,7 +158,7 @@ extension TopProtocolHandler where Self: ~Copyable {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol TopStreamProtocol: ~Copyable, TopDatapathProtocol, InboundStreamHandler
-where LinkageFamily: StreamLinkageFamily {
+where LinkageType: InboundStreamLinkage {
     /// A function the framework calls when the lower protocol reports that inbound stream data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
@@ -247,7 +252,7 @@ extension TopStreamProtocol where Self: ~Copyable {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol TopDatagramProtocol: ~Copyable, TopDatapathProtocol, InboundDatagramHandler
-where LinkageFamily: DatagramLinkageFamily {
+where LinkageType: InboundDatagramLinkage {
 
 }
 
@@ -335,8 +340,8 @@ extension TopProtocolHandler where Self: ~Copyable {
     }
 
     public mutating func attachLowerProtocol(
-        _ lowerProtocol: LinkageFamily.Lower,
-    ) throws(NetworkError) -> LinkageFamily.Lower.PairedLinkage? {
+        _ lowerProtocol: LinkageType.PairedLowerLinkage,
+    ) throws(NetworkError) -> LinkageType.PairedLowerLinkage.PairedUpperLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }

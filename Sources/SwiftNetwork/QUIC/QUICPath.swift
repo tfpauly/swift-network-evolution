@@ -161,7 +161,7 @@ struct QUICPathFlags: OptionSet {
 @available(Network 0.1.0, *)
 public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagramPath<
     QUICConnection<Families>,
-    Families.PathLinkageFamily
+    Families.PathLinkageFamily.Lower
 >, Equatable, PrefixedLoggable {
     private(set) var state: QUICPathState = QUICPathState()
     var priority: Int = 0  // Relative priority to other paths, used to gate migration decisions

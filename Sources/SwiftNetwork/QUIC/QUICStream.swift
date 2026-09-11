@@ -448,7 +448,7 @@ struct QUICStreamList: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICStreamInstance<Families: QUICLinkageFamilies>: MultiplexedStreamFlow<QUICConnection<Families>, Families.StreamFlowLinkageFamily>,
+public final class QUICStreamInstance<Families: QUICLinkageFamilies>: MultiplexedStreamFlow<QUICConnection<Families>, Families.StreamFlowLinkageFamily.Upper>,
     UnidirectionalAbortingStreamFlow, EarlyDataStreamFlow
 {
     private(set) var streamID: QUICStreamID?

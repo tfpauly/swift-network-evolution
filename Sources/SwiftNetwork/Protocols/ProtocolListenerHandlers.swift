@@ -40,7 +40,7 @@ public protocol ListenerHandler: ~Copyable, LowerProtocolHandler where UpperProt
     // Attach to an inbound flow
     mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlow: Flow.UpperProtocol.PairedLinkage
+        existingFlow: Flow.UpperProtocol.PairedLowerLinkage
     ) throws(NetworkError)
 }
 
@@ -73,6 +73,6 @@ public protocol HeterogeneousListenerHandler: ~Copyable, ListenerHandler {
     // Attach to an inbound flow
     mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: SecondaryFlow.UpperProtocol,
-        existingFlow: SecondaryFlow.UpperProtocol.PairedLinkage
+        existingFlow: SecondaryFlow.UpperProtocol.PairedLowerLinkage
     ) throws(NetworkError)
 }

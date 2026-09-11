@@ -12,15 +12,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Linkage pairs
+#if canImport(Glibc)
+import Glibc
+internal import Logging
+#elseif canImport(Musl)
+import Musl
+internal import Logging
+#elseif canImport(os)
+internal import os
+#endif
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 // Linkage families are empty type-level tags that name a set of paired linkages. They carry
 // no state, so their metatypes are safe to capture across isolation boundaries.
+// A family's two linkages are each other's pair. This was previously true only by
+// construction; stating it lets code holding a family reach either linkage from the other.
 public protocol LinkageFamily: Sendable {
-    associatedtype Upper: UpperProtocolLinkage
-    associatedtype Lower: LowerProtocolLinkage
+    associatedtype Upper: UpperProtocolLinkage where Upper.PairedLowerLinkage == Lower
+    associatedtype Lower: LowerProtocolLinkage where Lower.PairedUpperLinkage == Upper
 }
 
 @_spi(ProtocolProvider)
@@ -32,11 +42,11 @@ public protocol DataLinkageFamily: LinkageFamily where Upper: InboundDataLinkage
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol DatagramLinkageFamily: DataLinkageFamily where Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage, Listener: DatagramListenerLinkage, InboundFlow: InboundDatagramFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedLinkage.DataLinkage == Lower { }
+public protocol DatagramLinkageFamily: DataLinkageFamily where Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage, Listener: DatagramListenerLinkage, InboundFlow: InboundDatagramFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage.DataLinkage == Lower { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol StreamLinkageFamily: DataLinkageFamily where Upper: InboundStreamLinkage, Lower: OutboundStreamLinkage, Listener: StreamListenerLinkage, InboundFlow: InboundStreamFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedLinkage.DataLinkage == Lower { }
+public protocol StreamLinkageFamily: DataLinkageFamily where Upper: InboundStreamLinkage, Lower: OutboundStreamLinkage, Listener: StreamListenerLinkage, InboundFlow: InboundStreamFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage.DataLinkage == Lower { }
 
 /// A strongly typed structure that holds a reference to another protocol and dispatches functions to it.
 ///
@@ -44,7 +54,6 @@ public protocol StreamLinkageFamily: DataLinkageFamily where Upper: InboundStrea
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol ProtocolLinkage: Hashable {
-    associatedtype PairedLinkage: ProtocolLinkage
     init()
     var reference: ProtocolInstanceReference { get }
 }
@@ -58,11 +67,14 @@ extension ProtocolLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol UpperProtocolLinkage: ProtocolLinkage where PairedLinkage: LowerProtocolLinkage {
+public protocol UpperProtocolLinkage: ProtocolLinkage {
+    /// The lower linkage this upper linkage attaches to.
+    associatedtype PairedLowerLinkage: LowerProtocolLinkage
+
     /// `invokeAttachLowerProtocol` is the general entry point to connecting protocols. It will
     /// call `invokeAttachUpperProtocol` on the lower protocol.
     func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLinkage,
+        _ lowerProtocol: PairedLowerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -118,7 +130,7 @@ extension UpperProtocolLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundDataLinkage: UpperProtocolLinkage where PairedLinkage: OutboundDataLinkage {
+public protocol InboundDataLinkage: UpperProtocolLinkage where PairedLowerLinkage: OutboundDataLinkage {
     func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
     func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
 }
@@ -151,7 +163,7 @@ extension InboundDataLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundFlowLinkage: UpperProtocolLinkage where PairedLinkage: ListenerLinkage {
+public protocol InboundFlowLinkage: UpperProtocolLinkage where PairedLowerLinkage: ListenerLinkage {
     associatedtype DataLinkage: OutboundDataLinkage
     func handleNewInboundFlowEvent(
         state: inout NetworkContext.State,
@@ -191,9 +203,9 @@ extension InboundFlowLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol ListenerLinkage: LowerProtocolLinkage where PairedLinkage: InboundFlowLinkage {
+public protocol ListenerLinkage: LowerProtocolLinkage where PairedUpperLinkage: InboundFlowLinkage {
     func invokeAttachUpperProtocolToNewFlow(
-        _ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -201,21 +213,20 @@ public protocol ListenerLinkage: LowerProtocolLinkage where PairedLinkage: Inbou
     ) throws(NetworkError)
 
     func invokeAttachUpperProtocolToExistingFlow(
-        _ upperProtocol: PairedLinkage.DataLinkage.PairedLinkage,
-        existingFlow: PairedLinkage.DataLinkage
+        _ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage,
+        existingFlow: PairedUpperLinkage.DataLinkage
     ) throws(NetworkError)
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol OutboundDataLinkage: LowerProtocolLinkage where PairedLinkage: InboundDataLinkage {}
+public protocol LowerProtocolLinkage: ProtocolLinkage {
+    /// The upper linkage this lower linkage attaches to.
+    associatedtype PairedUpperLinkage: UpperProtocolLinkage
 
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: UpperProtocolLinkage {
-    func isConnected(state: inout NetworkContext.State) -> Bool
+    func protocolIsConnected(state: inout NetworkContext.State) -> Bool
     func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedLinkage,
+        _ upperProtocol: PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -228,7 +239,7 @@ public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: Upper
     /// Releases any storage the linkage holds for the protocol instance. This runs after
     /// `detach` has returned, once the call into the protocol stack has fully unwound, so
     /// that the instance is still reachable while it is detaching.
-    func teardown(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    func teardown(state: inout NetworkContext.State)
     func handleApplicationEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -245,9 +256,13 @@ public protocol LowerProtocolLinkage: ProtocolLinkage where PairedLinkage: Upper
     ) -> NetworkMetrics?
 }
 
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol OutboundDataLinkage: LowerProtocolLinkage where PairedUpperLinkage: InboundDataLinkage {}
+
 @available(Network 0.1.0, *)
 extension LowerProtocolLinkage {
-    public func isConnected(state: inout NetworkContext.State) -> Bool {
+    public func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
         reference.isConnected(state: &state)
     }
 
@@ -279,7 +294,7 @@ extension LowerProtocolLinkage {
         }
         // Cleanup happens after the call into the protocol stack has unwound, since the
         // instance needs to stay alive for the duration of its own detach.
-        self.teardown(state: &state, from)
+        self.teardown(state: &state)
     }
 
     public func invokeApplicationEvent(
@@ -317,12 +332,12 @@ extension LowerProtocolLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundDatagramLinkage: InboundDataLinkage where PairedLinkage: OutboundDatagramLinkage {
+public protocol InboundDatagramLinkage: InboundDataLinkage where PairedLowerLinkage: OutboundDatagramLinkage {
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol OutboundDatagramLinkage: OutboundDataLinkage where PairedLinkage: InboundDatagramLinkage {
+public protocol OutboundDatagramLinkage: OutboundDataLinkage where PairedUpperLinkage: InboundDatagramLinkage {
     func receiveDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -386,7 +401,7 @@ public extension OutboundDatagramLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundStreamLinkage: InboundDataLinkage where PairedLinkage: OutboundStreamLinkage {
+public protocol InboundStreamLinkage: InboundDataLinkage where PairedLowerLinkage: OutboundStreamLinkage {
     func handleInboundAbortedEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -429,7 +444,7 @@ extension InboundStreamLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol OutboundStreamLinkage: OutboundDataLinkage where PairedLinkage: InboundStreamLinkage {
+public protocol OutboundStreamLinkage: OutboundDataLinkage where PairedUpperLinkage: InboundStreamLinkage {
     func receiveStreamData(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
@@ -543,20 +558,64 @@ public extension OutboundStreamLinkage {
             try self.abortOutbound(state: &state, from, error: error)
         }
     }
+
+    // Optional types that may not be supported, default to error
+
+    func sendEarlyStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        throw .posix(ENOTSUP)
+    }
+
+    func abortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        throw .posix(ENOTSUP)
+    }
+
+    func abortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        throw .posix(ENOTSUP)
+    }
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundDatagramFlowLinkage: InboundFlowLinkage where PairedLinkage: DatagramListenerLinkage { }
+public protocol InboundDatagramFlowLinkage: InboundFlowLinkage where PairedLowerLinkage: DatagramListenerLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol DatagramListenerLinkage: ListenerLinkage where PairedLinkage: InboundDatagramFlowLinkage { }
+public protocol DatagramListenerLinkage: ListenerLinkage where PairedUpperLinkage: InboundDatagramFlowLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol InboundStreamFlowLinkage: InboundFlowLinkage where PairedLinkage: StreamListenerLinkage { }
+public protocol InboundStreamFlowLinkage: InboundFlowLinkage where PairedLowerLinkage: StreamListenerLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol StreamListenerLinkage: ListenerLinkage where PairedLinkage: InboundStreamFlowLinkage { }
+public protocol StreamListenerLinkage: ListenerLinkage where PairedUpperLinkage: InboundStreamFlowLinkage { }
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public extension LowerProtocolLinkage where Self: ProtocolInstanceAsLinkage, Self: LowerProtocolHandler {
+    mutating func invokeAttachUpperProtocol(_ upperProtocol: UpperProtocol, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        try self.attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+    }
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public extension UpperProtocolLinkage where Self: ProtocolInstanceAsLinkage, Self: UpperProtocolHandler, Self == Self.LowerProtocol.PairedUpperLinkage {
+    mutating func invokeAttachLowerProtocol(_ lowerProtocol: LowerProtocol, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        let overrideUpperLinkage = try self.attachLowerProtocol(lowerProtocol)
+        let upperLinkage = overrideUpperLinkage ?? self
+        try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
+    }
+}

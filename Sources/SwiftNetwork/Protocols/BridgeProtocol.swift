@@ -117,13 +117,13 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance: BottomDatagramProtocol, ProtocolInstanceContainer, TimerSchedulable {        
-        public typealias LinkageFamily = BaseDatagramLinkageFamily
-        public typealias UpperProtocol = LinkageFamily.Upper
+    public final class BridgeInstance: BottomDatagramProtocol, TimerSchedulable {
+        public typealias LinkageType = BaseDatagramLinkageFamily.Lower
+        public typealias UpperProtocol = BaseDatagramLinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = LinkageFamily.Upper()
-        var lower = LinkageFamily.Lower()
+        public var upper = BaseDatagramLinkageFamily.Upper()
+        var lower = BaseDatagramLinkageFamily.Lower()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -239,11 +239,15 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             upper.deliverConnectedEvent(state: &state, reference)
         }
 
-        public func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
+        public func receiveDatagrams(
+            state: inout NetworkContext.State,
+            maximumDatagramCount: Int
+        ) throws(NetworkError) -> FrameArray? {
             incomingFrames.drainArray(maximumFrameCount: maximumDatagramCount)
         }
 
         public func getDatagramsToSend(
+            state: inout NetworkContext.State,
             maximumDatagramCount: Int,
             minimumDatagramSize: Int
         ) throws(NetworkError) -> FrameArray? {
@@ -267,7 +271,10 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             return frameArray
         }
 
-        public func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError) {
+        public func sendDatagrams(
+            state: inout NetworkContext.State,
+            _ datagrams: consuming FrameArray
+        ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeInstance.instances[remotePort] else {
                 log.error("Unable to find instance for port: \(remotePort)")
@@ -403,9 +410,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance: BottomStreamProtocol, ProtocolInstanceContainer {
-        public typealias LinkageFamily = DefaultStreamLinkageFamily
-        public typealias UpperProtocol = LinkageFamily.Upper
+    public final class BridgeInstance: BottomStreamProtocol {
+        public typealias LinkageType = DefaultStreamLinkageFamily.Lower
+        public typealias UpperProtocol = DefaultStreamLinkageFamily.Upper
 
         var maximumOutputSize = 1500
         public var upper = DefaultInboundStreamLinkage()
@@ -459,15 +466,24 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             upper.deliverConnectedEvent(state: &state, reference)
         }
 
-        public func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray? {
+        public func receiveStreamData(
+            state: inout NetworkContext.State,
+            minimumBytes: Int,
+            maximumBytes: Int
+        ) throws(NetworkError) -> FrameArray? {
             incomingFrames.drainArray(maximumByteCount: maximumBytes)
         }
 
-        public func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
+        public func getOutboundStreamDataRoomAvailable(
+            state: inout NetworkContext.State
+        ) throws(NetworkError) -> Int {
             Int.max
         }
 
-        public func sendStreamData(_ streamData: consuming FrameArray) throws(NetworkError) {
+        public func sendStreamData(
+            state: inout NetworkContext.State,
+            _ streamData: consuming FrameArray
+        ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeInstance.instances[remotePort] else {
                 log.error("Unable to find instance for port: \(remotePort)")

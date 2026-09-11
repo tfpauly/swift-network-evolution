@@ -81,7 +81,7 @@ public protocol ManyToManyProtocolHandler: ListenerHandler, LoggableProtocol whe
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Path.LowerProtocol.PairedLinkage?
+    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage?
 
     // MARK: Helper functions implemented by inheriting either HomogeneousManyToManyProtocolHandler or HeterogeneousManyToManyProtocolHandler
     mutating func performInitialSetupIfNeeded(
@@ -209,10 +209,8 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol MultiplexedDatapathFlow<LinkageFamily>: MultiplexedFlow
-where UpperProtocol: InboundDataLinkage, ParentProtocol: ManyToManyDatapathProtocol {
-    associatedtype LinkageFamily: DataLinkageFamily
-}
+public protocol MultiplexedDatapathFlow<UpperProtocol>: MultiplexedFlow
+where UpperProtocol: InboundDataLinkage, ParentProtocol: ManyToManyDatapathProtocol {}
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -258,10 +256,8 @@ public protocol MultiplexingPath: UpperProtocolHandler {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol MultiplexingDatapathPath<LinkageFamily>: MultiplexingPath
-where LowerProtocol: OutboundDataLinkage, ParentProtocol: ManyToManyDatapathProtocol {
-    associatedtype LinkageFamily: DataLinkageFamily
-}
+public protocol MultiplexingDatapathPath<LowerProtocol>: MultiplexingPath
+where LowerProtocol: OutboundDataLinkage, ParentProtocol: ManyToManyDatapathProtocol {}
 
 // MARK: Implementations
 
@@ -361,7 +357,7 @@ extension ManyToManyProtocolHandler {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Path.LowerProtocol.PairedLinkage? {
+    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage? {
         var newPath = Path(parent: self as! Self.Path.ParentProtocol)
         let overrideLinkage = try newPath.attachLowerProtocol(lowerProtocol)
         if multiplexingPaths.isEmpty { newPath.pathIsPrimary = true }
@@ -450,7 +446,7 @@ extension ManyToManyProtocolHandler {
 
     public var somePathIsConnected: Bool {
         for path in multiplexingPaths.values {
-            if path.lower.isConnected(state: &context.state) {
+            if path.lower.protocolIsConnected(state: &context.state) {
                 return true
             }
         }
@@ -553,7 +549,7 @@ extension HomogeneousManyToManyProtocolHandler {
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlow: Flow.UpperProtocol.PairedLinkage
+        existingFlow: Flow.UpperProtocol.PairedLowerLinkage
     ) throws(NetworkError) {
         let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
         guard var existingFlow = flow(for: flowID) else {
@@ -800,7 +796,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlow: Flow.UpperProtocol.PairedLinkage
+        existingFlow: Flow.UpperProtocol.PairedLowerLinkage
     ) throws(NetworkError) {
         let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
         guard var existingFlow = flow(for: flowID) else {
@@ -811,7 +807,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: SecondaryFlow.UpperProtocol,
-        existingFlow: SecondaryFlow.UpperProtocol.PairedLinkage
+        existingFlow: SecondaryFlow.UpperProtocol.PairedLowerLinkage
     ) throws(NetworkError) {
         let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
         guard var existingFlow = secondaryFlow(for: flowID) else {
@@ -823,8 +819,8 @@ extension HeterogeneousManyToManyProtocolHandler {
     public mutating func addInboundSecondaryFlow() throws(NetworkError) -> MultiplexedFlowIdentifier
     where
         SecondaryFlow.ParentProtocol == Self,
-        SecondaryUpperProtocol.DataLinkage.PairedLinkage == SecondaryFlow.UpperProtocol,
-        SecondaryUpperProtocol.DataLinkage == SecondaryFlow.UpperProtocol.PairedLinkage
+        SecondaryUpperProtocol.DataLinkage.PairedUpperLinkage == SecondaryFlow.UpperProtocol,
+        SecondaryUpperProtocol.DataLinkage == SecondaryFlow.UpperProtocol.PairedLowerLinkage
     {
 
         let newFlow = SecondaryFlow(parent: self, inbound: true)
@@ -1162,7 +1158,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing {
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        return try receiveStreamData(minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        return try receiveStreamData(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
     }
 
     public func getOutboundStreamDataRoomAvailable(
@@ -1171,7 +1167,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing {
     ) throws(NetworkError) -> Int {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try getOutboundStreamDataRoomAvailable()
+        return try getOutboundStreamDataRoomAvailable(state: &state)
     }
 
     public mutating func sendStreamData(
@@ -1187,7 +1183,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try sendStreamData(streamData)
+        try sendStreamData(state: &state, streamData)
     }
 }
 
@@ -1202,7 +1198,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperStreamProcessing, Se
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        try sendEarlyStreamData(streamData)
+        try sendEarlyStreamData(state: &state, streamData)
     }
 }
 
@@ -1257,11 +1253,11 @@ extension ManyToManyApplicationStreamProtocol where Flow: AutomaticUpperStreamPr
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProtocol, LinkageFamily: StreamLinkageFamily>: MultiplexedDatapathFlow,
-    AutomaticUpperStreamProcessing, ProtocolInstanceContainer
+open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProtocol, LinkageType: InboundStreamLinkage>: MultiplexedDatapathFlow,
+    AutomaticUpperStreamProcessing
 {
     public typealias ParentProtocol = ParentProtocol
-    public typealias UpperProtocol = LinkageFamily.Upper
+    public typealias UpperProtocol = LinkageType
 
     public var parentProtocol: ParentProtocol
     public var upper = UpperProtocol()
@@ -1369,7 +1365,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try receiveDatagrams(maximumDatagramCount: maximumDatagramCount)
+        return try receiveDatagrams(state: &state, maximumDatagramCount: maximumDatagramCount)
     }
 
     public func getDatagramsToSend(
@@ -1381,6 +1377,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
         return try getDatagramsToSend(
+            state: &state,
             maximumDatagramCount: maximumDatagramCount,
             minimumDatagramSize: minimumDatagramSize
         )
@@ -1399,7 +1396,7 @@ extension MultiplexedDatapathFlow where Self: AutomaticUpperDatagramProcessing {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try sendDatagrams(datagrams)
+        try sendDatagrams(state: &state, datagrams)
     }
 }
 
@@ -1497,11 +1494,11 @@ extension HeterogeneousManyToManyProtocolHandler where SecondaryFlow: AutomaticU
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagramProtocol, LinkageFamily: DatagramLinkageFamily>: MultiplexedDatapathFlow,
-    AutomaticUpperDatagramProcessing, ProtocolInstanceContainer
+open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagramProtocol, LinkageType: InboundDatagramLinkage>: MultiplexedDatapathFlow,
+    AutomaticUpperDatagramProcessing
 {
     public typealias ParentProtocol = ParentProtocol
-    public typealias UpperProtocol = LinkageFamily.Upper
+    public typealias UpperProtocol = LinkageType
 
     public var parentProtocol: ParentProtocol
     public var upper = UpperProtocol()
@@ -1555,7 +1552,7 @@ extension MultiplexingPath {
 
     public mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+    ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
@@ -1888,11 +1885,11 @@ extension MultiplexingDatapathPath where Self: AutomaticLowerDatagramProcessing 
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramProtocol, LinkageFamily: DatagramLinkageFamily>: MultiplexingDatapathPath,
-    AutomaticLowerDatagramProcessing, ProtocolInstanceContainer
+open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramProtocol, LinkageType: OutboundDatagramLinkage>: MultiplexingDatapathPath,
+    AutomaticLowerDatagramProcessing
 {
     public typealias ParentProtocol = ParentProtocol
-    public typealias LowerProtocol = LinkageFamily.Lower
+    public typealias LowerProtocol = LinkageType
 
     public var parentProtocol: ParentProtocol
     public var lower = LowerProtocol()

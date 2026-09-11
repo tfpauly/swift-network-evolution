@@ -167,8 +167,7 @@ public struct DemuxProtocol: NetworkProtocol {
         }
     }
 
-    public final class DemuxInstance: OutboundDatagramHandler, InboundDatagramHandler, LoggableProtocol,
-        ProtocolInstanceContainer
+    public final class DemuxInstance: OutboundDatagramHandler, InboundDatagramHandler, LoggableProtocol
     {
         public typealias UpperProtocol = DefaultInboundDatagramLinkage
         public typealias LowerProtocol = DefaultOutboundDatagramLinkage
@@ -258,7 +257,7 @@ public struct DemuxProtocol: NetworkProtocol {
 
         public func attachLowerProtocol(
             _ lowerProtocol: LowerProtocol,
-        ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+        ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
             guard lower.isDetached else {
                 throw NetworkError.posix(EALREADY)
             }
@@ -431,7 +430,7 @@ public struct DemuxProtocol: NetworkProtocol {
             do { try validate(upper: from, #function) } catch { return }
             if from == defaultUpper.reference {
 
-                if lower.isConnected(state: &state) {
+                if lower.protocolIsConnected(state: &state) {
                     if canCallConnect(state: &state, requested: true) {
                         defaultUpper.deliverConnectedEvent(state: &state, self.reference)
                     }

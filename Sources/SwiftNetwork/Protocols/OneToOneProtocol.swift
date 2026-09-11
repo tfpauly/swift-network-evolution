@@ -339,7 +339,7 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 
     public mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+    ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
@@ -391,7 +391,7 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 
     public mutating func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         do { try validate(upper: from, #function) } catch { return }
-        if lower.isConnected(state: &state) {
+        if lower.protocolIsConnected(state: &state) {
             if canCallConnect(state: &state, requested: true) {
                 connect(state: &state)
             }
@@ -524,10 +524,10 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == LowerProtocol.PairedLinkage {
+extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == LowerProtocol.PairedUpperLinkage {
     public mutating func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
-    ) throws(NetworkError) -> LowerProtocol.PairedLinkage? {
+    ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
         guard lower.isDetached else {
             throw NetworkError.posix(EALREADY)
         }

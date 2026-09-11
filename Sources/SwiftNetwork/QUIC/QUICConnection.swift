@@ -161,8 +161,7 @@ public enum QUICConnectionState: CustomStringConvertible {
 @available(Network 0.1.0, *)
 public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyApplicationStreamProtocol,
     ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
-    StreamListenerHandler, HeterogeneousManyToManyProtocolHandler, TimerSchedulable,
-    ProtocolInstanceContainer
+    StreamListenerHandler, HeterogeneousManyToManyProtocolHandler, TimerSchedulable
 {
     public var inboundFlowLinkage = UpperProtocol()
     public var secondaryInboundFlowLinkage = SecondaryUpperProtocol()
@@ -6234,7 +6233,7 @@ extension QUICConnection {
 #else
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICConnection: ProtocolInstance, ProtocolInstanceContainer {
+public final class QUICConnection: ProtocolInstance {
     public private(set) var context: NetworkContext
     public init(context: NetworkContext) {
         self.context = context

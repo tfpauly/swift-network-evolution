@@ -31,23 +31,23 @@ internal import os
 #endif
 
 @available(Network 0.1.0, *)
-final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, BaseDatagramLinkageFamily> {
+final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, BaseDatagramLinkageFamily.Upper> {
 
 }
 
 @available(Network 0.1.0, *)
-final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, BaseDatagramLinkageFamily> {
+final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, BaseDatagramLinkageFamily.Lower> {
 
 }
 
 @available(Network 0.1.0, *)
 final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
-    DatagramListenerHandler, HomogeneousManyToManyProtocolHandler, ProtocolInstanceContainer
+    DatagramListenerHandler, HomogeneousManyToManyProtocolHandler
 {    
-    typealias UpperProtocol = Flow.LinkageFamily.InboundFlow
+    typealias UpperProtocol = BaseDatagramLinkageFamily.InboundFlow
 
     var inboundFlowLinkage = UpperProtocol()
-    var asListener: Flow.LinkageFamily.Listener { .init() } // TODO: TFPDEBUG FIX
+    var asListener: BaseDatagramLinkageFamily.Listener { .init() } // TODO: TFPDEBUG FIX
 
     var delayConnected = false
 

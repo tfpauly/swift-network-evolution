@@ -62,7 +62,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 
     var reference: ProtocolInstanceReference
 
-    var tlsInstance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<LinkageFamily, Families>!
+    var tlsInstance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>!
 
     var outboundCryptoInitialOffset: Int = 0
     var outboundCrypto1RTTOffset: Int = 0
@@ -95,16 +95,9 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 
     var enableEarlyData = false
 
-    // TODO: TFPDEBUG FIX THIS
-    var asLower: LowerProtocol { .init() }
-
-    struct cryptoQueuedPackets {
-    }
-    var cryptoQueue = Deque<cryptoQueuedPackets>()
-
     init(context: NetworkContext) {
         reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
-        tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<LinkageFamily, Families>(
+        tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>(
             context: context,
             quicCrypto: self
         )
@@ -142,21 +135,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         tlsParameters.isServer = parentConnection.isServer
         tlsParameters.defaultStack.append(applicationProtocol: .swiftTLS(tlsOptions))
         do throws(NetworkError) {
-//            self.tlsLinkage = try self.tlsInstance.attachUpperStreamProtocol(
-//                reference,
-//                remote: nil,
-//                local: nil,
-//                parameters: tlsParameters,
-//                path: nil
-//            )
-            // TODO: TFPDEBUG FIX THIS
-//            try self.tlsInstance.attachLowerStreamProtocol(
-//                self.reference,
-//                remote: nil,
-//                local: nil,
-//                parameters: tlsParameters,
-//                path: nil
-//            )
+            try tlsInstance.attachUpperProtocol(self, remote: nil, local: nil, parameters: tlsParameters, path: nil)
         } catch {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
@@ -216,20 +195,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 #if IMPORT_SWIFTTLS
 #if canImport(SwiftTLS)
 @available(Network 0.1.0, *)
-extension QUICCrypto: SwiftTLSQUICInstance {
-    func getLowerLinkage(
-        for level: SwiftTLSOptions.EncryptionLevel,
-        upperLinkage: UpperProtocol
-    ) -> LowerProtocol {
-        switch level {
-        case .initial: initialLinkage = upperLinkage
-        case .earlyData: earlyDataLinkage = upperLinkage
-        case .handshake: handshakeLinkage = upperLinkage
-        case .application: applicationLinkage = upperLinkage
-        }
-        return asLower
-    }
-
+extension QUICCrypto {
     func updateSecret(_ secret: [UInt8], for level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool) {
         guard let parentConnection else { return }
         parentConnection.log.debug(
@@ -361,9 +327,34 @@ extension QUICCrypto: SwiftTLSQUICInstance {
 #endif
 
 @available(Network 0.1.0, *)
-extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
-    typealias LinkageFamily = Families.StreamFlowLinkageFamily
-    typealias LowerProtocol = LinkageFamily.Lower
+extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInstanceAsLinkage {
+    // TLS Instance is our "lower protocol", only one overall.
+    typealias PairedLowerLinkage = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>
+
+    // TLS Encryption Handler is our "upper protocol", one per encryption level.
+    typealias PairedUpperLinkage = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>.EncryptionLevelHandler
+
+    convenience init() {
+        self.init(context: .implicitContext)
+    }
+    
+    func invokeAttachLowerProtocol(_ lowerProtocol: PairedLowerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        throw NetworkError.posix(ENOTSUP)
+    }
+
+    func invokeAttachUpperProtocol(_ upperProtocol: PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+        throw NetworkError.posix(ENOTSUP)
+    }
+
+    func teardown(state: inout NetworkContext.State) {
+        eventManager.unregister(state: &state)
+    }
+}
+
+@available(Network 0.1.0, *)
+extension QUICCrypto: TopStreamProtocol {
+    typealias LinkageType = QUICCrypto<Families>
+    typealias LowerProtocol = PairedLowerLinkage
 
     var context: NetworkContext { parentConnection!.context }
 
@@ -495,7 +486,7 @@ extension QUICCrypto: TopStreamProtocol, ProtocolInstanceContainer {
 // Per-Level Sending Callbacks
 @available(Network 0.1.0, *)
 extension QUICCrypto: OutboundStreamHandler {
-    typealias UpperProtocol = LinkageFamily.Upper
+    typealias UpperProtocol = PairedUpperLinkage
 
     func attachUpperProtocol(
         _ upperProtocol: UpperProtocol,

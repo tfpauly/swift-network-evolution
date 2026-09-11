@@ -29,11 +29,16 @@ internal import os
 /// Conform to `BottomStreamProtocol` or `BottomDatagramProtocol`.
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol BottomProtocolHandler<LinkageFamily>: ~Copyable, OutboundDataHandler {
-    associatedtype LinkageFamily: DataLinkageFamily
+public protocol BottomProtocolHandler<LinkageType>: ~Copyable, OutboundDataHandler {
+    /// The lower linkage type that represents this protocol to the protocol above it.
+    ///
+    /// A bottom protocol has nothing below it, so what matters is the linkage the upper
+    /// protocol holds in order to call back down. Naming that linkage directly, rather than a
+    /// whole linkage family, lets a protocol that is itself a linkage serve as its own.
+    associatedtype LinkageType: LowerProtocolLinkage
 
     /// The type of upper protocol (toward the app) that you can attach.
-    var upper: LinkageFamily.Upper { get set }
+    var upper: LinkageType.PairedUpperLinkage { get set }
 
     /// Sets up a protocol instance with parameters and endpoints.
     ///
@@ -132,7 +137,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol: InboundDataLinkage {
+extension BottomProtocolHandler where Self: ~Copyable, LinkageType.PairedUpperLinkage: InboundDataLinkage {
     /// Indicates to the upper protocol that this protocol has data available to read.
     ///
     /// This is an external entry point; see `deliverConnectedEvent()`.
@@ -192,39 +197,52 @@ extension BottomProtocolHandler where Self: ~Copyable, UpperProtocol: InboundDat
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol BottomStreamProtocol: ~Copyable, BottomProtocolHandler, OutboundStreamHandler
-where LinkageFamily: StreamLinkageFamily, LinkageFamily.Upper == UpperProtocol {
+where LinkageType: OutboundStreamLinkage, LinkageType.PairedUpperLinkage == UpperProtocol {
 
     /// Returns received stream data to the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func receiveStreamData(minimumBytes: Int, maximumBytes: Int) throws(NetworkError) -> FrameArray?
+    mutating func receiveStreamData(
+        state: inout NetworkContext.State,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray?
 
     /// Returns the number of bytes of stream data that can be written.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int
+    mutating func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State
+    ) throws(NetworkError) -> Int
 
     /// Sends stream data created by the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func sendStreamData(_ streamData: consuming FrameArray) throws(NetworkError)
+    mutating func sendStreamData(
+        state: inout NetworkContext.State,
+        _ streamData: consuming FrameArray
+    ) throws(NetworkError)
 }
 
 /// Bottom protocol with an upper datagram linkage.
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol BottomDatagramProtocol: ~Copyable, BottomProtocolHandler, OutboundDatagramHandler
-where LinkageFamily: DatagramLinkageFamily, LinkageFamily.Upper == UpperProtocol {
+where LinkageType: OutboundDatagramLinkage, LinkageType.PairedUpperLinkage == UpperProtocol {
 
     /// Returns received datagrams to the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func receiveDatagrams(maximumDatagramCount: Int) throws(NetworkError) -> FrameArray?
+    mutating func receiveDatagrams(
+        state: inout NetworkContext.State,
+        maximumDatagramCount: Int
+    ) throws(NetworkError) -> FrameArray?
 
     /// Returns datagram frames the upper protocol can use to send.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func getDatagramsToSend(
+        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray?
@@ -232,7 +250,10 @@ where LinkageFamily: DatagramLinkageFamily, LinkageFamily.Upper == UpperProtocol
     /// Sends datagrams created by the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func sendDatagrams(_ datagrams: consuming FrameArray) throws(NetworkError)
+    mutating func sendDatagrams(
+        state: inout NetworkContext.State,
+        _ datagrams: consuming FrameArray
+    ) throws(NetworkError)
 }
 
 // MARK: - Bottom Protocol Implementation Details
@@ -261,7 +282,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
     }
 
     public mutating func attachUpperProtocol(
-        _ upperProtocol: LinkageFamily.Upper,
+        _ upperProtocol: LinkageType.PairedUpperLinkage,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
@@ -395,7 +416,7 @@ extension BottomDatagramProtocol where Self: ~Copyable {
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveDatagrams(maximumDatagramCount: maximumDatagramCount)
+        return try self.receiveDatagrams(state: &state, maximumDatagramCount: maximumDatagramCount)
     }
     public mutating func getDatagramsToSend(
         state: inout NetworkContext.State,
@@ -406,6 +427,7 @@ extension BottomDatagramProtocol where Self: ~Copyable {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
         return try self.getDatagramsToSend(
+            state: &state,
             maximumDatagramCount: maximumDatagramCount,
             minimumDatagramSize: minimumDatagramSize
         )
@@ -423,7 +445,7 @@ extension BottomDatagramProtocol where Self: ~Copyable {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendDatagrams(datagrams)
+        try self.sendDatagrams(state: &state, datagrams)
     }
 }
 
@@ -437,7 +459,7 @@ extension BottomStreamProtocol where Self: ~Copyable {
     ) throws(NetworkError) -> FrameArray? {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveStreamData(minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        return try self.receiveStreamData(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
     }
     public mutating func getOutboundStreamDataRoomAvailable(
         state: inout NetworkContext.State,
@@ -445,7 +467,7 @@ extension BottomStreamProtocol where Self: ~Copyable {
     ) throws(NetworkError) -> Int {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
         guard isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.getOutboundStreamDataRoomAvailable()
+        return try self.getOutboundStreamDataRoomAvailable(state: &state)
     }
     public mutating func sendStreamData(
         state: inout NetworkContext.State,
@@ -460,6 +482,6 @@ extension BottomStreamProtocol where Self: ~Copyable {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendStreamData(streamData)
+        try self.sendStreamData(state: &state, streamData)
     }
 }
