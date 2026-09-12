@@ -24,11 +24,54 @@
 @available(Network 0.1.0, *)
 public protocol QUICLinkageFamilies: Sendable {
     /// The linkage family used by stream flows handed to upper protocols.
+    ///
+    /// Its lower linkage must be constructible from a QUIC stream, so that the stack can hand
+    /// a newly created stream to the protocol above it.
     associatedtype StreamFlowLinkageFamily: StreamLinkageFamily
+    where StreamFlowLinkageFamily.Lower: QUICStreamLowerLinkage,
+          StreamFlowLinkageFamily.Lower.QUICFamilies == Self
+
     /// The linkage family used by datagram flows handed to upper protocols.
+    ///
+    /// Its lower linkage must be constructible from a QUIC datagram flow.
     associatedtype DatagramFlowLinkageFamily: DatagramLinkageFamily
+    where DatagramFlowLinkageFamily.Lower: QUICDatagramFlowLowerLinkage,
+          DatagramFlowLinkageFamily.Lower.QUICFamilies == Self
+
     /// The linkage family used by the datagram paths beneath the connection.
+    ///
+    /// Its upper linkage must be constructible from a QUIC path, so that the stack can attach
+    /// a newly created path to the datagram protocol below it.
     associatedtype PathLinkageFamily: DatagramLinkageFamily
+    where PathLinkageFamily.Upper: QUICPathUpperLinkage,
+          PathLinkageFamily.Upper.QUICFamilies == Self
+
+    associatedtype MultipathLinkageType: DatagramMultipathLinkage
+    where MultipathLinkageType.MultipathLowerProtocol == PathLinkageFamily.Lower
+}
+
+/// Require that QUICStreamInstances can be wrapped in linkages
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol QUICStreamLowerLinkage: Sendable {
+    associatedtype QUICFamilies: QUICLinkageFamilies
+    init(_ quicStream: QUICStreamInstance<QUICFamilies>)
+}
+
+/// Require that QUICDatagramFlows can be wrapped in linkages
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol QUICDatagramFlowLowerLinkage: Sendable {
+    associatedtype QUICFamilies: QUICLinkageFamilies
+    init(_ quicStream: QUICDatagramFlow<QUICFamilies>)
+}
+
+/// Require that QUICPaths can be wrapped in linkages
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol QUICPathUpperLinkage: Sendable {
+    associatedtype QUICFamilies: QUICLinkageFamilies
+    init(_ quicStream: QUICPath<QUICFamilies>)
 }
 
 /// The linkage families used by a QUIC connection in a standard protocol stack.
@@ -38,6 +81,7 @@ public struct DefaultQUICLinkageFamilies: QUICLinkageFamilies {
     public typealias StreamFlowLinkageFamily = DefaultStreamLinkageFamily
     public typealias DatagramFlowLinkageFamily = DefaultDatagramLinkageFamily
     public typealias PathLinkageFamily = DefaultDatagramLinkageFamily
+    public typealias MultipathLinkageType = DefaultDatagramMultipathLinkage
 }
 
 // Spellings of the QUIC types for the default linkage families, for callers that work with a

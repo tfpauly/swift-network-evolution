@@ -471,6 +471,10 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
 
     private var flags = QUICStreamFlags()
 
+    override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+        Families.StreamFlowLinkageFamily.Lower.init(self)
+    }
+
     // Have sent DATA_BLOCKED for the stream without an increase
     var hasSentDataBlocked: Bool {
         get { flags.contains(.hasSentDataBlocked) }

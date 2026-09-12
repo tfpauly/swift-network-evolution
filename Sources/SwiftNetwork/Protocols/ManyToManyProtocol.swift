@@ -81,7 +81,7 @@ public protocol ManyToManyProtocolHandler: ListenerHandler, LoggableProtocol whe
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage?
+    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage
 
     // MARK: Helper functions implemented by inheriting either HomogeneousManyToManyProtocolHandler or HeterogeneousManyToManyProtocolHandler
     mutating func performInitialSetupIfNeeded(
@@ -205,6 +205,7 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
     init(parent: ParentProtocol, inbound: Bool)
     var upperReceiveQueue: FrameArray { get set }
     var upperSendQueue: FrameArray { get set }
+    func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage
 }
 
 @_spi(ProtocolProvider)
@@ -252,6 +253,7 @@ public protocol MultiplexingPath: UpperProtocolHandler {
     init(parent: ParentProtocol)
     var pathIsPrimary: Bool { get set }
     var pathHasMigrationInfo: Bool { get set }
+    func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage
 }
 
 @_spi(ProtocolProvider)
@@ -357,13 +359,21 @@ extension ManyToManyProtocolHandler {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage? {
-        var newPath = Path(parent: self as! Self.Path.ParentProtocol)
-        let overrideLinkage = try newPath.attachLowerProtocol(lowerProtocol)
-        if multiplexingPaths.isEmpty { newPath.pathIsPrimary = true }
+    ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage
+    where Path.ParentProtocol == Self {
+        var newPath = Path(parent: self)
+        _ = try newPath.attachLowerProtocol(lowerProtocol)
+        let isFirstPath = multiplexingPaths.isEmpty
+        if isFirstPath { newPath.pathIsPrimary = true }
         multiplexingPaths[newPath.identifier] = newPath
-        handlePathChanged(path: newPath.identifier, event: .available, isPrimary: newPath.pathIsPrimary)
-        return overrideLinkage
+        if !isFirstPath {
+            handlePathChanged(
+                path: newPath.identifier,
+                event: .available,
+                isPrimary: newPath.pathIsPrimary
+            )
+        }
+        return newPath.asUpperLinkage()
     }
 
     fileprivate func connectInternal() {
@@ -521,7 +531,7 @@ extension HomogeneousManyToManyProtocolHandler {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> Flow.UpperProtocol.PairedLowerLinkage where Flow.ParentProtocol == Self {
         let flowID = MultiplexedFlowIdentifier(upperProtocol.reference)
         let existingFlow = flow(for: flowID)
         guard existingFlow == nil else {
@@ -530,11 +540,11 @@ extension HomogeneousManyToManyProtocolHandler {
 
         try performInitialSetupIfNeeded(remote: remote, local: local, parameters: parameters, path: path)
 
-        var newFlow = Flow(parent: self as! Flow.ParentProtocol, inbound: false)
+        var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
         do {
-            return try newFlow.attachUpperProtocol(
+            try newFlow.attachUpperProtocol(
                 upperProtocol,
                 remote: remote,
                 local: local,
@@ -545,6 +555,8 @@ extension HomogeneousManyToManyProtocolHandler {
             multiplexedFlows[flowID] = nil
             throw error
         }
+
+        return newFlow.asLowerLinkage()
     }
 
     public mutating func attachUpperProtocolToExistingFlow(
@@ -735,7 +747,7 @@ extension HeterogeneousManyToManyProtocolHandler {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) {
+    ) throws(NetworkError) -> Flow.UpperProtocol.PairedLowerLinkage where Flow.ParentProtocol == Self {
         let flowID = MultiplexedFlowIdentifier(upperProtocol.reference)
         let existingFlow = flow(for: flowID)
         guard existingFlow == nil else {
@@ -744,11 +756,11 @@ extension HeterogeneousManyToManyProtocolHandler {
 
         try performInitialSetupIfNeeded(remote: remote, local: local, parameters: parameters, path: path)
 
-        var newFlow = Flow(parent: self as! Flow.ParentProtocol, inbound: false)
+        var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
         multiplexedFlows[flowID] = newFlow
         do {
-            return try newFlow.attachUpperProtocol(
+            try newFlow.attachUpperProtocol(
                 upperProtocol,
                 remote: remote,
                 local: local,
@@ -759,6 +771,8 @@ extension HeterogeneousManyToManyProtocolHandler {
             multiplexedFlows[flowID] = nil
             throw error
         }
+
+        return newFlow.asLowerLinkage()
     }
 
     public mutating func attachUpperProtocolToNewFlow(
@@ -767,7 +781,7 @@ extension HeterogeneousManyToManyProtocolHandler {
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) where SecondaryFlow.ParentProtocol == Self {
+    ) throws(NetworkError) -> SecondaryFlow.UpperProtocol.PairedLowerLinkage where SecondaryFlow.ParentProtocol == Self {
         let flowID = MultiplexedFlowIdentifier(upperProtocol.reference)
         let existingFlow = secondaryFlow(for: flowID)
         guard existingFlow == nil else {
@@ -792,6 +806,8 @@ extension HeterogeneousManyToManyProtocolHandler {
             multiplexedSecondaryFlows[flowID] = nil
             throw error
         }
+
+        return newFlow.asLowerLinkage()
     }
 
     public mutating func attachUpperProtocolToExistingFlow(
@@ -957,35 +973,6 @@ extension HeterogeneousManyToManyProtocolHandler {
         return parameters.protocolOptions(for: reference)
     }
     #endif
-}
-
-@available(Network 0.1.0, *)
-extension ManyToManyDatapathProtocol where Path.ParentProtocol == Self, Path: InboundDatagramHandler {
-    public mutating func attachLowerDatagramProtocolForNewPath(
-        _ lowerProtocol: ProtocolInstanceReference,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-        var newPath = Path(parent: self)
-        // TODO: TFPDEBUG FIX THIS
-//        try newPath.attachLowerDatagramProtocol(
-//            state: &context.state,
-//            lowerProtocol,
-//            remote: remote,
-//            local: local,
-//            parameters: parameters,
-//            path: path
-//        )
-        let isFirstPath = multiplexingPaths.isEmpty
-        if isFirstPath { newPath.pathIsPrimary = true }
-        if path?.hasMigrationInfo == true { newPath.pathHasMigrationInfo = true }
-        multiplexingPaths[newPath.identifier] = newPath
-        if !isFirstPath {
-            handlePathChanged(path: newPath.identifier, event: .available, isPrimary: newPath.pathIsPrimary)
-        }
-    }
 }
 
 @available(Network 0.1.0, *)
@@ -1296,6 +1283,11 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
     public func upperReceiveQueueDrainedBytes(_ bytes: Int) {
         // No-op by default
     }
+
+    /// To be overridden by subclasses
+    public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+        .init()
+    }
 }
 
 @_spi(ProtocolProvider)
@@ -1531,6 +1523,11 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
         if inbound {
             self._identifier = .init(inboundReference: reference)
         }
+    }
+
+    /// To be overridden by subclasses
+    public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+        .init()
     }
 }
 
@@ -1918,5 +1915,10 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
         self.parentProtocol = parent
         reference = .init(context: parent.context, eventManager: &self.eventManager)
         reference.setParentReference(parent.reference)
+    }
+
+    /// To be overridden by subclasses
+    public func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
+        .init()
     }
 }

@@ -31,6 +31,10 @@ public final class QUICDatagramFlow<Families: QUICLinkageFamilies>: MultiplexedD
     private(set) var contextID: UInt64?
     var applicationMarkedIdle: Bool = false
 
+    override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+        Families.DatagramFlowLinkageFamily.Lower.init(self)
+    }
+
     var usableDatagramSize: Int {
         get { maximumUpperDatagramSize }
         set { maximumUpperDatagramSize = newValue }

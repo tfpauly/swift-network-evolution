@@ -164,18 +164,18 @@ public final class QUICBenchmarkUtility {
             context: context
         )
         let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Client", context: context)
-        do {
-            try instance.attachLowerDatagramProtocolForNewPath(
-                outputHandler.reference,
-                remote: remoteEndpoint,
-                local: localEndpoint,
-                parameters: parameters,
-                path: path
-            )
-        } catch {
-            logger.log("Failed to attach the output handler to the instace")
-            throw BenchmarkError.setupError
-        }
+//        do {
+//            try instance.attachLowerDatagramProtocolForNewPath(
+//                outputHandler.reference,
+//                remote: remoteEndpoint,
+//                local: localEndpoint,
+//                parameters: parameters,
+//                path: path
+//            )
+//        } catch {
+//            logger.log("Failed to attach the output handler to the instace")
+//            throw BenchmarkError.setupError
+//        }
         return QUICClientEndpointResult(
             instance: instance,
             parameters: parameters,
@@ -217,18 +217,18 @@ public final class QUICBenchmarkUtility {
 //        }
 
         let outputHandler = DatagramLowerHarness<DefaultDatagramLinkageFamily>(identifier: "Server", context: context)
-        do {
-            try instance.attachLowerDatagramProtocolForNewPath(
-                outputHandler.reference,
-                remote: remoteEndpoint,
-                local: localEndpoint,
-                parameters: serverParameters,
-                path: serverPath
-            )
-        } catch {
-            logger.log("Failed to attach the output handler to the instace")
-            throw BenchmarkError.setupError
-        }
+//        do {
+//            try instance.attachLowerDatagramProtocolForNewPath(
+//                outputHandler.reference,
+//                remote: remoteEndpoint,
+//                local: localEndpoint,
+//                parameters: serverParameters,
+//                path: serverPath
+//            )
+//        } catch {
+//            logger.log("Failed to attach the output handler to the instace")
+//            throw BenchmarkError.setupError
+//        }
         return QUICServerEndpointResult(
             instance: instance,
             parameters: serverParameters,

@@ -74,8 +74,8 @@ class QUICTestHarness {
         let clientReference: ProtocolInstanceReference
         let serverReference: ProtocolInstanceReference
 
-        let clientInstance: QUICConnection<DefaultQUICLinkageFamilies>
-        let serverInstance: QUICConnection<DefaultQUICLinkageFamilies>
+        let clientInstance: QUICConnection<BaseQUICLinkageFamilies>
+        let serverInstance: QUICConnection<BaseQUICLinkageFamilies>
     }
     var state: QUICHarnessState? = nil
 
@@ -154,7 +154,7 @@ class QUICTestHarness {
             clientParameters.context = self.context
             clientParameters.isServer = false
 
-            let clientInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: self.context)
+            let clientInstance = QUICConnection<BaseQUICLinkageFamilies>(context: self.context)
             let clientReference = clientInstance.reference
             self.updateQUICOptions(clientOptions, server: false, datagram: datagram)
             clientOptions.setLogID(
@@ -182,7 +182,7 @@ class QUICTestHarness {
             serverParameters.context = self.context
             serverParameters.isServer = true
 
-            let serverInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: self.context)
+            let serverInstance = QUICConnection<BaseQUICLinkageFamilies>(context: self.context)
             let serverReference = serverInstance.reference
             serverOptions.setLogID(
                 prefix: "L",
@@ -359,7 +359,7 @@ class QUICTestHarness {
         quicOptions: ProtocolOptions<QUICProtocol> = QUICProtocol.options(),
         serverInitiated: Bool = false
     ) -> StreamUpperHarness<DefaultStreamLinkageFamily>? {
-        var handlerInstance: QUICConnection<DefaultQUICLinkageFamilies>?
+        var handlerInstance: QUICConnection<BaseQUICLinkageFamilies>?
         if serverInitiated {
             handlerInstance = state?.serverInstance
         } else {

@@ -210,7 +210,7 @@ public protocol ListenerLinkage: LowerProtocolLinkage where PairedUpperLinkage: 
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError)
+    ) throws(NetworkError) -> PairedUpperLinkage.DataLinkage
 
     func invokeAttachUpperProtocolToExistingFlow(
         _ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage,
@@ -588,6 +588,20 @@ public extension OutboundStreamLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
+public protocol MultipathLinkage: ProtocolLinkage {
+    associatedtype MultipathLowerProtocol: LowerProtocolLinkage
+
+    mutating func invokeAttachLowerProtocolForNewPath(
+        _ lowerProtocol: MultipathLowerProtocol,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError)
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
 public protocol InboundDatagramFlowLinkage: InboundFlowLinkage where PairedLowerLinkage: DatagramListenerLinkage { }
 
 @_spi(ProtocolProvider)
@@ -601,6 +615,10 @@ public protocol InboundStreamFlowLinkage: InboundFlowLinkage where PairedLowerLi
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol StreamListenerLinkage: ListenerLinkage where PairedUpperLinkage: InboundStreamFlowLinkage { }
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public protocol DatagramMultipathLinkage: MultipathLinkage where MultipathLowerProtocol: OutboundDatagramLinkage { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)

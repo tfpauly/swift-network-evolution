@@ -252,6 +252,10 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         parentProtocol.logPrefixer
     }
 
+    override public func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
+        .init(self)
+    }
+
     public static func == (lhs: QUICPath<Families>, rhs: QUICPath<Families>) -> Bool {
         lhs.identifier == rhs.identifier
     }

@@ -123,7 +123,6 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
 
         var maximumOutputSize = 1500
         public var upper = BaseDatagramLinkageFamily.Upper()
-        var lower = BaseDatagramLinkageFamily.Lower()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -411,12 +410,11 @@ public struct BridgeStreamProtocol: NetworkProtocol {
     }
 
     public final class BridgeInstance: BottomStreamProtocol {
-        public typealias LinkageType = DefaultStreamLinkageFamily.Lower
-        public typealias UpperProtocol = DefaultStreamLinkageFamily.Upper
+        public typealias LinkageType = BaseStreamLinkageFamily.Lower
+        public typealias UpperProtocol = BaseStreamLinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = DefaultInboundStreamLinkage()
-        var lower = DefaultOutboundStreamLinkage()
+        public var upper = UpperProtocol()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
