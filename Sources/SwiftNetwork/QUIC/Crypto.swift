@@ -287,7 +287,9 @@ extension QUICCrypto {
             parentConnection.setupFlowControl(remoteTransportParameters: remoteTransportParameters)
 
             parentConnection.earlyDataSignalled = true
-            parentConnection.readyAllOutboundStreams()
+            parentConnection.fromExternal { contextState in
+                parentConnection.readyAllOutboundStreams(state: &contextState)
+            }
         }
     }
 
@@ -422,9 +424,7 @@ extension QUICCrypto: TopStreamProtocol {
     func handleConnectedEvent(state: inout NetworkContext.State) {
         guard let parentConnection else { return }
         parentConnection.log.info("Connected: TLS finished")
-        parentConnection.fromExternal { _ in
-            parentConnection.reportReady()
-        }
+        parentConnection.reportReady(state: &state)
     }
 
     func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
@@ -508,35 +508,58 @@ extension QUICCrypto: TopStreamProtocol {
         for packetNumberSpace: PacketNumberSpace
     ) -> Bool {
         fromExternal(cryptoFrame) { state, cryptoFrame in
-            switch packetNumberSpace {
-            case .initial:
-                return appendInput(
-                    cryptoFrame,
-                    for: packetNumberSpace,
-                    reassemblyQueue: &initialReassemblyQueue,
-                    frameArray: &initialInboundData,
-                    linkage: initialLinkage,
-                    state: &state
-                )
-            case .handshake:
-                return appendInput(
-                    cryptoFrame,
-                    for: packetNumberSpace,
-                    reassemblyQueue: &handshakeReassemblyQueue,
-                    frameArray: &handshakeInboundData,
-                    linkage: handshakeLinkage,
-                    state: &state
-                )
-            case .applicationData:
-                return appendInput(
-                    cryptoFrame,
-                    for: packetNumberSpace,
-                    reassemblyQueue: &applicationReassemblyQueue,
-                    frameArray: &applicationInboundData,
-                    linkage: applicationLinkage,
-                    state: &state
-                )
-            }
+            appendInput(cryptoFrame, for: packetNumberSpace, state: &state)
+        }
+    }
+
+    /// Appends crypto input using a context state the caller already holds.
+    ///
+    /// Enters this instance's event scope with `handleCallFromUpperProtocol` so events queued
+    /// while appending are delivered — without it the instance is still `idle` and queuing
+    /// traps.
+    func appendInput(
+        _ cryptoFrame: consuming FrameCrypto,
+        for packetNumberSpace: PacketNumberSpace,
+        state: inout NetworkContext.State
+    ) -> Bool {
+        reference.handleCallFromUpperProtocol(state: &state, cryptoFrame) { state, cryptoFrame in
+            appendInputInScope(cryptoFrame, for: packetNumberSpace, state: &state)
+        }
+    }
+
+    private func appendInputInScope(
+        _ cryptoFrame: consuming FrameCrypto,
+        for packetNumberSpace: PacketNumberSpace,
+        state: inout NetworkContext.State
+    ) -> Bool {
+        switch packetNumberSpace {
+        case .initial:
+            return appendInput(
+                cryptoFrame,
+                for: packetNumberSpace,
+                reassemblyQueue: &initialReassemblyQueue,
+                frameArray: &initialInboundData,
+                linkage: initialLinkage,
+                state: &state
+            )
+        case .handshake:
+            return appendInput(
+                cryptoFrame,
+                for: packetNumberSpace,
+                reassemblyQueue: &handshakeReassemblyQueue,
+                frameArray: &handshakeInboundData,
+                linkage: handshakeLinkage,
+                state: &state
+            )
+        case .applicationData:
+            return appendInput(
+                cryptoFrame,
+                for: packetNumberSpace,
+                reassemblyQueue: &applicationReassemblyQueue,
+                frameArray: &applicationInboundData,
+                linkage: applicationLinkage,
+                state: &state
+            )
         }
     }
 }

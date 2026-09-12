@@ -1569,6 +1569,15 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     public func serviceReceivedDatagrams(path pathID: MultiplexingPathIdentifier) {
+        fromExternal { contextState in
+            serviceReceivedDatagrams(state: &contextState, path: pathID)
+        }
+    }
+
+    public func serviceReceivedDatagrams(
+        state contextState: inout NetworkContext.State,
+        path pathID: MultiplexingPathIdentifier
+    ) {
         let inboundInterval = QUICSignpost.inboundStarting(id: signpostID)
 
         // Save a timestamp to avoid calculating `now` again during processing
@@ -1594,18 +1603,19 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
         accessReceivedDatagrams(path: pathID) { (datagrams, path) in
             while let frame = datagrams.popFirst() {
-                handleInbound(frame: frame, from: path)
+                handleInbound(state: &contextState, frame: frame, from: path)
             }
         }
 
         // Note: inboundStopping() triggers any sendFrames*() as necessary due
         // to this external event
         QUICSignpost.inboundStopping(inboundInterval)
-        inboundStopping(path: pathID)
-        checkConnectionIdle()
+        inboundStopping(state: &contextState, path: pathID)
+        checkConnectionIdle(state: &contextState)
     }
 
     func handleInbound(
+        state contextState: inout NetworkContext.State,
         frame: consuming Frame,
         from path: QUICPath<Families>
     ) {
@@ -1680,6 +1690,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         var coalesced = false
         while frame.unclaimedLength > 0 {
             let continueProcessing = handleInboundPacket(
+                state: &contextState,
                 frame: &frame,
                 path: path,
                 ecnFlags: frame.ecnFlag,
@@ -1710,6 +1721,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     private func handleInboundPacket(
+        state contextState: inout NetworkContext.State,
         frame: inout Frame,
         path: QUICPath<Families>,
         ecnFlags: IPProtocol.ECN,
@@ -1748,10 +1760,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
          * parameters.
          */
         if packet.versionNegotiation {
-            handleInboundVersionNegotiation(packet)
+            handleInboundVersionNegotiation(state: &contextState, packet)
             return true
         } else if packet.retry {
-            handleInboundRetry(packet)
+            handleInboundRetry(state: &contextState, packet)
             return true
         } else if packet.failedDecryption {
             failedDecryption(packet)
@@ -1769,7 +1781,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         )
         let continueProcessing: Bool
         if packet.longHeader {
-            continueProcessing = handleInboundLongHeader(packet)
+            continueProcessing = handleInboundLongHeader(state: &contextState, packet)
         } else {
             continueProcessing = handleInboundShortHeader(packet, path: path)
         }
@@ -1811,7 +1823,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 closeFrameType = quicFrame.frameType
                 close(with: .protocolViolation, "invalid frame type during the handshake")
             }
-            if !processFrame(quicFrame, packetNumberSpace: packet.numberSpace, path: path) {
+            if !processFrame(state: &contextState, quicFrame, packetNumberSpace: packet.numberSpace, path: path) {
                 break
             }
         }
@@ -1853,7 +1865,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         return true
     }
 
-    private func handleInboundVersionNegotiation(_ packet: borrowing Packet) {
+    private func handleInboundVersionNegotiation(
+        state contextState: inout NetworkContext.State,
+        _ packet: borrowing Packet
+    ) {
         if isServer {
             // Version negotiation packets can only be sent by the server.
             log.error("Received a VN packet from a client")
@@ -1914,14 +1929,17 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop()
         crypto = QUICCrypto<Families>(context: context)
-        guard let tlsOptions, fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) }) else {
+        guard let tlsOptions, crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions) else {
             log.error("Failed to start TLS")
             return
         }
         state.change(to: .initialSent, logIDString: logPrefixer.logIDString)
     }
 
-    private func handleInboundRetry(_ packet: borrowing Packet) {
+    private func handleInboundRetry(
+        state contextState: inout NetworkContext.State,
+        _ packet: borrowing Packet
+    ) {
         guard !isServer else {
             // Retry packets can only be sent by the server.
             log.error("Received a RETRY packet from a client")
@@ -2008,14 +2026,17 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop()
         crypto = QUICCrypto<Families>(context: context)
-        guard let tlsOptions, fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) }) else {
+        guard let tlsOptions, crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions) else {
             log.error("Failed to start TLS")
             return
         }
         state.change(to: .initialSent, logIDString: logPrefixer.logIDString)
     }
 
-    private func handleInboundLongHeader(_ packet: borrowing Packet) -> Bool {
+    private func handleInboundLongHeader(
+        state contextState: inout NetworkContext.State,
+        _ packet: borrowing Packet
+    ) -> Bool {
         switch state {
         case .idle:
             if !isServer {
@@ -2094,7 +2115,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 }
 
                 guard let tlsOptions,
-                    fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) })
+                    crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions)
                 else {
                     log.error("Server failed to start TLS")
                     return false
@@ -2348,6 +2369,12 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     // All the handleInbound() has been done for now, we can deliver any input
     // data to application in bulk
     func inboundStopping(path: MultiplexingPathIdentifier) {
+        fromExternal { contextState in
+            inboundStopping(state: &contextState, path: path)
+        }
+    }
+
+    func inboundStopping(state contextState: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
 
         // Send pending acks
         if !state.isTerminal {
@@ -2364,7 +2391,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             applyToAllFlows { stream in
                 applicationPendingItems.prependStreamToService(stream)
             }
-            sendFrames()
+            sendFrames(state: &contextState)
             // We've already processed all the unblocked streams
             applicationPendingItems.unblockedSendStreams.removeAll(connection: self)
         } else {
@@ -2374,7 +2401,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 // Try to send data on just a single stream due
                 // to a new MAX_STREAM_DATA frame.
                 applicationPendingItems.prependStreamToService(stream)
-                sendFrames()
+                sendFrames(state: &contextState)
 
                 stream.updateOutboundFlowControlCredit(connection: self)
             }
@@ -2397,13 +2424,22 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             }
         }
 
-        sendFrames()
+        sendFrames(state: &contextState)
     }
 
     // Handle an outbound write to stream, queue the data for sending in the
     // send buffer and kick off sending from it. There is just one call with all
     // the written data.
     public func serviceStreamDataToSend(flow flowID: MultiplexedFlowIdentifier) {
+        fromExternal { contextState in
+            serviceStreamDataToSend(state: &contextState, flow: flowID)
+        }
+    }
+
+    public func serviceStreamDataToSend(
+        state contextState: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) {
         guard let stream = flow(for: flowID) else {
             log.error("Unable to access state for flow \(flowID)")
             return
@@ -2465,13 +2501,13 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             applicationPendingItems.appendStreamToService(stream)
         }
         // Note: trigger sending of any frames based on this external event
-        checkConnectionIdle()
+        checkConnectionIdle(state: &contextState)
 
         guard !pendOutboundData else {
             log.datapath("Outbound data pended, ignore send frames")
             return
         }
-        sendFrames()
+        sendFrames(state: &contextState)
     }
 
     #if !NETWORK_EMBEDDED
@@ -4217,6 +4253,12 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     // The TLS handshake has reported that it is complete
     func reportReady() {
+        fromExternal { contextState in
+            reportReady(state: &contextState)
+        }
+    }
+
+    func reportReady(state contextState: inout NetworkContext.State) {
         // Crypto should already have set this up using setRemoteTransportParameters()
         guard let remoteTransportParameters, !remoteTransportParametersForEarlyData else {
             let error = "missing peer transport parameters"
@@ -4274,15 +4316,15 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
         // This function should only be called when conn state changed to connected
         // Setup all streams and tell all flows that they are ready
-        readyAllOutboundStreams()
+        readyAllOutboundStreams(state: &contextState)
 
         log.notice("Delivering connected")
-        deliverConnectedEvent(flow: .allFlows)
+        deliverConnectedEvent(state: &contextState, flow: .allFlows)
         stats.increment(.connectionAttempts)
 
         // Advertise new CIDs to the peer, up to the amount specified by
         // active_connection_id_limit
-        announceNewConnectionIDs()
+        announceNewConnectionIDs(state: &contextState)
 
         if keepaliveDuration != .zero {
             // Configure a keep alive timer that was set up before we were connected.
@@ -4678,6 +4720,7 @@ extension QUICConnection {
 
     // Process incoming CRYPTO frame
     func processCryptoFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming FrameCrypto,
         packetNumberSpace: PacketNumberSpace
     ) -> Bool {
@@ -4695,7 +4738,7 @@ extension QUICConnection {
             return false
         }
         guard
-            crypto.appendInput(frame, for: packetNumberSpace)
+            crypto.appendInput(frame, for: packetNumberSpace, state: &contextState)
         else {
             if packetNumberSpace == .handshake {
                 close(with: .cryptoBufferExceeded, "exceeded crypto buffer")
@@ -4828,6 +4871,7 @@ extension QUICConnection {
     }
 
     func processMaxStreams(
+        state contextState: inout NetworkContext.State,
         maxStreams: UInt64,
         unidirectional: Bool
     ) -> Bool {
@@ -4873,7 +4917,7 @@ extension QUICConnection {
             }
         }
         for stream in pendingStreams {
-            guard self.readyPendingStream(stream, flowID: stream.identifier) else {
+            guard self.readyPendingStream(state: &contextState, stream, flowID: stream.identifier) else {
                 continue
             }
             let streamType: QUICStreamType = unidirectional ? .unidirectional : .bidirectional
@@ -4893,9 +4937,11 @@ extension QUICConnection {
 
     // Handle the incoming maxStreamsBidirectional and update remoteMaxStreams if needed
     func processMaxStreamsBidirectionalFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming FrameMaxStreamsBidirectional
     ) -> Bool {
         processMaxStreams(
+            state: &contextState,
             maxStreams: frame.max,
             unidirectional: false
         )
@@ -4903,9 +4949,11 @@ extension QUICConnection {
 
     // Handle the incoming maxStreamsUnidirectional and update remoteMaxStreams if needed
     func processMaxStreamsUnidirectionalFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming FrameMaxStreamsUnidirectional
     ) -> Bool {
         processMaxStreams(
+            state: &contextState,
             maxStreams: frame.max,
             unidirectional: true
         )
@@ -5280,6 +5328,7 @@ extension QUICConnection {
     }
 
     func readyPendingStream(
+        state contextState: inout NetworkContext.State,
         _ stream: Flow,
         flowID: MultiplexedFlowIdentifier
     ) -> Bool {
@@ -5304,19 +5353,19 @@ extension QUICConnection {
             self.unidirectionalStreams.incrementActiveStreams()
         }
         stream.sendState.change(logIDString: stream.logPrefix, to: .ready)
-        startOutboundStream(stream: stream, for: flowID)
+        startOutboundStream(state: &contextState, stream: stream, for: flowID)
         // Deliver the connected event for the newly start flow
-        deliverConnectedEvent(flow: flowID)
+        deliverConnectedEvent(state: &contextState, flow: flowID)
         return true
     }
 
     // This function should only be called when the connection is ready,
     // or we are sending early data
-    func readyAllOutboundStreams() {
+    func readyAllOutboundStreams(state contextState: inout NetworkContext.State) {
         applyToAllFlows { stream in
             let flowID = stream.identifier
             if stream.sendState == .invalid && stream.receiveState == .invalid {
-                if !readyPendingStream(stream, flowID: flowID) {
+                if !readyPendingStream(state: &contextState, stream, flowID: flowID) {
                     log.error("Could not ready pending stream")
                 }
             } else {
@@ -5326,12 +5375,13 @@ extension QUICConnection {
                     )
                     return
                 }
-                startOutboundStream(stream: stream, for: flowID)
+                startOutboundStream(state: &contextState, stream: stream, for: flowID)
             }
         }
     }
 
     func startOutboundStream(
+        state contextState: inout NetworkContext.State,
         stream: Flow,
         for flowID: MultiplexedFlowIdentifier
     ) {
@@ -5351,7 +5401,7 @@ extension QUICConnection {
         }
 
         // Add any data necessary to the send queue
-        serviceStreamDataToSend(flow: flowID)
+        serviceStreamDataToSend(state: &contextState, flow: flowID)
 
         // Kick off send for data in send queue
         applicationPendingItems.appendStreamToService(stream)
@@ -5678,6 +5728,7 @@ extension QUICConnection {
 @available(Network 0.1.0, *)
 extension QUICConnection {
     func processFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming QUICFrame,
         packetNumberSpace: PacketNumberSpace,
         path: QUICPath<Families>
@@ -5694,7 +5745,7 @@ extension QUICConnection {
         case .stopSending(let frame):
             return frame.process(connection: self)
         case .crypto(let frame):
-            return processCryptoFrame(frame, packetNumberSpace: packetNumberSpace)
+            return processCryptoFrame(state: &contextState, frame, packetNumberSpace: packetNumberSpace)
         case .newToken(let frame):
             return processNewTokenFrame(frame)
         case .stream(let frame):
@@ -5706,9 +5757,9 @@ extension QUICConnection {
         case .maxStreamData(let frame):
             return processMaxStreamDataFrame(frame)
         case .maxStreamsBidirectional(let frame):
-            return processMaxStreamsBidirectionalFrame(frame)
+            return processMaxStreamsBidirectionalFrame(state: &contextState, frame)
         case .maxStreamsUnidirectional(let frame):
-            return processMaxStreamsUnidirectionalFrame(frame)
+            return processMaxStreamsUnidirectionalFrame(state: &contextState, frame)
         case .dataBlocked(let frame):
             return processDataBlocked(frame: frame)
         case .streamDataBlocked(let frame):
@@ -5718,7 +5769,7 @@ extension QUICConnection {
         case .streamsBlockedUnidirectional(let frame):
             return processStreamsBlockedUnidirectionalFrame(frame)
         case .newConnectionID(let frame):
-            return processNewConnectionIDFrame(frame)
+            return processNewConnectionIDFrame(state: &contextState, frame)
         case .retireConnectionID(let frame):
             return processRetireConnectionIDFrame(frame)
         case .pathChallenge(let frame):
@@ -5989,7 +6040,9 @@ extension QUICConnection {
         switch quicEvent {
         case .announceNewInboundConnectionID(let connectionID, let statelessResetToken):
             log.info("Announcing new CID \(connectionID) to the peer")
-            announceNewConnectionID(connectionID, statelessResetToken: statelessResetToken)
+            fromExternal { contextState in
+                announceNewConnectionID(state: &contextState, connectionID, statelessResetToken: statelessResetToken)
+            }
         case .retireOutboundConnectionID(let connectionID):
             log.info("Retire outbound CID \(connectionID) to the peer")
             sendRetireConnectionIDFrame(connectionID)
@@ -6005,6 +6058,7 @@ extension QUICConnection {
     }
 
     func announceNewConnectionID(
+        state contextState: inout NetworkContext.State,
         _ connectionID: QUICConnectionID,
         statelessResetToken: QUICStatelessResetToken
     ) {
@@ -6039,6 +6093,7 @@ extension QUICConnection {
             }
 
             deliverNetworkProtocolEvent(
+                state: &contextState,
                 flow: .allFlows,
                 event: .init(quicEvent: .newInboundConnectionID(connectionID))
             )
@@ -6049,6 +6104,15 @@ extension QUICConnection {
 
     // Create and announce new CIDs, if allowed
     func announceNewConnectionIDs(count: Int = Constants.defaultMaxConnectionIDs) {
+        fromExternal { contextState in
+            announceNewConnectionIDs(state: &contextState, count: count)
+        }
+    }
+
+    func announceNewConnectionIDs(
+        state contextState: inout NetworkContext.State,
+        count: Int = Constants.defaultMaxConnectionIDs
+    ) {
         // Asked to not automatically announce
         guard !disableAutomaticNewConnectionIDs else {
             return
@@ -6070,11 +6134,11 @@ extension QUICConnection {
             // Generate CID, matching original length
             let newCID = QUICConnectionID(localCIDLength)
             let token = QUICStatelessResetToken()
-            announceNewConnectionID(newCID, statelessResetToken: token)
+            announceNewConnectionID(state: &contextState, newCID, statelessResetToken: token)
         }
     }
 
-    func processNewConnectionIDFrame(_ frame: FrameNewConnectionID) -> Bool {
+    func processNewConnectionIDFrame(state contextState: inout NetworkContext.State, _ frame: FrameNewConnectionID) -> Bool {
         let nonZeroLengthCIDs = withCurrentPath { path in
             guard let dcid = path.dcid else {
                 log.error("DCID not set, cannot process new connection ID")
@@ -6134,6 +6198,7 @@ extension QUICConnection {
 
             // Send a protocol notification up the stack
             deliverNetworkProtocolEvent(
+                state: &contextState,
                 flow: .allFlows,
                 event: .init(quicEvent: .retiredOutboundConnectionID(retiredCID.1))
             )
@@ -6193,6 +6258,7 @@ extension QUICConnection {
                     used: false
                 )
                 deliverNetworkProtocolEvent(
+                    state: &contextState,
                     flow: .allFlows,
                     event: .init(quicEvent: .newOutboundConnectionID(frame.connectionID))
                 )

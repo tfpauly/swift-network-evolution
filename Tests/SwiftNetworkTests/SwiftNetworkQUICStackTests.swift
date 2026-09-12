@@ -340,7 +340,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
-                try serverQUICStreamListener.invokeAttachUpperProtocol(serverUpperHarnessLinkage, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                // Attach from the upper linkage so both directions are bound.
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverQUICStreamListener, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach server upper harness to QUIC")
             }

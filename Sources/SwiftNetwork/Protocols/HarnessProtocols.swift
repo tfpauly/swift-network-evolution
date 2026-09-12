@@ -627,7 +627,11 @@ public class NewFlowHarness<LinkageFamily: DataLinkageFamily, HarnessType: Upper
     public func attachLowerProtocol(
         _ lowerProtocol: LowerProtocol,
     ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage? {
-        throw NetworkError.posix(EINVAL)
+        guard lower.isDetached else {
+            throw NetworkError.posix(EALREADY)
+        }
+        lower = lowerProtocol
+        return nil
     }
 
     public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {

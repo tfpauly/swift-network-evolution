@@ -1073,17 +1073,23 @@ extension MultiplexedFlow {
     }
 
     fileprivate func deliverConnectedEvent() {
+        fromExternal { state in
+            deliverConnectedEvent(state: &state)
+        }
+    }
+
+    fileprivate func deliverConnectedEvent(state: inout NetworkContext.State) {
         if upper.isDetached {
             // Enqueue pending event instead of delivering immediately.
             // Inbound multiplexed flows may get attached after creation.
             let selfReference = self.reference
-            selfReference.enqueuePendingEventForUpperProtocol(state: &context.state, event: .connected(selfReference, upper.reference, { _, _ in
+            selfReference.enqueuePendingEventForUpperProtocol(state: &state, event: .connected(selfReference, upper.reference, { _, _ in
 
             }))
         } else {
             // Deliver connected event *followed by* any events which were buffered while detached
-            upper.deliverConnectedEvent(state: &context.state, self.reference)
-            self.reference.reassignQueuedPendingEventsForUpperProtocol(state: &context.state, to: upper.reference)
+            upper.deliverConnectedEvent(state: &state, self.reference)
+            self.reference.reassignQueuedPendingEventsForUpperProtocol(state: &state, to: upper.reference)
         }
     }
 
@@ -1676,6 +1682,22 @@ extension ManyToManyProtocolHandler {
         }
     }
 
+    /// Delivers a connected event using a context state the caller already holds.
+    public func deliverConnectedEvent(state: inout NetworkContext.State, flow flowID: MultiplexedFlowIdentifier) {
+        switch flowID {
+        case .allFlows:
+            inboundFlowLinkage.deliverConnectedEvent(state: &state, reference)
+            applyToAllFlows { flow in
+                if flow.canCallConnect(state: &state, requested: false) {
+                    connect(flow: flow.identifier)
+                }
+            }
+        case .outboundFlow, .inboundFlow:
+            guard let flow = self.flow(for: flowID) else { return }
+            flow.deliverConnectedEvent(state: &state)
+        }
+    }
+
     public func deliverDisconnectedEvent(flow flowID: MultiplexedFlowIdentifier, error: NetworkError?) {
         switch flowID {
         case .allFlows:
@@ -1740,6 +1762,31 @@ extension HeterogeneousManyToManyProtocolHandler {
             }
             if let flow = self.secondaryFlow(for: flowID) {
                 flow.deliverConnectedEvent()
+            }
+        }
+    }
+
+    /// Delivers a connected event using a context state the caller already holds.
+    public func deliverConnectedEvent(state: inout NetworkContext.State, flow flowID: MultiplexedFlowIdentifier) {
+        switch flowID {
+        case .allFlows:
+            inboundFlowLinkage.deliverConnectedEvent(state: &state, reference)
+            applyToAllFlows { flow in
+                if flow.canCallConnect(state: &state, requested: false) {
+                    connect(flow: flow.identifier)
+                }
+            }
+            applyToAllSecondaryFlows { flow in
+                if flow.canCallConnect(state: &state, requested: false) {
+                    connect(flow: flow.identifier)
+                }
+            }
+        case .outboundFlow, .inboundFlow:
+            if let flow = self.flow(for: flowID) {
+                flow.deliverConnectedEvent(state: &state)
+            }
+            if let flow = self.secondaryFlow(for: flowID) {
+                flow.deliverConnectedEvent(state: &state)
             }
         }
     }
@@ -1832,6 +1879,52 @@ extension HeterogeneousManyToManyProtocolHandler {
             }
         }
     }
+
+    /// Delivers a protocol event using a context state the caller already holds.
+    public func deliverNetworkProtocolEvent(state: inout NetworkContext.State, flow flowID: MultiplexedFlowIdentifier, event: NetworkProtocolEvent) {
+        switch flowID {
+        case .allFlows:
+            inboundFlowLinkage.deliverNetworkProtocolEvent(
+                state: &state,
+                originalReference: self.reference,
+                selfReference: self.reference,
+                event: event
+            )
+            applyToAllFlows { flow in
+                flow.upper.deliverNetworkProtocolEvent(
+                    state: &state,
+                    originalReference: self.reference,
+                    selfReference: flow.reference,
+                    event: event
+                )
+            }
+            applyToAllSecondaryFlows { flow in
+                flow.upper.deliverNetworkProtocolEvent(
+                    state: &state,
+                    originalReference: self.reference,
+                    selfReference: flow.reference,
+                    event: event
+                )
+            }
+        case .outboundFlow, .inboundFlow:
+            if let flow = self.flow(for: flowID) {
+                flow.upper.deliverNetworkProtocolEvent(
+                    state: &state,
+                    originalReference: flow.reference,
+                    selfReference: flow.reference,
+                    event: event
+                )
+            }
+            if let flow = self.secondaryFlow(for: flowID) {
+                flow.upper.deliverNetworkProtocolEvent(
+                    state: &state,
+                    originalReference: flow.reference,
+                    selfReference: flow.reference,
+                    event: event
+                )
+            }
+        }
+    }
 }
 
 @available(Network 0.1.0, *)
@@ -1892,6 +1985,10 @@ extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramP
     ) throws(NetworkError) {
         guard var path = self.path(for: pathID) else { throw NetworkError.posix(EINVAL) }
         path.serviceLowerSendQueue(state: &state)
+    }
+
+    public func serviceReceivedDatagrams(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+        serviceReceivedDatagrams(path: path)
     }
 
     public func accessReceivedDatagrams(path pathID: MultiplexingPathIdentifier, _ body: (inout FrameArray) -> Void) {
@@ -1964,6 +2061,11 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
     public func serviceLowerReceiveQueue() {
         guard !lowerReceiveQueue.isEmpty else { return }
         parentProtocol.serviceReceivedDatagrams(path: identifier)
+    }
+
+    public func serviceLowerReceiveQueue(state: inout NetworkContext.State) {
+        guard !lowerReceiveQueue.isEmpty else { return }
+        parentProtocol.serviceReceivedDatagrams(state: &state, path: identifier)
     }
 
     public func handleOutboundRoomAvailable() {
