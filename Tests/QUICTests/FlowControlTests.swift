@@ -70,7 +70,7 @@ final class FlowControlTests: XCTestCase {
             streamID: QUICStreamID(0),
             logPrefixer: logPrefixer
         )
-        let newPath = QUICDefaultPath(parent: connection)
+        let newPath = QUICDefaultPath.makeFromExternal(parent: connection)
 
         newPath.mss = 1200
         connection.currentPath = newPath

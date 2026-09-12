@@ -55,7 +55,7 @@ final class MigrationTests: XCTestCase {
         lower.fromExternal { state in
             lower.connect(state: &state)
         }
-        var path = QUICDefaultPath(parent: connection)
+        var path = QUICDefaultPath.makeFromExternal(parent: connection)
         path.set(interface: nil, priority: 1, isInitial: true)  // -> .routeEstablished
         path.assignDCID(dcid)  // -> .cidAssigned (open for sending)
         if validated {

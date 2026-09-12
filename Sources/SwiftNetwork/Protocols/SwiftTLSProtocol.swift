@@ -560,11 +560,11 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                 messageToProcess = nil
                 if let quicCrypto {
                     if handshaker.earlyDataAccepted {
-                        quicCrypto.updateEarlyDataAccepted(true)
+                        quicCrypto.updateEarlyDataAccepted(state: &state, true)
                     }
 
                     if let peerQUICTransportParameters = handshaker.peerQUICTransportParameters {
-                        quicCrypto.updatePeerQUICTransportParameters(peerQUICTransportParameters, earlyData: false)
+                        quicCrypto.updatePeerQUICTransportParameters(state: &state, peerQUICTransportParameters, earlyData: false)
                     }
 
                     let hasWriteEncryptionLevel = (handshaker.writeEncryptionLevel != .initial)
@@ -572,10 +572,10 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                     if hasWriteEncryptionLevel || hasReadEncryptionLevel {
                         quicCrypto.updateNegotiatedCiphersuite(handshaker.negotiatedCiphersuite)
                         if hasReadEncryptionLevel, let readSecret = handshaker.readEncryptionSecret {
-                            quicCrypto.updateSecret(readSecret, for: handshaker.readEncryptionLevel, isWrite: false)
+                            quicCrypto.updateSecret(state: &state, readSecret, for: handshaker.readEncryptionLevel, isWrite: false)
                         }
                         if hasWriteEncryptionLevel, let writeSecret = handshaker.writeEncryptionSecret {
-                            quicCrypto.updateSecret(writeSecret, for: handshaker.writeEncryptionLevel, isWrite: true)
+                            quicCrypto.updateSecret(state: &state, writeSecret, for: handshaker.writeEncryptionLevel, isWrite: true)
                         }
                     }
 
@@ -619,7 +619,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
             deliverConnectedEvent(state: &state)
             if !isServer, newlyConnected, let quicCrypto, !handshaker.earlyDataAccepted {
-                quicCrypto.updateEarlyDataAccepted(false)
+                quicCrypto.updateEarlyDataAccepted(state: &state, false)
             }
         }
 
@@ -783,15 +783,15 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                 if handshaker.writeEncryptionLevel == .earlyData,
                     let earlyDataTransportParameters = options.resumedQUICTransportParameters
                 {
-                    quicCrypto.updatePeerQUICTransportParameters(earlyDataTransportParameters, earlyData: true)
+                    quicCrypto.updatePeerQUICTransportParameters(state: &state, earlyDataTransportParameters, earlyData: true)
                 }
 
                 quicCrypto.updateNegotiatedCiphersuite(handshaker.negotiatedCiphersuite)
                 if let readSecret = handshaker.readEncryptionSecret {
-                    quicCrypto.updateSecret(readSecret, for: handshaker.readEncryptionLevel, isWrite: false)
+                    quicCrypto.updateSecret(state: &state, readSecret, for: handshaker.readEncryptionLevel, isWrite: false)
                 }
                 if let writeSecret = handshaker.writeEncryptionSecret {
-                    quicCrypto.updateSecret(writeSecret, for: handshaker.writeEncryptionLevel, isWrite: true)
+                    quicCrypto.updateSecret(state: &state, writeSecret, for: handshaker.writeEncryptionLevel, isWrite: true)
                 }
             }
         }

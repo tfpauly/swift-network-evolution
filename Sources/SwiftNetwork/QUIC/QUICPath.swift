@@ -312,10 +312,21 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         )
     }
 
-    required init(parent: QUICConnection<Families>) {
+    /// Creates a path from outside the protocol stack, for tests only.
+    ///
+    /// Path creation registers an event state, which needs the context state. Code already
+    /// running inside the stack should use `init(state:parent:)` and thread its own state in;
+    /// this convenience is for external entry points such as tests.
+    static func makeFromExternal(parent: QUICConnection<Families>) -> Self {
+        parent.fromExternal { state in
+            Self(state: &state, parent: parent)
+        }
+    }
+
+    required init(state: inout NetworkContext.State, parent: QUICConnection<Families>) {
         self.rtt = RTT(logPrefixer: parent.logPrefixer)
         self.pacer = Pacer()
-        super.init(parent: parent)
+        super.init(state: &state, parent: parent)
     }
 
     private func setup() {
@@ -566,6 +577,7 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
     }
 
     func addPathChallenge(
+        state contextState: inout NetworkContext.State,
         to pendingItems: inout PendingItems,
         now: NetworkClock.Instant
     ) {
@@ -575,7 +587,7 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
             // Exceeded limit, move to unreachable, and retire the CID
             changeState(to: .unreachable)
             if let dcid, !hasPreAssignedCIDs {
-                if let sequenceNumber = parentProtocol.retireConnectionID(dcid) {
+                if let sequenceNumber = parentProtocol.retireConnectionID(state: &contextState, dcid) {
                     pendingItems.addRetireConnectionID(
                         FrameRetireConnectionID(sequence: sequenceNumber)
                     )
@@ -598,7 +610,11 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         parentProtocol.migration.resetTimer(connection: parentProtocol)
     }
 
-    func addPendingItems(_ pendingItems: inout PendingItems, now: NetworkClock.Instant, ) {
+    func addPendingItems(
+        state contextState: inout NetworkContext.State,
+        _ pendingItems: inout PendingItems,
+        now: NetworkClock.Instant
+    ) {
         // Respond to any pending inbound challenges
         for challenge in pendingInboundChallenges {
             pendingItems.addPathResponse(FramePathResponse(data: challenge))
@@ -606,7 +622,7 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         pendingInboundChallenges.removeAll()
 
         // Send path challenges as needed
-        addPathChallenge(to: &pendingItems, now: now)
+        addPathChallenge(state: &contextState, to: &pendingItems, now: now)
     }
 
     func handlePathChallengeResponse(_ data: UInt64) {

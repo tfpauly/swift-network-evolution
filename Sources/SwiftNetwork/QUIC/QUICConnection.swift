@@ -1573,12 +1573,6 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         }
     }
 
-    public func serviceReceivedDatagrams(path pathID: MultiplexingPathIdentifier) {
-        fromExternal { contextState in
-            serviceReceivedDatagrams(state: &contextState, path: pathID)
-        }
-    }
-
     public func serviceReceivedDatagrams(
         state contextState: inout NetworkContext.State,
         path pathID: MultiplexingPathIdentifier
@@ -1788,7 +1782,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         if packet.longHeader {
             continueProcessing = handleInboundLongHeader(state: &contextState, packet)
         } else {
-            continueProcessing = handleInboundShortHeader(packet, path: path)
+            continueProcessing = handleInboundShortHeader(state: &contextState, packet, path: path)
         }
         if !continueProcessing {
             return true
@@ -2235,6 +2229,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     private func validateDCIDFromInboundPacket(
+        state contextState: inout NetworkContext.State,
         _ packet: borrowing Packet,
         on path: QUICPath<Families>
     ) -> Bool {
@@ -2261,7 +2256,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             "CID seq=\(localCIDEntry.sequenceNumber) newly used (\(activeCount) active, limit \(cidLimit))"
         )
         if activeCount < cidLimit {
-            announceNewConnectionIDs(count: 1)
+            announceNewConnectionIDs(state: &contextState, count: 1)
         } else {
             log.info("Not issuing new CID because peer is already at limit")
         }
@@ -2283,7 +2278,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             log.notice("Using new DCID: \(pathDCID)")
         }
 
-        announceNewConnectionIDs(count: 1)
+        announceNewConnectionIDs(state: &contextState, count: 1)
 
         return true
     }
@@ -2322,7 +2317,11 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         return true
     }
 
-    private func handleInboundShortHeader(_ packet: borrowing Packet, path: QUICPath<Families>) -> Bool {
+    private func handleInboundShortHeader(
+        state contextState: inout NetworkContext.State,
+        _ packet: borrowing Packet,
+        path: QUICPath<Families>
+    ) -> Bool {
         guard let packetKeyState = packet.keyState else {
             log.error("Received short header without keystate set")
             return false
@@ -2347,7 +2346,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
         guard
             packet.destinationConnectionID == path.scid
-                || validateDCIDFromInboundPacket(packet, on: path)
+                || validateDCIDFromInboundPacket(state: &contextState, packet, on: path)
         else {
             return false
         }
@@ -3291,7 +3290,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             var pendingItems = PendingItems(
                 packetNumberSpace: PacketNumberSpace.fromKeyState(keyState: keyState)
             )
-            path.addPendingItems(&pendingItems, now: startSendingTimestamp)
+            path.addPendingItems(state: &contextState, &pendingItems, now: startSendingTimestamp)
             var datagramBatch = FrameArray()
             if self.flowControlState.pendingOutboundBytesToSend > 0 && availableCongestionWindow > 0 {
                 datagramBatch = buildOutboundFrameBatch(
@@ -3340,7 +3339,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Sending on the current path.
         // Add the path frames to the items for application data
         withPendingItems(for: .applicationData) {
-            path.addPendingItems(&$0, now: startSendingTimestamp)
+            path.addPendingItems(state: &contextState, &$0, now: startSendingTimestamp)
         }
 
         defer {
@@ -4237,7 +4236,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         }
     }
 
-    func updateEarlyDataAccepted(_ accepted: Bool) {
+    func updateEarlyDataAccepted(state contextState: inout NetworkContext.State, _ accepted: Bool) {
         discardKeys(keyState: .earlyData)
         if accepted {
             earlyDataAccepted = true
@@ -4249,6 +4248,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                     stream.resetSendStreamData()
                 }
                 deliverNetworkProtocolEvent(
+                    state: &contextState,
                     flow: .allFlows,
                     event: .init(quicEvent: .earlyDataRejected)
                 )
@@ -5790,7 +5790,7 @@ extension QUICConnection {
         case .newConnectionID(let frame):
             return processNewConnectionIDFrame(state: &contextState, frame)
         case .retireConnectionID(let frame):
-            return processRetireConnectionIDFrame(frame)
+            return processRetireConnectionIDFrame(state: &contextState, frame)
         case .pathChallenge(let frame):
             return handlePathChallengeFrame(frame, path: path)
         case .pathResponse(let frame):
@@ -6035,10 +6035,13 @@ extension QUICConnection {
             handleConnectionReusedForFlow(state: &state, flowID)
             return .consumed
         }
-        return handleApplicationEvent(event)
+        return handleApplicationEvent(state: &state, event)
     }
 
-    public func handleApplicationEvent(_ event: ApplicationEvent) -> HandleNetworkEventResult {
+    public func handleApplicationEvent(
+        state contextState: inout NetworkContext.State,
+        _ event: ApplicationEvent
+    ) -> HandleNetworkEventResult {
         if event == .outboundDataBatchStart {
             // Start pending processing
             pendOutboundData = true
@@ -6059,12 +6062,10 @@ extension QUICConnection {
         switch quicEvent {
         case .announceNewInboundConnectionID(let connectionID, let statelessResetToken):
             log.info("Announcing new CID \(connectionID) to the peer")
-            fromExternal { contextState in
-                announceNewConnectionID(state: &contextState, connectionID, statelessResetToken: statelessResetToken)
-            }
+            announceNewConnectionID(state: &contextState, connectionID, statelessResetToken: statelessResetToken)
         case .retireOutboundConnectionID(let connectionID):
             log.info("Retire outbound CID \(connectionID) to the peer")
-            sendRetireConnectionIDFrame(connectionID)
+            sendRetireConnectionIDFrame(state: &contextState, connectionID)
         case .updateMaximumBidirectionalStreams(let maximumStreams):
             log.info("Updating maximum bidirectional streams: \(maximumStreams)")
             updateMaxBidirectionalStreamsFromApplication(maximumStreams)
@@ -6122,12 +6123,6 @@ extension QUICConnection {
     }
 
     // Create and announce new CIDs, if allowed
-    func announceNewConnectionIDs(count: Int = Constants.defaultMaxConnectionIDs) {
-        fromExternal { contextState in
-            announceNewConnectionIDs(state: &contextState, count: count)
-        }
-    }
-
     func announceNewConnectionIDs(
         state contextState: inout NetworkContext.State,
         count: Int = Constants.defaultMaxConnectionIDs
@@ -6300,37 +6295,42 @@ extension QUICConnection {
     }
 
     // For inbound (local) CIDs
-    func retireConnectionID(sequenceNumber: UInt64) {
+    func retireConnectionID(state contextState: inout NetworkContext.State, sequenceNumber: UInt64) {
         if let retiredCID = localCIDs.retire(sequenceNumber: sequenceNumber) {
             deliverNetworkProtocolEvent(
+                state: &contextState,
                 flow: .allFlows,
                 event: .init(quicEvent: .retiredInboundConnectionID(retiredCID))
             )
 
             if localCIDs.count < localCIDs.activeConnectionIDLimit {
-                announceNewConnectionIDs(count: 1)
+                announceNewConnectionIDs(state: &contextState, count: 1)
             }
         }
     }
 
     // For inbound (local) CIDs
-    func retireConnectionID(_ cid: QUICConnectionID) -> UInt64? {
+    func retireConnectionID(
+        state contextState: inout NetworkContext.State,
+        _ cid: QUICConnectionID
+    ) -> UInt64? {
         guard let managedCID = localCIDs.find(connectionID: cid) else {
             return nil
         }
         let sequenceNumber = managedCID.sequenceNumber
-        retireConnectionID(sequenceNumber: sequenceNumber)
+        retireConnectionID(state: &contextState, sequenceNumber: sequenceNumber)
         return sequenceNumber
     }
 
     // For outbound (remote) CIDs
-    func sendRetireConnectionIDFrame(_ cid: QUICConnectionID) {
+    func sendRetireConnectionIDFrame(state contextState: inout NetworkContext.State, _ cid: QUICConnectionID) {
         guard let sequenceNumber = remoteCIDs.retire(connectionID: cid) else {
             return
         }
 
         // Send a protocol notification up the stack
         deliverNetworkProtocolEvent(
+            state: &contextState,
             flow: .allFlows,
             event: .init(quicEvent: .retiredOutboundConnectionID(cid))
         )
@@ -6343,7 +6343,10 @@ extension QUICConnection {
         sendFrames()
     }
 
-    func processRetireConnectionIDFrame(_ frame: FrameRetireConnectionID) -> Bool {
+    func processRetireConnectionIDFrame(
+        state contextState: inout NetworkContext.State,
+        _ frame: FrameRetireConnectionID
+    ) -> Bool {
         // An endpoint cannot send this frame if it was provided with a zero-
         // length connection ID by its peer. An endpoint that provides a zero-
         // length connection ID MUST treat receipt of a RETIRE_CONNECTION_ID
@@ -6373,7 +6376,7 @@ extension QUICConnection {
             return false
         }
 
-        retireConnectionID(sequenceNumber: frame.sequence)
+        retireConnectionID(state: &contextState, sequenceNumber: frame.sequence)
 
         return true
     }

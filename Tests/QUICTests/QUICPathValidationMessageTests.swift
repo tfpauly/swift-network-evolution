@@ -30,7 +30,7 @@ class QUICPathValidationMessageTests: XCTestCase {
 
     override func setUp() {
         connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
-        path = QUICDefaultPath(parent: connection)
+        path = QUICDefaultPath.makeFromExternal(parent: connection)
         path.set(interface: nil, priority: 0, isInitial: true)
         path.assignDCID(QUICConnectionID(8))
     }
@@ -60,7 +60,7 @@ class QUICPathValidationMessageTests: XCTestCase {
 
         let startTime = NetworkClock.Instant.now
         var pendingItems = PendingItems(packetNumberSpace: .applicationData)
-        path.addPendingItems(&pendingItems, now: startTime)  // should be empty
+        connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime) }  // should be empty
         XCTAssertTrue(pendingItems.pathChallenges.isEmpty)
         XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 
@@ -70,7 +70,7 @@ class QUICPathValidationMessageTests: XCTestCase {
         XCTAssertEqual(path.pendingOutboundChallenges.count, 0)
         path.handlePathChallenge(1)
         XCTAssertEqual(path.pendingInboundChallenges.count, 1)
-        path.addPendingItems(&pendingItems, now: startTime)
+        connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime) }
 
         XCTAssertFalse(pendingItems.pathChallenges.isEmpty)
         XCTAssertFalse(pendingItems.pathResponses.isEmpty)
@@ -84,13 +84,13 @@ class QUICPathValidationMessageTests: XCTestCase {
         pendingItems = PendingItems(packetNumberSpace: .applicationData)  // clear items
         // simulate send on the path before the challenge retransmission time is met
         var interval = NetworkDuration.milliseconds(100)
-        path.addPendingItems(&pendingItems, now: startTime + interval)
+        connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime + interval) }
         XCTAssertTrue(pendingItems.pathChallenges.isEmpty)
         XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 
         // simulate a retransmission of the challenge
         interval = NetworkDuration.milliseconds(250)
-        path.addPendingItems(&pendingItems, now: startTime + interval)
+        connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime + interval) }
         XCTAssertFalse(pendingItems.pathChallenges.isEmpty)
         XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 

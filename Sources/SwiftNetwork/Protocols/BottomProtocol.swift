@@ -70,7 +70,7 @@ public protocol BottomProtocolHandler<LinkageType>: ~Copyable, OutboundDataHandl
     /// Handles an event the app sent.
     ///
     /// Protocols can implement this function to customize behavior.
-    func handleApplicationEvent(_ event: ApplicationEvent)
+    func handleApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent)
 
     #if !NETWORK_EMBEDDED
     /// The metadata state for this protocol.
@@ -253,7 +253,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
         event: ApplicationEvent
     ) {
         // Don't validate upper, can pass through
-        self.handleApplicationEvent(event)
+        self.handleApplicationEvent(state: &state, event)
     }
 
     internal func validate(
@@ -375,7 +375,7 @@ extension BottomProtocolHandler where Self: ~Copyable {
         deliverDisconnectedEvent(state: &state, error: nil)
     }
 
-    public func handleApplicationEvent(_ event: ApplicationEvent) {}
+    public func handleApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {}
 
     #if !NETWORK_EMBEDDED
     public var metadata: AbstractProtocolMetadata? { nil }

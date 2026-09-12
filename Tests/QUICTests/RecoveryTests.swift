@@ -48,7 +48,7 @@ final class RecoveryTests: XCTestCase {
             lowerHarness.fromExternal { state in
                 lowerHarness.connect(state: &state)
             }
-            var newPath = QUICDefaultPath(parent: self.connection)
+            var newPath = QUICDefaultPath.makeFromExternal(parent: self.connection)
             newPath.set(interface: nil, priority: 1, isInitial: true)
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))

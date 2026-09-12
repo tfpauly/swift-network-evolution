@@ -216,7 +216,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
 
         public var connectionIsIdle = false
-        public func handleApplicationEvent(_ event: ApplicationEvent) {
+        public func handleApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {
             if event == .connectionIdle {
                 if !connectionIsIdle {
                     log.debug(

@@ -240,7 +240,12 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 #if canImport(SwiftTLS)
 @available(Network 0.1.0, *)
 extension QUICCrypto {
-    func updateSecret(_ secret: [UInt8], for level: SwiftTLSOptions.EncryptionLevel, isWrite: Bool) {
+    func updateSecret(
+        state: inout NetworkContext.State,
+        _ secret: [UInt8],
+        for level: SwiftTLSOptions.EncryptionLevel,
+        isWrite: Bool
+    ) {
         guard let parentConnection else { return }
         parentConnection.log.debug(
             "Got \(isWrite ? "write" : "read") secret update for level \(level.debugDescription)"
@@ -287,9 +292,7 @@ extension QUICCrypto {
             parentConnection.setupFlowControl(remoteTransportParameters: remoteTransportParameters)
 
             parentConnection.earlyDataSignalled = true
-            parentConnection.fromExternal { contextState in
-                parentConnection.readyAllOutboundStreams(state: &contextState)
-            }
+            parentConnection.readyAllOutboundStreams(state: &state)
         }
     }
 
@@ -301,7 +304,11 @@ extension QUICCrypto {
         parentConnection?.log.debug("Got session tickets")
     }
 
-    func updatePeerQUICTransportParameters(_ peerQUICTransportParameters: [UInt8], earlyData: Bool) {
+    func updatePeerQUICTransportParameters(
+        state: inout NetworkContext.State,
+        _ peerQUICTransportParameters: [UInt8],
+        earlyData: Bool
+    ) {
         guard let parentConnection else {
             return
         }
@@ -317,17 +324,15 @@ extension QUICCrypto {
         // If the client has enabled early data, and we now have complete remote transport parameters,
         // send them up to allow the client to store them for future connections
         if !earlyData, !parentConnection.isServer, enableEarlyData {
-            parentConnection.fromExternal { contextState in
-                parentConnection.deliverNetworkProtocolEvent(
-                    state: &contextState,
-                    flow: .allFlows,
-                    event: .init(
-                        quicEvent: .receivedRemoteTransportParameters(
-                            transportParameters: peerQUICTransportParameters
-                        )
+            parentConnection.deliverNetworkProtocolEvent(
+                state: &state,
+                flow: .allFlows,
+                event: .init(
+                    quicEvent: .receivedRemoteTransportParameters(
+                        transportParameters: peerQUICTransportParameters
                     )
                 )
-            }
+            )
         }
 
         let parameterBytes = peerQUICTransportParameters.span
@@ -361,10 +366,10 @@ extension QUICCrypto {
         peerQUICTransportParameters.removeAll()
     }
 
-    func updateEarlyDataAccepted(_ earlyDataAccepted: Bool) {
+    func updateEarlyDataAccepted(state: inout NetworkContext.State, _ earlyDataAccepted: Bool) {
         guard let parentConnection, parentConnection.earlyDataSignalled else { return }
         parentConnection.log.debug("Got early data accepted: \(earlyDataAccepted)")
-        parentConnection.updateEarlyDataAccepted(earlyDataAccepted)
+        parentConnection.updateEarlyDataAccepted(state: &state, earlyDataAccepted)
     }
 
     func updateNegotiatedCiphersuite(_ ciphersuite: Int) {

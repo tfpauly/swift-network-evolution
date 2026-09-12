@@ -54,7 +54,10 @@ public protocol ManyToManyProtocolHandler: ListenerHandler, LoggableProtocol whe
     func disconnect(state: inout NetworkContext.State, error: NetworkError?)
     func teardown(state: inout NetworkContext.State)
     mutating func teardownIfPossible(state: inout NetworkContext.State)
-    func handleApplicationEvent(_ event: ApplicationEvent) -> HandleNetworkEventResult
+    func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ event: ApplicationEvent
+    ) -> HandleNetworkEventResult
 
     // MARK: Per-flow calls to implement
     func setup(
@@ -266,7 +269,7 @@ public protocol MultiplexingPath: UpperProtocolHandler {
     var lower: LowerProtocol { get set }
     var parentProtocol: ParentProtocol { get }
     var identifier: MultiplexingPathIdentifier { get }
-    init(parent: ParentProtocol)
+    init(state: inout NetworkContext.State, parent: ParentProtocol)
     var pathIsPrimary: Bool { get set }
     var pathHasMigrationInfo: Bool { get set }
     func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage
@@ -295,7 +298,10 @@ extension ManyToManyProtocolHandler {
 
     public func disconnect(state: inout NetworkContext.State, error: NetworkError?) {}
 
-    public func handleApplicationEvent(_ event: ApplicationEvent) -> HandleNetworkEventResult { .unconsumed }
+    public func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ event: ApplicationEvent
+    ) -> HandleNetworkEventResult { .unconsumed }
 
     public func setup(
         flow: MultiplexedFlowIdentifier,
@@ -391,7 +397,7 @@ extension ManyToManyProtocolHandler {
         path: PathProperties?
     ) throws(NetworkError) -> Path.LowerProtocol.PairedUpperLinkage
     where Path.ParentProtocol == Self {
-        var newPath = Path(parent: self)
+        var newPath = Path(state: &state, parent: self)
         _ = try newPath.attachLowerProtocol(lowerProtocol)
         let isFirstPath = multiplexingPaths.isEmpty
         if isFirstPath { newPath.pathIsPrimary = true }
@@ -512,7 +518,7 @@ extension ManyToManyProtocolHandler {
         event: ApplicationEvent
     ) {
         // Don't validate upper, can pass through
-        if self.handleApplicationEvent(event) == .consumed { return }
+        if self.handleApplicationEvent(state: &state, event) == .consumed { return }
         applyToAllPaths { path in
             path.lower.invokeApplicationEvent(state: &state, from, event: event)
         }
@@ -1995,9 +2001,9 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
         parentProtocol.handleOutboundRoomAvailableEvent(path: identifier)
     }
 
-    public required init(parent: ParentProtocol) {
+    public required init(state: inout NetworkContext.State, parent: ParentProtocol) {
         self.parentProtocol = parent
-        reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference = .init(eventManager: &self.eventManager, context: parent.context, state: &state)
         reference.setParentReference(parent.reference)
     }
 
