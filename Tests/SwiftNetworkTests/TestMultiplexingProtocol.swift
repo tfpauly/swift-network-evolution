@@ -88,7 +88,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         }
     }
 
-    func serviceReceivedDatagrams(path: MultiplexingPathIdentifier) {
+    func serviceReceivedDatagrams(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol asked to service received datagrams on path \(path.description)")
         guard let flow = someFlowIdentifier else {
             return
@@ -107,25 +107,25 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     }
 
     // FROM LISTENER
-    func connect() {
+    func connect(state: inout NetworkContext.State) {
         log.debug("Multiplexing protocol connect for listener")
         if !delayConnected {
-            deliverConnectedEvent(flow: .allFlows)
+            deliverConnectedEvent(state: &state, flow: .allFlows)
         }
     }
 
     // FROM LISTENER
-    func disconnect(error: NetworkError?) {
+    func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Multiplexing protocol disconnect for listener")
 
     }
 
     // FROM FLOW
-    func connect(flow: MultiplexedFlowIdentifier) {
+    func connect(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol connect for flow \(flow.debugDescription)")
 
         if !delayConnected {
-            deliverConnectedEvent(flow: flow)
+            deliverConnectedEvent(state: &state, flow: flow)
         }
     }
 
@@ -134,7 +134,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         log.debug("Multiplexing protocol disconnect for flow \(flow.debugDescription)")
     }
 
-    func teardown(flow: MultiplexedFlowIdentifier) {
+    func teardown(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol teardown for flow \(flow.debugDescription)")
     }
 
@@ -161,9 +161,9 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
 
     func triggerConnected() {
         log.debug("Multiplexing protocol triggering connected event")
-        fromExternal { _ in
+        fromExternal { state in
             delayConnected = false
-            deliverConnectedEvent(flow: .allFlows)
+            deliverConnectedEvent(state: &state, flow: .allFlows)
         }
     }
 }

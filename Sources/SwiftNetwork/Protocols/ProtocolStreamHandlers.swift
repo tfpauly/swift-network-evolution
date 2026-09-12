@@ -48,8 +48,9 @@ public protocol AutomaticLowerStreamProcessing: ~Copyable, InboundStreamHandler 
     /// A function the framework calls when the lower protocol has added stream data to
     /// `lowerReceiveQueue`.
     ///
-    /// Protocols should implement this function to customize behavior.
-    func serviceLowerReceiveQueue()
+    /// Protocols should implement this function to customize behavior. Thread `state` into any
+    /// calls made to other protocols so that the state is never re-derived from the context.
+    mutating func serviceLowerReceiveQueue(state: inout NetworkContext.State)
 }
 
 @_spi(ProtocolProvider)
@@ -220,7 +221,7 @@ extension AutomaticLowerStreamProcessing where Self: ~Copyable {
             } catch {
                 break
             }
-            serviceLowerReceiveQueue()
+            serviceLowerReceiveQueue(state: &state)
             serviceLowerSendQueue(state: &state)
         } while readCount != 0
     }

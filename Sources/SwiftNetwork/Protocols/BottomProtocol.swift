@@ -58,26 +58,13 @@ public protocol BottomProtocolHandler<LinkageType>: ~Copyable, OutboundDataHandl
     /// Requests that this protocol initiate its handshake, if any.
     ///
     /// If not implemented, the protocol delivers the connected event automatically.
-    /// Protocols can implement this function to customize behavior.
-    func connect()
-
-    /// Requests that this protocol initiate its handshake, with the context state already
-    /// acquired by the framework.
-    ///
-    /// The default implementation forwards to `connect()`. Implement this instead when the
-    /// protocol needs to call back into the stack, so the state isn't re-derived from the
-    /// context.
+    /// Protocols can implement this function to customize behavior. Thread `state` into any
+    /// calls made to other protocols so that the state is never re-derived from the context.
     func connect(state: inout NetworkContext.State)
 
     /// Requests that this protocol gracefully close.
     ///
-    /// Protocols can implement this function to customize behavior.
-    func disconnect()
-
-    /// Requests that this protocol gracefully close, with the context state already acquired
-    /// by the framework.
-    ///
-    /// The default implementation forwards to `disconnect()`. See `connect(state:)`.
+    /// Protocols can implement this function to customize behavior. See `connect(state:)`.
     func disconnect(state: inout NetworkContext.State)
 
     /// Handles an event the app sent.
@@ -380,16 +367,8 @@ extension BottomProtocolHandler where Self: ~Copyable {
 
     public func teardown() {}
 
-    public func connect() {
-        deliverConnectedEvent()
-    }
-
     public func connect(state: inout NetworkContext.State) {
         deliverConnectedEvent(state: &state)
-    }
-
-    public func disconnect() {
-        deliverDisconnectedEvent(error: nil)
     }
 
     public func disconnect(state: inout NetworkContext.State) {

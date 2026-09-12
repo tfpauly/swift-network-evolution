@@ -38,12 +38,8 @@ public protocol AutomaticLowerDatagramProcessing: ~Copyable, InboundDatagramHand
     /// A function the framework calls when the lower protocol has added datagrams to
     /// `lowerReceiveQueue`.
     ///
-    /// Protocols should implement this function to customize behavior.
-    func serviceLowerReceiveQueue()
-
-    /// Services the lower receive queue, with the context state already acquired.
-    ///
-    /// The default implementation forwards to `serviceLowerReceiveQueue()`.
+    /// Protocols should implement this function to customize behavior. Thread `state` into any
+    /// calls made to other protocols so that the state is never re-derived from the context.
     mutating func serviceLowerReceiveQueue(state: inout NetworkContext.State)
 
     /// A function the framework calls when outbound room becomes available.
@@ -182,10 +178,6 @@ extension AutomaticLowerDatagramProcessing where Self: ~Copyable {
             serviceLowerReceiveQueue(state: &state)
             serviceLowerSendQueue(state: &state)
         } while readCount != 0
-    }
-
-    mutating func serviceLowerReceiveQueue(state: inout NetworkContext.State) {
-        serviceLowerReceiveQueue()
     }
 
     mutating func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {

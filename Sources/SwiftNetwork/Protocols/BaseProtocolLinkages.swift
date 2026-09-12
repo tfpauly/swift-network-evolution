@@ -697,20 +697,25 @@ open class BaseNetworkProtocolStorage {
             parameters: Parameters?,
             path: PathProperties?
         ) throws(NetworkError) {
-            let upperLinkage: MultipathLowerProtocol.PairedUpperLinkage
+            // This is an external entry point, so acquire the context state here and thread it
+            // into the protocol below.
+            try reference.fromExternal(state: &storage!.context.state) { state throws(NetworkError) in
+                let upperLinkage: MultipathLowerProtocol.PairedUpperLinkage
 
-            switch protocolType {
-            case .quic(let index):
-                upperLinkage = try storage!.quicInstances[index].attachLowerProtocolForNewPath(
-                    lowerProtocol,
-                    remote: remote,
-                    local: local,
-                    parameters: parameters,
-                    path: path
-                )
-            default: fatalError("Protocol cannot accept attachLowerProtocolForNewPath call")
+                switch protocolType {
+                case .quic(let index):
+                    upperLinkage = try storage!.quicInstances[index].attachLowerProtocolForNewPath(
+                        state: &state,
+                        lowerProtocol,
+                        remote: remote,
+                        local: local,
+                        parameters: parameters,
+                        path: path
+                    )
+                default: fatalError("Protocol cannot accept attachLowerProtocolForNewPath call")
+                }
+                try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
             }
-            try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
         }
     }
 

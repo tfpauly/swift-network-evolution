@@ -317,14 +317,17 @@ extension QUICCrypto {
         // If the client has enabled early data, and we now have complete remote transport parameters,
         // send them up to allow the client to store them for future connections
         if !earlyData, !parentConnection.isServer, enableEarlyData {
-            parentConnection.deliverNetworkProtocolEvent(
-                flow: .allFlows,
-                event: .init(
-                    quicEvent: .receivedRemoteTransportParameters(
-                        transportParameters: peerQUICTransportParameters
+            parentConnection.fromExternal { contextState in
+                parentConnection.deliverNetworkProtocolEvent(
+                    state: &contextState,
+                    flow: .allFlows,
+                    event: .init(
+                        quicEvent: .receivedRemoteTransportParameters(
+                            transportParameters: peerQUICTransportParameters
+                        )
                     )
                 )
-            )
+            }
         }
 
         let parameterBytes = peerQUICTransportParameters.span

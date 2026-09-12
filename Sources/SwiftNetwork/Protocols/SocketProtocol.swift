@@ -106,12 +106,12 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
         pendingOutputFrames.finalizeAllFramesAsFailed()
     }
 
-    public func connect() {
+    public func connect(state: inout NetworkContext.State) {
         guard let socket, let remoteEndpoint,
             case .address(let address) = remoteEndpoint.type
         else {
             log.error("Cannot connect: no socket or remote endpoint")
-            deliverDisconnectedEvent(error: .posix(ENOTCONN))
+            deliverDisconnectedEvent(state: &state, error: .posix(ENOTCONN))
             return
         }
 
@@ -127,18 +127,18 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
             case .v6(let addr, _): ip = addr
             default:
                 log.error("Unsupported address family for connect")
-                deliverDisconnectedEvent(error: .posix(EAFNOSUPPORT))
+                deliverDisconnectedEvent(state: &state, error: .posix(EAFNOSUPPORT))
                 return
             }
 
             _ = try socket.connectSocket(to: ip, port: remoteEndpoint.port)
         } catch {
             log.error("Failed to connect: \(error)")
-            deliverDisconnectedEvent(error: .posix(ECONNREFUSED))
+            deliverDisconnectedEvent(state: &state, error: .posix(ECONNREFUSED))
             return
         }
 
-        deliverConnectedEvent()
+        deliverConnectedEvent(state: &state)
     }
 
     // MARK: - BottomDatagramProtocol
@@ -521,12 +521,12 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         pendingOutputFrames.finalizeAllFramesAsFailed()
     }
 
-    public func connect() {
+    public func connect(state: inout NetworkContext.State) {
         guard let socket, let remoteEndpoint,
             case .address(let address) = remoteEndpoint.type
         else {
             log.error("Cannot connect: no socket or remote endpoint")
-            deliverDisconnectedEvent(error: .posix(ENOTCONN))
+            deliverDisconnectedEvent(state: &state, error: .posix(ENOTCONN))
             return
         }
 
@@ -552,7 +552,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             case .v6(let addr, _): ip = addr
             default:
                 log.error("Unsupported address family for connect")
-                deliverDisconnectedEvent(error: .posix(EAFNOSUPPORT))
+                deliverDisconnectedEvent(state: &state, error: .posix(EAFNOSUPPORT))
                 return
             }
 
@@ -560,7 +560,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             // Wait for the socket to become writable, then treat as connected.
             let connectedNow = try socket.connectSocket(to: ip, port: remoteEndpoint.port)
             if connectedNow {
-                deliverConnectedEvent()
+                deliverConnectedEvent(state: &state)
                 startReadSource()
             } else {
                 isConnecting = true
@@ -571,14 +571,14 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             }
         } catch let error {
             log.error("Failed to connect: \(error)")
-            deliverDisconnectedEvent(error: .posix(ECONNREFUSED))
+            deliverDisconnectedEvent(state: &state, error: .posix(ECONNREFUSED))
         }
     }
 
-    public func disconnect() {
+    public func disconnect(state: inout NetworkContext.State) {
         if pendingOutputFrames.isEmpty {
             shutdownWrites()
-            deliverDisconnectedEvent(error: nil)
+            deliverDisconnectedEvent(state: &state, error: nil)
             return
         }
         pendingDisconnect = true

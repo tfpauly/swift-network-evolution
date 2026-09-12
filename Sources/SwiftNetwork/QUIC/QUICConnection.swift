@@ -1243,12 +1243,6 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         )
     }
 
-    public func connect() {
-        fromExternal { contextState in
-            connect(state: &contextState)
-        }
-    }
-
     // Note: the parameter is named `contextState` rather than `state` because `state` is this
     // connection's own QUIC handshake state property.
     public func connect(state contextState: inout NetworkContext.State) {
@@ -1454,7 +1448,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         close(sendCloseFrame: false)
     }
 
-    public func connect(flow flowID: MultiplexedFlowIdentifier) {
+    public func connect(state contextState: inout NetworkContext.State, flow flowID: MultiplexedFlowIdentifier) {
         log.debug(
             "Received connection start on flow \(flowID.debugDescription) (isServer: \(self.isServer))"
         )
@@ -1468,21 +1462,11 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 return
             }
         }
-        deliverConnectedEvent(flow: flowID)
-    }
-
-    public func teardown() {
-        close()
+        deliverConnectedEvent(state: &contextState, flow: flowID)
     }
 
     public func teardown(state contextState: inout NetworkContext.State) {
         close(state: &contextState)
-    }
-
-    public func disconnect(error: NetworkError?) {
-        fromExternal { contextState in
-            disconnect(state: &contextState, error: error)
-        }
     }
 
     public func disconnect(state contextState: inout NetworkContext.State, error: NetworkError?) {
@@ -1501,16 +1485,8 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         close(state: &contextState)
     }
 
-    public func teardown(flow: MultiplexedFlowIdentifier) {
-        disconnect(flow: flow, direction: .both)
-    }
-
     public func teardown(state contextState: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         disconnect(state: &contextState, flow: flow, direction: .both)
-    }
-
-    public func disconnect(flow: MultiplexedFlowIdentifier, error: NetworkError?) {
-        disconnect(flow: flow, direction: .both, error: error)
     }
 
     public func disconnect(
@@ -4969,7 +4945,7 @@ extension QUICConnection {
             if streamType == .unidirectional {
                 event = .maxStreamsLimitUnidirectionalUpdated(maximumStreams: Int(maxStreams))
             }
-            deliverNetworkProtocolEvent(flow: .allFlows, event: .init(quicEvent: event))
+            deliverNetworkProtocolEvent(state: &contextState, flow: .allFlows, event: .init(quicEvent: event))
         }
         return true
     }
@@ -4999,6 +4975,7 @@ extension QUICConnection {
     }
 
     func processStreamsBlockedBidirectionalFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming FrameStreamsBlockedBidirectional
     ) -> Bool {
         if frame.limit > Constants.maxStreamLimit {
@@ -5009,6 +4986,7 @@ extension QUICConnection {
         }
         log.notice("Streams blocked bidi: \(frame.limit)")
         deliverNetworkProtocolEvent(
+            state: &contextState,
             flow: .allFlows,
             event: .init(
                 quicEvent: .remoteBidirectionalStreamsBlocked(
@@ -5020,6 +4998,7 @@ extension QUICConnection {
     }
 
     func processStreamsBlockedUnidirectionalFrame(
+        state contextState: inout NetworkContext.State,
         _ frame: consuming FrameStreamsBlockedUnidirectional
     ) -> Bool {
         if frame.limit > Constants.maxStreamLimit {
@@ -5030,6 +5009,7 @@ extension QUICConnection {
         }
         log.notice("Streams blocked uni: \(frame.limit)")
         deliverNetworkProtocolEvent(
+            state: &contextState,
             flow: .allFlows,
             event: .init(
                 quicEvent: .remoteUnidirectionalStreamsBlocked(
@@ -5804,9 +5784,9 @@ extension QUICConnection {
         case .streamDataBlocked(let frame):
             return processStreamDataBlocked(frame: frame)
         case .streamsBlockedBidirectional(let frame):
-            return processStreamsBlockedBidirectionalFrame(frame)
+            return processStreamsBlockedBidirectionalFrame(state: &contextState, frame)
         case .streamsBlockedUnidirectional(let frame):
-            return processStreamsBlockedUnidirectionalFrame(frame)
+            return processStreamsBlockedUnidirectionalFrame(state: &contextState, frame)
         case .newConnectionID(let frame):
             return processNewConnectionIDFrame(state: &contextState, frame)
         case .retireConnectionID(let frame):
