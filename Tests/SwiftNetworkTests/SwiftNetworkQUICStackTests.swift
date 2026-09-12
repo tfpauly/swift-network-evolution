@@ -190,27 +190,30 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             client.maximumOutputSize = maximumDatagramSize
             server.maximumOutputSize = maximumDatagramSize
 
-            try! clientIPLower.invokeAttachUpperProtocol(clientUDPUpper,
+            // Attach from the upper linkage so both directions are bound: the upper protocol's
+            // `lower` is set, and `invokeAttachLowerProtocol` calls back into
+            // `invokeAttachUpperProtocol` on the lower protocol.
+            try! clientUDPUpper.invokeAttachLowerProtocol(clientIPLower,
+                                                          remote: serverEndpoint,
+                                                          local: clientEndpoint,
+                                                          parameters: clientParameters,
+                                                          path: clientPath)
+            try! clientIPUpper.invokeAttachLowerProtocol(clientLowerHarnessLinkage,
                                                          remote: serverEndpoint,
                                                          local: clientEndpoint,
                                                          parameters: clientParameters,
                                                          path: clientPath)
-            try! clientLowerHarnessLinkage.invokeAttachUpperProtocol(clientIPUpper,
-                                                                     remote: serverEndpoint,
-                                                                     local: clientEndpoint,
-                                                                     parameters: clientParameters,
-                                                                     path: clientPath)
 
-            try! serverIPLower.invokeAttachUpperProtocol(serverUDPUpper,
+            try! serverUDPUpper.invokeAttachLowerProtocol(serverIPLower,
+                                                          remote: clientEndpoint,
+                                                          local: serverEndpoint,
+                                                          parameters: serverParameters,
+                                                          path: serverPath)
+            try! serverIPUpper.invokeAttachLowerProtocol(serverLowerHarnessLinkage,
                                                          remote: clientEndpoint,
                                                          local: serverEndpoint,
                                                          parameters: serverParameters,
                                                          path: serverPath)
-            try! serverLowerHarnessLinkage.invokeAttachUpperProtocol(serverIPUpper,
-                                                                     remote: clientEndpoint,
-                                                                     local: serverEndpoint,
-                                                                     parameters: serverParameters,
-                                                                     path: serverPath)
         }
 
         private func transferPackets(

@@ -41,6 +41,18 @@ public struct ProtocolInstanceReference: Hashable {
         self.eventStateIndex = eventManager.register(with: context, state: &context.state)
     }
 
+    /// Registers using a context state the caller already holds.
+    ///
+    /// Use this instead of `init(context:eventManager:)` when constructing a reference from
+    /// inside a call that already has the state, so the state isn't re-derived from the context.
+    public init(
+        eventManager: inout ProtocolEventManager,
+        context: NetworkContext,
+        state: inout NetworkContext.State
+    ) {
+        self.eventStateIndex = eventManager.register(with: context, state: &state)
+    }
+
     public var isNone: Bool {
         eventStateIndex == nil
     }

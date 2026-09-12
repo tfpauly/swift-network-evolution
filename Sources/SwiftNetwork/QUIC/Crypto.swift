@@ -109,6 +109,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
     }
 
     func start(
+        state: inout NetworkContext.State,
         with parentConnection: QUICConnection<Families>,
         tlsOptions inputTLSOptions: SwiftTLSProtocol.Options
     ) -> Bool {
@@ -140,12 +141,23 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         tlsParameters.isServer = parentConnection.isServer
         tlsParameters.defaultStack.append(applicationProtocol: .swiftTLS(tlsOptions))
         do throws(NetworkError) {
-            try tlsInstance.attachUpperProtocol(self, remote: nil, local: nil, parameters: tlsParameters, path: nil)
+            // Attach from this side (the upper protocol) so both directions are bound:
+            // `invokeAttachLowerProtocol` sets `lower` (and therefore `tlsLinkage`) and calls
+            // back into `attachUpperProtocol` on the TLS instance. Calling
+            // `tlsInstance.attachUpperProtocol` directly would leave `tlsLinkage` nil, so the
+            // `invokeConnect` below would silently do nothing and the handshake never starts.
+            try self.invokeAttachLowerProtocol(
+                tlsInstance,
+                remote: nil,
+                local: nil,
+                parameters: tlsParameters,
+                path: nil
+            )
         } catch {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
         }
-        self.tlsLinkage?.invokeConnect(state: &parentConnection.context.state, reference)
+        self.tlsLinkage?.invokeConnect(state: &state, reference)
         return true
     }
 
@@ -154,7 +166,18 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
             // Already stopped, ignore
             return
         }
-        try? self.tlsLinkage?.invokeDetach(state: &context.state, reference)
+        fromExternal { state in
+            stop(state: &state)
+        }
+    }
+
+    /// Stops using a context state the caller already holds.
+    func stop(state: inout NetworkContext.State) {
+        guard self.parentConnection != nil else {
+            // Already stopped, ignore
+            return
+        }
+        try? self.tlsLinkage?.invokeDetach(state: &state, reference)
         tlsLinkage = .init()
 
         initialInboundData.finalizeAllFramesAsFailed()
@@ -182,17 +205,33 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         guard let parentConnection else {
             return
         }
-        // Notify pending items that there are crypto bytes to get!
+        markSendPending(level, on: parentConnection)
+        guard parentConnection.sendFrames() else {
+            parentConnection.log.error("Unable to send Crypto Frames")
+            return
+        }
+    }
+
+    /// Sends at the given level, using a context state the caller already holds.
+    func sendAtLevel(state: inout NetworkContext.State, _ level: PacketNumberSpace) {
+        guard let parentConnection else {
+            return
+        }
+        markSendPending(level, on: parentConnection)
+        guard parentConnection.sendFrames(state: &state) else {
+            parentConnection.log.error("Unable to send Crypto Frames")
+            return
+        }
+    }
+
+    // Notify pending items that there are crypto bytes to get!
+    private func markSendPending(_ level: PacketNumberSpace, on parentConnection: QUICConnection<Families>) {
         if level == .initial {
             parentConnection.initialPendingItems.sendCrypto = true
         } else if level == .handshake {
             parentConnection.handshakePendingItems.sendCrypto = true
         } else {
             parentConnection.applicationPendingItems.sendCrypto = true
-        }
-        guard parentConnection.sendFrames() else {
-            parentConnection.log.error("Unable to send Crypto Frames")
-            return
         }
     }
 }
@@ -339,8 +378,19 @@ extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInsta
     // TLS Encryption Handler is our "upper protocol", one per encryption level.
     typealias PairedUpperLinkage = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>.EncryptionLevelHandler
 
+    // Binds both directions: set the TLS instance as our lower protocol, then call back into it
+    // so it takes this crypto object as its upper protocol and runs setup.
     func invokeAttachLowerProtocol(_ lowerProtocol: PairedLowerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
-        throw NetworkError.posix(ENOTSUP)
+        var mutableSelf = self
+        let overrideUpperLinkage = try mutableSelf.attachLowerProtocol(lowerProtocol)
+        _ = overrideUpperLinkage
+        try lowerProtocol.invokeAttachUpperProtocol(
+            self,
+            remote: remote,
+            local: local,
+            parameters: parameters,
+            path: path
+        )
     }
 
     func invokeAttachUpperProtocol(_ upperProtocol: PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
@@ -595,7 +645,7 @@ extension QUICCrypto: OutboundStreamHandler {
         case .applicationData:
             applicationOutboundData.addSendData(streamData, isLast: false)
         }
-        sendAtLevel(level)
+        sendAtLevel(state: &state, level)
     }
 
     func copyOutSendData(

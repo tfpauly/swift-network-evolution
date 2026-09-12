@@ -70,6 +70,15 @@ private struct ContextBound<Value>: @unchecked Sendable {
         self._value = value
     }
 
+    /// Builds a context-bound value using a context state the caller already holds, so the
+    /// queue assertion doesn't re-derive the state from the context.
+    @inlinable
+    init(_ value: Value, context: NetworkContext, state: inout NetworkContext.State) {
+        state.assert()
+        self.context = context
+        self._value = value
+    }
+
     @inlinable
     public var value: Value {
         get {
@@ -405,14 +414,22 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             var lower = LowerProtocol()
 
             let level: SwiftTLSOptions.EncryptionLevel
-            var parentInstance: SwiftTLSQUICOnlyInstance? {
-                didSet {
-                    // The context comes from parentInstance, so the reference can only be
-                    // built once a parent has been assigned.
-                    guard let parentInstance else { return }
-                    reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
-                    reference.setParentReference(parentInstance.reference)
-                }
+            var parentInstance: SwiftTLSQUICOnlyInstance?
+
+            /// Assigns the parent and registers this handler's event state.
+            ///
+            /// Registration needs the context state, so it takes the state the caller already
+            /// holds rather than re-deriving it from the context (which would trip Swift's
+            /// exclusivity checking). The context itself comes from the parent, so the reference
+            /// can only be built once a parent has been assigned.
+            func setParent(state: inout NetworkContext.State, _ parentInstance: SwiftTLSQUICOnlyInstance) {
+                self.parentInstance = parentInstance
+                reference = ProtocolInstanceReference(
+                    eventManager: &self.eventManager,
+                    context: parentInstance.context,
+                    state: &state
+                )
+                reference.setParentReference(parentInstance.reference)
             }
             public var context: NetworkContext { parentInstance!.context }
 
@@ -428,6 +445,15 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             func destroy() {
                 if !lower.isDetached {
                     try? lower.invokeDetach(state: &context.state, reference)
+                    lower = LowerProtocol()
+                }
+                parentInstance = nil
+            }
+
+            /// Destroys using a context state the caller already holds.
+            func destroy(state: inout NetworkContext.State) {
+                if !lower.isDetached {
+                    try? lower.invokeDetach(state: &state, reference)
                     lower = LowerProtocol()
                 }
                 parentInstance = nil
@@ -633,6 +659,21 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             quicCrypto = nil
         }
 
+        /// Tears down the handshake state using a context state the caller already holds.
+        ///
+        /// Named distinctly from `teardown(state:)`, which is the linkage-storage-release hook
+        /// from `LowerProtocolLinkage`.
+        func teardownHandshake(state: inout NetworkContext.State) {
+            #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
+            handshaker.setAsyncContinuationHandler(nil)
+            #endif
+            initialDataHandler.destroy(state: &state)
+            handshakeDataHandler.destroy(state: &state)
+            earlyDataHandler.destroy(state: &state)
+            applicationDataHandler.destroy(state: &state)
+            quicCrypto = nil
+        }
+
         // Disconnect and the disconnected event are passed straight through: QUIC owns the
         // connection lifetime, this instance only runs the handshake.
         func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
@@ -682,10 +723,10 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             }
 
             // Link up the per-level handlers
-            initialDataHandler.parentInstance = self
-            earlyDataHandler.parentInstance = self
-            handshakeDataHandler.parentInstance = self
-            applicationDataHandler.parentInstance = self
+            initialDataHandler.setParent(state: &state, self)
+            earlyDataHandler.setParent(state: &state, self)
+            handshakeDataHandler.setParent(state: &state, self)
+            applicationDataHandler.setParent(state: &state, self)
             initialDataHandler.lower = quicCrypto
             quicCrypto.initialLinkage = initialDataHandler
             earlyDataHandler.lower = quicCrypto
@@ -696,7 +737,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             quicCrypto.applicationLinkage = applicationDataHandler
 
             #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
-            let contextBoundSelf = ContextBound(self, context: self.context)
+            let contextBoundSelf = ContextBound(self, context: self.context, state: &state)
             handshaker.setAsyncContinuationHandler { result in
                 contextBoundSelf.value.async {
                     contextBoundSelf.value.handshaker.setAsyncResult(result)
@@ -792,11 +833,21 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
         func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
             upper = .init()
-            teardown()
+            teardownHandshake(state: &state)
         }
 
+        // The TLS instance is its own lower linkage, so this is the callback half of
+        // `QUICCrypto.invokeAttachLowerProtocol`: bind the crypto object as the upper protocol
+        // and run setup.
         func invokeAttachUpperProtocol(_ upperProtocol: QUICCrypto<Families>, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
-            throw NetworkError.posix(ENOTSUP)
+            var mutableSelf = self
+            try mutableSelf.attachUpperProtocol(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
         }
     }
 

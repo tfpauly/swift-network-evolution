@@ -1595,7 +1595,7 @@ open class BaseNetworkProtocolStorage {
 
         let instanceIndex = quicInstances.insert(instance)
 
-        let reference = udpInstances[instanceIndex].reference
+        let reference = instance.reference
         let stream = BaseStreamListenerLinkage(reference: reference, storage: self, protocolType: .quic(instanceIndex))
         let datagram = BaseDatagramListenerLinkage(reference: reference, storage: self, protocolType: .quic(instanceIndex))
         let multipath = BaseDatagramMultipathLinkage(reference: reference, storage: self, protocolType: .quic(instanceIndex))

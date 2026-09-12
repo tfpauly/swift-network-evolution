@@ -431,7 +431,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         self.timer = Timer(timerReference: timerReference, logPrefixer: self.logPrefixer)
         self.ecn = ECN()
         self.stats = Statistics()
-        self.reference = .init()
+        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
     }
 
     public func setup(
@@ -1244,6 +1244,14 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     public func connect() {
+        fromExternal { contextState in
+            connect(state: &contextState)
+        }
+    }
+
+    // Note: the parameter is named `contextState` rather than `state` because `state` is this
+    // connection's own QUIC handshake state property.
+    public func connect(state contextState: inout NetworkContext.State) {
         log.debug(
             "Received connection start (isServer: \(self.isServer))"
         )
@@ -1322,7 +1330,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 // Start idle timer to terminate unresponded to connection
                 guard clientStartIdleTimer() else {
                     log.error("Unable to start idle timer")
-                    deliverDisconnectedEvent(flow: .allFlows, error: NetworkError.posix(EINVAL))
+                    deliverDisconnectedEvent(state: &contextState, flow: .allFlows, error: NetworkError.posix(EINVAL))
                     return
                 }
 
@@ -1331,9 +1339,9 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 withCurrentPath { path in
                     setCIDsOnLocalTransportParameters(path: path)
                 }
-                guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions) else {
+                guard let tlsOptions, crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions) else {
                     log.error("Client failed to start TLS")
-                    deliverDisconnectedEvent(flow: .allFlows, error: NetworkError.posix(EINVAL))
+                    deliverDisconnectedEvent(state: &contextState, flow: .allFlows, error: NetworkError.posix(EINVAL))
                     return
                 }
 
@@ -1465,6 +1473,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     public func teardown() {
         close()
+    }
+
+    public func teardown(state contextState: inout NetworkContext.State) {
+        close(state: &contextState)
     }
 
     public func disconnect(error: NetworkError?) {
@@ -1902,7 +1914,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop()
         crypto = QUICCrypto<Families>(context: context)
-        guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions) else {
+        guard let tlsOptions, fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) }) else {
             log.error("Failed to start TLS")
             return
         }
@@ -1996,7 +2008,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop()
         crypto = QUICCrypto<Families>(context: context)
-        guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions) else {
+        guard let tlsOptions, fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) }) else {
             log.error("Failed to start TLS")
             return
         }
@@ -2081,7 +2093,8 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                     return
                 }
 
-                guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions)
+                guard let tlsOptions,
+                    fromExternal({ crypto.start(state: &$0, with: self, tlsOptions: tlsOptions) })
                 else {
                     log.error("Server failed to start TLS")
                     return false
@@ -2683,6 +2696,12 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     // Closing all flows, i.e. streams, and the connection itself
     private func close(sendCloseFrame: Bool = true) {
+        fromExternal { contextState in
+            close(state: &contextState, sendCloseFrame: sendCloseFrame)
+        }
+    }
+
+    private func close(state contextState: inout NetworkContext.State, sendCloseFrame: Bool = true) {
         if state.isTerminal || drainingScheduled {
             log.debug("Already in closing or draining state")
             return
@@ -2735,9 +2754,9 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             // so switch to closing state before sending packets.
             // Note: sendFrames() before closing TLS based on this external event
             state.change(to: .closing, logIDString: logPrefixer.logIDString)
-            sendFrames()
+            sendFrames(state: &contextState)
         }
-        closeTLSFlow()
+        closeTLSFlow(state: &contextState)
 
         knownFlows.removeAll()
         localTransportParameters.removeAll()
@@ -2745,7 +2764,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
         connectionMetadata = .init()
 
-        deliverDisconnectedEvent(flow: .allFlows, error: errorToReport)
+        deliverDisconnectedEvent(state: &contextState, flow: .allFlows, error: errorToReport)
 
         // After sending a CONNECTION_CLOSE frame, an endpoint immediately enters the closing state
         // After receiving a CONNECTION_CLOSE frame, endpoints enter the draining state;
@@ -3000,6 +3019,17 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     @discardableResult
     func sendFrames(ignoreCongestionWindow: Bool = false, delayedACK: Bool = false) -> Bool {
+        fromExternal { contextState in
+            sendFrames(state: &contextState, ignoreCongestionWindow: ignoreCongestionWindow, delayedACK: delayedACK)
+        }
+    }
+
+    /// Sends pending frames using a context state the caller already holds.
+    func sendFrames(
+        state contextState: inout NetworkContext.State,
+        ignoreCongestionWindow: Bool = false,
+        delayedACK: Bool = false
+    ) -> Bool {
         // Make sure there are packets to send
         guard
             initialPendingItems.hasPendingItems
@@ -3020,6 +3050,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             var discardInitialRecoveryState = false
 
             let success = sendFramesInternal(
+                state: &contextState,
                 path: path,
                 ignoreCongestionWindow: ignoreCongestionWindow,
                 retransmission: false,
@@ -3050,9 +3081,28 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         ignoreCongestionWindow: Bool = false,
         retransmission: Bool = false
     ) -> Bool {
+        fromExternal { contextState in
+            sendFrames(
+                state: &contextState,
+                on: path,
+                ignoreCongestionWindow: ignoreCongestionWindow,
+                retransmission: retransmission
+            )
+        }
+    }
+
+    /// Sends pending frames on a path using a context state the caller already holds.
+    @discardableResult
+    func sendFrames(
+        state contextState: inout NetworkContext.State,
+        on path: QUICPath<Families>,
+        ignoreCongestionWindow: Bool = false,
+        retransmission: Bool = false
+    ) -> Bool {
         self.sentPackets.reserveCapacity(capacityForPacketNumberSpace())
         var discardInitialRecoveryState = false
         let success = sendFramesInternal(
+            state: &contextState,
             path: path,
             ignoreCongestionWindow: ignoreCongestionWindow,
             retransmission: retransmission,
@@ -3077,15 +3127,23 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         retransmission: Bool = false,
         discardInitialRecoveryState: inout Bool
     ) -> NetworkUniqueDeque<SentPacketRecord> {
-        var sentPackets = NetworkUniqueDeque<SentPacketRecord>(minimumCapacity: capacityForPacketNumberSpace())
-        _ = sendFramesInternal(
-            path: path,
-            ignoreCongestionWindow: ignoreCongestionWindow,
-            retransmission: retransmission,
-            sentPackets: &sentPackets,
-            discardInitialRecoveryState: &discardInitialRecoveryState
-        )
-        return sentPackets
+        var discard = discardInitialRecoveryState
+        let result: NetworkUniqueDeque<SentPacketRecord> = fromExternal { contextState in
+            var sentPackets = NetworkUniqueDeque<SentPacketRecord>(
+                minimumCapacity: capacityForPacketNumberSpace()
+            )
+            _ = sendFramesInternal(
+                state: &contextState,
+                path: path,
+                ignoreCongestionWindow: ignoreCongestionWindow,
+                retransmission: retransmission,
+                sentPackets: &sentPackets,
+                discardInitialRecoveryState: &discard
+            )
+            return sentPackets
+        }
+        discardInitialRecoveryState = discard
+        return result
     }
 
     func recordSentPackets(_ block: () -> NetworkUniqueDeque<SentPacketRecord>) {
@@ -3098,7 +3156,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         sendFrames(on: path)
     }
 
-    private func buildOutboundFrameBatch(availableCongestionWindow: UInt64) -> FrameArray {
+    private func buildOutboundFrameBatch(
+        state contextState: inout NetworkContext.State,
+        availableCongestionWindow: UInt64
+    ) -> FrameArray {
         var outboundBatch = FrameArray()
         // If ACK is only set or the connection is blocked just send empty batch
         if applicationPendingItems.isAckSet || self.hasSentDataBlocked {
@@ -3124,6 +3185,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 // Only request if we have a batchLength greater than 1
                 if batchLength > 1,
                     let outFrames = try? getDatagramsToSend(
+                        state: &contextState,
                         path: currentPath.identifier,
                         maximumDatagramCount: batchLength,
                         minimumDatagramSize: requestedFrameLength
@@ -3136,14 +3198,18 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         return outboundBatch
     }
 
-    private func sendOutboundFrames(_ outboundFrames: consuming FrameArray, on path: QUICPath<Families>) {
+    private func sendOutboundFrames(
+        state contextState: inout NetworkContext.State,
+        _ outboundFrames: consuming FrameArray,
+        on path: QUICPath<Families>
+    ) {
         guard !outboundFrames.isEmpty else { return }
         do throws(NetworkError) {
             try self.enqueueOutboundDatagrams(
                 path: path.identifier,
                 datagrams: outboundFrames
             )
-            try self.sendEnqueuedOutboundDatagrams(path: path.identifier)
+            try self.sendEnqueuedOutboundDatagrams(state: &contextState, path: path.identifier)
         } catch {
             log.error("Failed to send outbound datagrams: \(error)")
         }
@@ -3151,6 +3217,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     // Don't use directly, use above sendFrames*()
     private func sendFramesInternal(
+        state contextState: inout NetworkContext.State,
         path: QUICPath<Families>,
         ignoreCongestionWindow: Bool = false,
         retransmission: Bool = false,
@@ -3187,11 +3254,13 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             var datagramBatch = FrameArray()
             if self.flowControlState.pendingOutboundBytesToSend > 0 && availableCongestionWindow > 0 {
                 datagramBatch = buildOutboundFrameBatch(
+                    state: &contextState,
                     availableCongestionWindow: (availableCongestionWindow - totalSendBytes)
                 )
             }
             var outboundFrameArray = FrameArray()
             let success = buildSinglePacketForKeyState(
+                    state: &contextState,
                 self.keyState,
                 pendingItems: &pendingItems,
                 sentPackets: &sentPackets,
@@ -3204,7 +3273,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 outboundFrames: &outboundFrameArray
             )
             if !outboundFrameArray.isEmpty {
-                sendOutboundFrames(outboundFrameArray, on: path)
+                sendOutboundFrames(state: &contextState, outboundFrameArray, on: path)
             }
             return success
         }
@@ -3220,6 +3289,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         var datagramBatch: FrameArray
         if self.flowControlState.pendingOutboundBytesToSend > 0 && availableCongestionWindow > 0 {
             datagramBatch = buildOutboundFrameBatch(
+                    state: &contextState,
                 availableCongestionWindow: (availableCongestionWindow - totalSendBytes)
             )
         } else {
@@ -3248,6 +3318,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
                 guard
                     buildSinglePacketForKeyState(
+                    state: &contextState,
                         .initial,
                         pendingItems: &initialPendingItems,
                         sentPackets: &sentPackets,
@@ -3283,6 +3354,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
             guard
                 buildSinglePacketForKeyState(
+                    state: &contextState,
                     .handshake,
                     pendingItems: &handshakePendingItems,
                     sentPackets: &sentPackets,
@@ -3316,6 +3388,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
             guard
                 buildSinglePacketForKeyState(
+                    state: &contextState,
                     keyState,
                     pendingItems: &applicationPendingItems,
                     sentPackets: &sentPackets,
@@ -3353,6 +3426,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                     if datagramBatch.isEmpty {
                         // If sending packet bursts and the original batch of prefetched datagrams is empty, fetch a new batch
                         datagramBatch = buildOutboundFrameBatch(
+                    state: &contextState,
                             availableCongestionWindow: (availableCongestionWindow - totalSendBytes)
                         )
                     }
@@ -3368,12 +3442,13 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             }
         }
         if !outboundFrameArray.isEmpty {
-            sendOutboundFrames(outboundFrameArray, on: path)
+            sendOutboundFrames(state: &contextState, outboundFrameArray, on: path)
         }
         return true
     }
 
     private func buildSinglePacketForKeyState(
+        state contextState: inout NetworkContext.State,
         _ keyState: PacketKeyState,
         pendingItems: inout PendingItems,
         sentPackets: inout NetworkUniqueDeque<SentPacketRecord>,
@@ -3488,6 +3563,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         } else {
             guard
                 var outFrames = try? getDatagramsToSend(
+                    state: &contextState,
                     path: path.identifier,
                     maximumDatagramCount: 1,
                     minimumDatagramSize: requestedFrameLength
@@ -4043,6 +4119,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
     private func closeTLSFlow() {
         crypto.stop()
+    }
+
+    private func closeTLSFlow(state contextState: inout NetworkContext.State) {
+        crypto.stop(state: &contextState)
     }
 
     private func logSummary() {
@@ -5777,7 +5857,7 @@ extension QUICConnection {
 @available(Network 0.1.0, *)
 extension QUICConnection {
 
-    fileprivate func handleConnectionIdleForFlow(_ flowID: MultiplexedFlowIdentifier) {
+    fileprivate func handleConnectionIdleForFlow(state: inout NetworkContext.State, _ flowID: MultiplexedFlowIdentifier) {
         if let stream = flow(for: flowID) {
             stream.applicationMarkedIdle = true
             flowsHaveEverMarkedIdle = true
@@ -5785,16 +5865,16 @@ extension QUICConnection {
             datagramFlow.applicationMarkedIdle = true
             flowsHaveEverMarkedIdle = true
         }
-        checkConnectionIdle()
+        checkConnectionIdle(state: &state)
     }
 
-    fileprivate func handleConnectionReusedForFlow(_ flowID: MultiplexedFlowIdentifier) {
+    fileprivate func handleConnectionReusedForFlow(state: inout NetworkContext.State, _ flowID: MultiplexedFlowIdentifier) {
         if let stream = flow(for: flowID) {
             stream.applicationMarkedIdle = false
         } else if let datagramFlow = secondaryFlow(for: flowID) {
             datagramFlow.applicationMarkedIdle = false
         }
-        checkConnectionIdle()
+        checkConnectionIdle(state: &state)
     }
 
     fileprivate var connectionIsIdleForAllStreams: Bool {
@@ -5845,17 +5925,23 @@ extension QUICConnection {
     }
 
     func checkConnectionIdle() {
+        fromExternal { state in
+            checkConnectionIdle(state: &state)
+        }
+    }
+
+    func checkConnectionIdle(state: inout NetworkContext.State) {
         let isIdle = connectionIsIdleForAllStreams
-        applyToAllPaths { path in
+        for path in multiplexingPaths.values {
             let pathIsIdle = isIdle && !path.isProbing && !path.shouldSendPathResponses
             if pathIsIdle && !path.reportedIdleEvent {
                 // Need to report idle
                 path.reportedIdleEvent = true
-                path.lower.invokeApplicationEvent(state: &context.state, path.reference, event: .connectionIdle)
+                path.lower.invokeApplicationEvent(state: &state, path.reference, event: .connectionIdle)
             } else if !pathIsIdle && path.reportedIdleEvent {
                 // Need to report non-idle
                 path.reportedIdleEvent = false
-                path.lower.invokeApplicationEvent(state: &context.state, path.reference, event: .connectionReused)
+                path.lower.invokeApplicationEvent(state: &state, path.reference, event: .connectionReused)
             }
         }
     }
@@ -5867,15 +5953,16 @@ extension QUICConnection {
 extension QUICConnection {
 
     public func handleApplicationEvent(
+        state: inout NetworkContext.State,
         flow flowID: MultiplexedFlowIdentifier,
         event: ApplicationEvent
     ) -> HandleNetworkEventResult {
         if event == .connectionIdle {
-            handleConnectionIdleForFlow(flowID)
+            handleConnectionIdleForFlow(state: &state, flowID)
             return .consumed
         }
         if event == .connectionReused {
-            handleConnectionReusedForFlow(flowID)
+            handleConnectionReusedForFlow(state: &state, flowID)
             return .consumed
         }
         return handleApplicationEvent(event)
