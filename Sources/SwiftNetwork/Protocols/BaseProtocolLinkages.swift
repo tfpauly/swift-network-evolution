@@ -458,11 +458,13 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
+        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+            let lowerProtocol: PairedUpperLinkage.DataLinkage
             switch protocolType {
-            case .quic(let index): return try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .quic(let index): lowerProtocol = try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToNewFlow call")
             }
+            try upperProtocol.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
         }
 
         public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
@@ -1139,11 +1141,13 @@ open class BaseNetworkProtocolStorage {
             }
         }
 
-        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
+        public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
+            let lowerProtocol: PairedUpperLinkage.DataLinkage
             switch protocolType {
-            case .quic(let index): return try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .quic(let index): lowerProtocol = try storage!.quicInstances[index].attachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToNewFlow call")
             }
+            try upperProtocol.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
         }
 
         public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
@@ -1851,8 +1855,7 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
     ) throws(NetworkError) {
     }
 
-    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
-        return .init()
+    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
     }
 
     public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundDatagramLinkage, existingFlow: DefaultOutboundDatagramLinkage) throws(NetworkError) {
@@ -2132,8 +2135,7 @@ public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
 
     }
 
-    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundStreamLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
-        return .init()
+    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundStreamLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
     }
 
     public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundStreamLinkage, existingFlow: DefaultOutboundStreamLinkage) throws(NetworkError) {

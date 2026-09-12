@@ -210,7 +210,7 @@ public protocol ListenerLinkage: LowerProtocolLinkage where PairedUpperLinkage: 
         local: Endpoint?,
         parameters: Parameters?,
         path: PathProperties?
-    ) throws(NetworkError) -> PairedUpperLinkage.DataLinkage
+    ) throws(NetworkError)
 
     func invokeAttachUpperProtocolToExistingFlow(
         _ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage,

@@ -302,6 +302,12 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
+                try clientQUICStreamListener.invokeAttachUpperProtocolToNewFlow(clientUpperHarnessLinkage, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach client upper harness to QUIC")
+            }
+
+            do {
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.clientTop, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach client stack")
@@ -322,18 +328,18 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
 
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
-            let serverListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
-            serverUpperHarness = NewStreamFlowHarness<BaseStreamLinkageFamily>(
-                identifier: "Server",
-                local: serverEndpoint,
-                remote: clientEndpoint,
-                parameters: serverParameters,
-                path: serverPath,
-                context: serverParameters.context
-            )
+
+            let (serverUpperHarnessInstance, serverUpperHarnessLinkage) = storage.createNewStreamFlowHarness(identifier: "Server", local: serverEndpoint, remote: clientEndpoint, parameters: serverParameters, path: serverPath, context: context)
+            serverUpperHarness = serverUpperHarnessInstance
             XCTAssertNotNil(serverUpperHarness, "Failed to attach QUIC to server upper harness")
             guard let serverUpperHarness else {
                 return
+            }
+
+            do {
+                try serverQUICStreamListener.invokeAttachUpperProtocol(serverUpperHarnessLinkage, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+            } catch {
+                XCTAssertTrue(false, "Failed to attach server upper harness to QUIC")
             }
 
             do {
