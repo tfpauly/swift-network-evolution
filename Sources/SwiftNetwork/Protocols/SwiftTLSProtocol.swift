@@ -410,7 +410,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                     // The context comes from parentInstance, so the reference can only be
                     // built once a parent has been assigned.
                     guard let parentInstance else { return }
-                    reference = .init()
+                    reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
                     reference.setParentReference(parentInstance.reference)
                 }
             }

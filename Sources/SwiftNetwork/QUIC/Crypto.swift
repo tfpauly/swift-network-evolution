@@ -70,12 +70,12 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
 
     var parentConnection: QUICConnection<Families>?
 
-    var tlsLinkage = LowerProtocol()  // Linkage for control path on top of TLS
+    var tlsLinkage: LowerProtocol?  // Linkage for control path on top of TLS
 
-    var initialLinkage = UpperProtocol()
-    var earlyDataLinkage = UpperProtocol()
-    var handshakeLinkage = UpperProtocol()
-    var applicationLinkage = UpperProtocol()
+    var initialLinkage: UpperProtocol?
+    var earlyDataLinkage: UpperProtocol?
+    var handshakeLinkage: UpperProtocol?
+    var applicationLinkage: UpperProtocol?
 
     var initialReassemblyQueue = ReassemblyQueue()
     var handshakeReassemblyQueue = ReassemblyQueue()
@@ -94,6 +94,11 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
     var ciphersuite: Int = 0
 
     var enableEarlyData = false
+
+    init() {
+        reference = .init()
+        tlsInstance = nil
+    }
 
     init(context: NetworkContext) {
         reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
@@ -140,7 +145,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
         }
-        self.tlsLinkage.invokeConnect(state: &parentConnection.context.state, reference)
+        self.tlsLinkage?.invokeConnect(state: &parentConnection.context.state, reference)
         return true
     }
 
@@ -149,7 +154,7 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
             // Already stopped, ignore
             return
         }
-        try? self.tlsLinkage.invokeDetach(state: &context.state, reference)
+        try? self.tlsLinkage?.invokeDetach(state: &context.state, reference)
         tlsLinkage = .init()
 
         initialInboundData.finalizeAllFramesAsFailed()
@@ -334,10 +339,6 @@ extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInsta
     // TLS Encryption Handler is our "upper protocol", one per encryption level.
     typealias PairedUpperLinkage = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>.EncryptionLevelHandler
 
-    convenience init() {
-        self.init(context: .implicitContext)
-    }
-    
     func invokeAttachLowerProtocol(_ lowerProtocol: PairedLowerLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
         throw NetworkError.posix(ENOTSUP)
     }
@@ -359,7 +360,12 @@ extension QUICCrypto: TopStreamProtocol {
     var context: NetworkContext { parentConnection!.context }
 
     var lower: LowerProtocol {
-        get { tlsLinkage }
+        get {
+            if let tlsLinkage {
+                return tlsLinkage
+            }
+            return .init()
+        }
         set { tlsLinkage = newValue }
     }
 
@@ -407,10 +413,12 @@ extension QUICCrypto: TopStreamProtocol {
         for packetNumberSpace: PacketNumberSpace,
         reassemblyQueue: inout ReassemblyQueue,
         frameArray: inout FrameArray,
-        linkage: UpperProtocol,
+        linkage: UpperProtocol?,
         state: inout NetworkContext.State
     ) -> Bool {
-
+        guard let linkage else {
+            return false
+        }
         let bufferLimitForPNSpace =
             packetNumberSpace == .handshake ? 2 * QUICCryptoConstants.bufferLimit : QUICCryptoConstants.bufferLimit
         guard reassemblyQueue.size <= bufferLimitForPNSpace else {
@@ -500,10 +508,10 @@ extension QUICCrypto: OutboundStreamHandler {
     func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {}
 
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        if from == initialLinkage.reference { initialLinkage.deliverConnectedEvent(state: &state, reference) }
-        if from == earlyDataLinkage.reference { earlyDataLinkage.deliverConnectedEvent(state: &state, reference) }
-        if from == handshakeLinkage.reference { handshakeLinkage.deliverConnectedEvent(state: &state, reference) }
-        if from == applicationLinkage.reference { applicationLinkage.deliverConnectedEvent(state: &state, reference) }
+        if let initialLinkage, from == initialLinkage.reference { initialLinkage.deliverConnectedEvent(state: &state, reference) }
+        if let earlyDataLinkage, from == earlyDataLinkage.reference { earlyDataLinkage.deliverConnectedEvent(state: &state, reference) }
+        if let handshakeLinkage, from == handshakeLinkage.reference { handshakeLinkage.deliverConnectedEvent(state: &state, reference) }
+        if let applicationLinkage, from == applicationLinkage.reference { applicationLinkage.deliverConnectedEvent(state: &state, reference) }
     }
 
     func disconnect(
@@ -526,18 +534,18 @@ extension QUICCrypto: OutboundStreamHandler {
         nil
     }
     func levelForReference(_ from: ProtocolInstanceReference) -> SwiftTLSOptions.EncryptionLevel? {
-        if from == initialLinkage.reference { return .initial }
-        if from == earlyDataLinkage.reference { return .earlyData }
-        if from == handshakeLinkage.reference { return .handshake }
-        if from == applicationLinkage.reference { return .application }
+        if from == initialLinkage?.reference { return .initial }
+        if from == earlyDataLinkage?.reference { return .earlyData }
+        if from == handshakeLinkage?.reference { return .handshake }
+        if from == applicationLinkage?.reference { return .application }
         return nil
     }
 
     func packetNumberSpaceForReference(_ from: ProtocolInstanceReference) -> PacketNumberSpace? {
-        if from == initialLinkage.reference { return .initial }
-        if from == handshakeLinkage.reference { return .handshake }
-        if from == applicationLinkage.reference { return .applicationData }
-        if from == earlyDataLinkage.reference { return .applicationData }
+        if from == initialLinkage?.reference { return .initial }
+        if from == handshakeLinkage?.reference { return .handshake }
+        if from == applicationLinkage?.reference { return .applicationData }
+        if from == earlyDataLinkage?.reference { return .applicationData }
         return nil
     }
 
