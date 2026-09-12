@@ -1480,6 +1480,12 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     public func disconnect(error: NetworkError?) {
+        fromExternal { contextState in
+            disconnect(state: &contextState, error: error)
+        }
+    }
+
+    public func disconnect(state contextState: inout NetworkContext.State, error: NetworkError?) {
         if let error {
             if closeError == nil, let transportError = error.quicTransportError {
                 closeError = QUICTransportError(transportError, error.description)
@@ -1492,15 +1498,27 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 )
             }
         }
-        close()
+        close(state: &contextState)
     }
 
     public func teardown(flow: MultiplexedFlowIdentifier) {
         disconnect(flow: flow, direction: .both)
     }
 
+    public func teardown(state contextState: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+        disconnect(state: &contextState, flow: flow, direction: .both)
+    }
+
     public func disconnect(flow: MultiplexedFlowIdentifier, error: NetworkError?) {
         disconnect(flow: flow, direction: .both, error: error)
+    }
+
+    public func disconnect(
+        state contextState: inout NetworkContext.State,
+        flow: MultiplexedFlowIdentifier,
+        error: NetworkError?
+    ) {
+        disconnect(state: &contextState, flow: flow, direction: .both, error: error)
     }
 
     func outboundDataFinished(flow: MultiplexedFlowIdentifier) {
@@ -1514,6 +1532,17 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     func disconnect(
+        flow flowID: MultiplexedFlowIdentifier,
+        direction: FlowStopDirection,
+        error: NetworkError? = nil
+    ) {
+        fromExternal { contextState in
+            disconnect(state: &contextState, flow: flowID, direction: direction, error: error)
+        }
+    }
+
+    func disconnect(
+        state contextState: inout NetworkContext.State,
         flow flowID: MultiplexedFlowIdentifier,
         direction: FlowStopDirection,
         error: NetworkError? = nil
@@ -1548,7 +1577,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 stream.writeClosed = handleStopWrite(for: stream)
             }
             if stream.readClosed, stream.writeClosed {
-                stream.close(errorCode: nil)
+                stream.close(state: &contextState, errorCode: nil)
                 stream.log.debug("Closed stream")
             } else {
                 stream.log.debug(
@@ -1557,14 +1586,14 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
 
             }
         } else if let _ = secondaryFlow(for: flowID) {
-            deliverDisconnectedEvent(flow: flowID, error: nil)
+            deliverDisconnectedEvent(state: &contextState, flow: flowID, error: nil)
         } else {
             log.error("No stream for \(flowID), cannot close")
         }
 
         if state == .connected {
             //  Possibly send CONNECTION_CLOSE, STOP_SENDING and/or RESET_STREAM, STREAM FIN
-            sendFrames()
+            sendFrames(state: &contextState)
         }
     }
 
@@ -2417,10 +2446,10 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             // it should be closed when we receive STOP_SENDING, so we
             // only need to handle the `dataRead` state here.
             if stream.receiveState == .dataRead, stream.receivedStopSending {
-                stream.close(errorCode: nil)
+                stream.close(state: &contextState, errorCode: nil)
             } else if !stream.closed, stream.sendState == .dataReceived, stream.receiveState == .dataRead {
                 // If both directions are closed, and all data is read, close the stream
-                stream.close(errorCode: nil)
+                stream.close(state: &contextState, errorCode: nil)
             }
         }
 
@@ -4452,6 +4481,16 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     func handleStreamClose(stream: Flow, error: NetworkError?) {
+        fromExternal { contextState in
+            handleStreamClose(state: &contextState, stream: stream, error: error)
+        }
+    }
+
+    func handleStreamClose(
+        state contextState: inout NetworkContext.State,
+        stream: Flow,
+        error: NetworkError?
+    ) {
         guard let streamID = stream.streamID,
             let flowID = knownFlows[streamID]
         else {
@@ -4460,13 +4499,13 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         if let frameArray = stream.dequeueReassembledData(connection: self) {
             do {
                 try deliverInboundStreamData(flow: flowID, streamData: frameArray)
-                sendFrames()
+                sendFrames(state: &contextState)
             } catch {
                 log.error("Error sending frames on stream close: \(error)")
             }
         }
         stream.closed = true
-        deliverDisconnectedEvent(flow: flowID, error: error)
+        deliverDisconnectedEvent(state: &contextState, flow: flowID, error: error)
         knownFlows.removeValue(forKey: streamID)
         log.datapath("closed stream \(streamID.value)")
 

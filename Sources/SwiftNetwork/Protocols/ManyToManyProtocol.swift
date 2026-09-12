@@ -286,6 +286,10 @@ extension ManyToManyProtocolHandler {
 
     public func disconnect(error: NetworkError?) {}
 
+    public func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
+        disconnect(error: error)
+    }
+
     public func handleApplicationEvent(_ event: ApplicationEvent) -> HandleNetworkEventResult { .unconsumed }
 
     public func setup(
@@ -299,7 +303,17 @@ extension ManyToManyProtocolHandler {
     public func connect(flow: MultiplexedFlowIdentifier) { deliverConnectedEvent(flow: flow) }
 
     public func disconnect(flow: MultiplexedFlowIdentifier, error: NetworkError?) {}
+    public func disconnect(
+        state: inout NetworkContext.State,
+        flow: MultiplexedFlowIdentifier,
+        error: NetworkError?
+    ) {
+        disconnect(flow: flow, error: error)
+    }
     public func teardown(flow: MultiplexedFlowIdentifier) {}
+    public func teardown(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+        teardown(flow: flow)
+    }
     public func handleApplicationEvent(
         state: inout NetworkContext.State,
         flow: MultiplexedFlowIdentifier,
@@ -409,7 +423,7 @@ extension ManyToManyProtocolHandler {
     ) {
         do { try validate(inbound: from, #function) } catch { return }
         if canCallDisconnect(state: &state) {
-            disconnect(error: error)
+            disconnect(state: &state, error: error)
         }
     }
 
@@ -1011,7 +1025,7 @@ extension MultiplexedFlow {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        parentProtocol.teardown(flow: identifier)
+        parentProtocol.teardown(state: &state, flow: identifier)
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
         upper = UpperProtocol()
         self.reference.discardPendingEventsForUpperProtocol(state: &state)
@@ -1039,7 +1053,7 @@ extension MultiplexedFlow {
     ) {
         do { try validate(upper: from, #function) } catch { return }
         if canCallDisconnect(state: &state) {
-            parentProtocol.disconnect(flow: identifier, error: error)
+            parentProtocol.disconnect(state: &state, flow: identifier, error: error)
         }
     }
 
@@ -1132,7 +1146,7 @@ extension MultiplexedFlow where ParentProtocol: HeterogeneousManyToManyProtocolH
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        parentProtocol.teardown(flow: identifier)
+        parentProtocol.teardown(state: &state, flow: identifier)
         parentProtocol.multiplexedFlows.removeValue(forKey: identifier)
         parentProtocol.multiplexedSecondaryFlows.removeValue(forKey: identifier)
         upper = UpperProtocol()

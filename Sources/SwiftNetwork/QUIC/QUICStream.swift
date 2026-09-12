@@ -625,6 +625,12 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
         parentProtocol.handleStreamClose(stream: self, error: errorCode)
     }
 
+    /// Closes the stream using a context state the caller already holds.
+    func close(state: inout NetworkContext.State, errorCode: NetworkError?) {
+        self.sendBuffer.empty()
+        parentProtocol.handleStreamClose(state: &state, stream: self, error: errorCode)
+    }
+
     /// The application error code for the inbound (receive) direction.
     ///
     /// Used for the `STOP_SENDING` frame.
