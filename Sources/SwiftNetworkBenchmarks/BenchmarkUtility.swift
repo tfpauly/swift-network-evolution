@@ -249,8 +249,8 @@ public final class QUICBenchmarkUtility {
             clientApplicationLayer.teardown()
         }
         state.serverApplicationLayer.teardown()
-        state.clientInstance.close()
-        state.serverInstance.close()
+        state.clientInstance.closeFromExternal()
+        state.serverInstance.closeFromExternal()
     }
     public init() {}
 }

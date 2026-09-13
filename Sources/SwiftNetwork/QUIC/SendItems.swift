@@ -3138,6 +3138,7 @@ struct TransmittedItems: ~Copyable {
     }
 
     func allAcknowledged<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
@@ -3154,6 +3155,7 @@ struct TransmittedItems: ~Copyable {
 
         for i in 0..<sentStreams.count {
             connection.acknowledgedStream(
+                state: &contextState,
                 flowID: sentStreams[i].flowID,
                 offset: sentStreams[i].offset,
                 length: sentStreams[i].length,
@@ -3169,11 +3171,12 @@ struct TransmittedItems: ~Copyable {
         }
 
         for streamReset in streamResets {
-            connection.acknowledgedResetStream(id: streamReset.streamID)
+            connection.acknowledgedResetStream(state: &contextState, id: streamReset.streamID)
         }
 
         if let pmtudProbeMSS {
             connection.acknowledgedPMTUDProbe(
+                state: &contextState,
                 on: sentPath,
                 packetNumber: packetNumber,
                 mss: pmtudProbeMSS

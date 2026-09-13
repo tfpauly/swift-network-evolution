@@ -82,7 +82,13 @@ final class MigrationTests: XCTestCase {
             self.connection.multiplexingPaths[newPath.identifier] = newPath
             let oldPathID = oldPath.identifier
 
-            self.connection.migration.migrate(to: newPath, connection: self.connection)
+            self.connection.fromExternal { state in
+                self.connection.migration.migrate(
+                    state: &state,
+                    to: newPath,
+                    connection: self.connection
+                )
+            }
 
             // The path we migrated away from is dropped from the connection and its
             // remote CID is retired.

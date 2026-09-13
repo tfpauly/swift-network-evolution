@@ -161,16 +161,6 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         return true
     }
 
-    func stop() {
-        guard self.parentConnection != nil else {
-            // Already stopped, ignore
-            return
-        }
-        fromExternal { state in
-            stop(state: &state)
-        }
-    }
-
     /// Stops using a context state the caller already holds.
     func stop(state: inout NetworkContext.State) {
         guard self.parentConnection != nil else {
@@ -201,18 +191,6 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         }
     }
 
-    func sendAtLevel(_ level: PacketNumberSpace) {
-        guard let parentConnection else {
-            return
-        }
-        markSendPending(level, on: parentConnection)
-        guard parentConnection.sendFrames() else {
-            parentConnection.log.error("Unable to send Crypto Frames")
-            return
-        }
-    }
-
-    /// Sends at the given level, using a context state the caller already holds.
     func sendAtLevel(state: inout NetworkContext.State, _ level: PacketNumberSpace) {
         guard let parentConnection else {
             return
@@ -289,7 +267,10 @@ extension QUICCrypto {
 
             parentConnection.log.debug("Signaling availability of early data")
 
-            parentConnection.setupFlowControl(remoteTransportParameters: remoteTransportParameters)
+            parentConnection.setupFlowControl(
+            state: &state,
+            remoteTransportParameters: remoteTransportParameters
+        )
 
             parentConnection.earlyDataSignalled = true
             parentConnection.readyAllOutboundStreams(state: &state)
@@ -342,6 +323,7 @@ extension QUICCrypto {
                 logPrefixer: parentConnection.logPrefixer
             )
             parentConnection.setRemoteTransportParameters(
+                state: &state,
                 remoteTransportParameters,
                 earlyData: earlyData
             )
@@ -354,6 +336,7 @@ extension QUICCrypto {
                 parentConnection.log.error("Failed to parse transport parameters: \(error)")
                 parentConnection.closeFrameType = .crypto
                 parentConnection.close(
+                    state: &state,
                     with:
                         .transportParameterError,
                     "Failed to deserialize transport parameters"
@@ -408,6 +391,11 @@ extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInsta
     }
 
     func teardown(state: inout NetworkContext.State) {
+        // Every encryption level has to be done with this crypto object before its event
+        // state can go away.
+        guard initialLinkage == nil, earlyDataLinkage == nil, handshakeLinkage == nil,
+            applicationLinkage == nil
+        else { return }
         eventManager.unregister(state: &state)
     }
 }
@@ -442,18 +430,18 @@ extension QUICCrypto: TopStreamProtocol {
 
         // Closing already being deferred, no need to schedule asynchronously
         if parentConnection.deferClosing {
-            parentConnection.close(withCryptoError: 0, "TLS error")
+            parentConnection.close(state: &state, withCryptoError: 0, "TLS error")
         } else {
             parentConnection.deferClosing = true
             // Note that close(withCryptoError:) will set the error but not actually
             // close when deferClosing is set. We then async to complete closing.
             // This is done to avoid closing in the wrong protocol state and causing
             // re-entrancy.
-            parentConnection.close(withCryptoError: 0, "TLS error")
-            parentConnection.async {
+            parentConnection.close(state: &state, withCryptoError: 0, "TLS error")
+            parentConnection.async { asyncState in
                 parentConnection.deferClosing = false
                 if parentConnection.closeError != nil {
-                    parentConnection.close()
+                    parentConnection.close(state: &asyncState, sendCloseFrame: true)
                 }
             }
         }
@@ -509,15 +497,6 @@ extension QUICCrypto: TopStreamProtocol {
             linkage.deliverInboundDataAvailableEvent(state: &state, reference)
         }
         return true
-    }
-
-    func appendInput(
-        _ cryptoFrame: consuming FrameCrypto,
-        for packetNumberSpace: PacketNumberSpace
-    ) -> Bool {
-        fromExternal(cryptoFrame) { state, cryptoFrame in
-            appendInput(cryptoFrame, for: packetNumberSpace, state: &state)
-        }
     }
 
     /// Appends crypto input using a context state the caller already holds.
@@ -586,7 +565,15 @@ extension QUICCrypto: OutboundStreamHandler {
     ) throws(NetworkError) {
     }
 
-    func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {}
+    // One crypto object backs all four TLS encryption-level handlers, so each of them detaches
+    // from it in turn. Drop the linkage that is going away; `teardown` releases the event state
+    // once the last one is gone.
+    func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
+        if from == initialLinkage?.reference { initialLinkage = nil }
+        if from == earlyDataLinkage?.reference { earlyDataLinkage = nil }
+        if from == handshakeLinkage?.reference { handshakeLinkage = nil }
+        if from == applicationLinkage?.reference { applicationLinkage = nil }
+    }
 
     func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         if let initialLinkage, from == initialLinkage.reference { initialLinkage.deliverConnectedEvent(state: &state, reference) }

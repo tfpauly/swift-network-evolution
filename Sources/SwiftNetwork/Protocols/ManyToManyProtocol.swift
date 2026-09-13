@@ -134,20 +134,20 @@ public protocol HeterogeneousManyToManyProtocolHandler: HeterogeneousListenerHan
 @available(Network 0.1.0, *)
 public protocol ManyToManyDatapathProtocol: ManyToManyProtocolHandler
 where Flow.UpperProtocol: InboundDataLinkage, Path.LowerProtocol: OutboundDataLinkage {
-    func handleInboundDataAvailableEvent(path: MultiplexingPathIdentifier)
-    func handleOutboundRoomAvailableEvent(path: MultiplexingPathIdentifier)
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier)
+    func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier)
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol ManyToManyApplicationStreamProtocol: ManyToManyDatapathProtocol {
-    func serviceStreamDataToSend(flow: MultiplexedFlowIdentifier)
+    func serviceStreamDataToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier)
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol ManyToManyApplicationDatagramProtocol: ManyToManyDatapathProtocol {
-    func serviceDatagramsToSend(flow: MultiplexedFlowIdentifier)
+    func serviceDatagramsToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier)
 }
 
 @_spi(ProtocolProvider)
@@ -364,8 +364,14 @@ extension ManyToManyProtocolHandler {
         getMetrics(flow: .allFlows, requestedNetworkMetric: requestedNetworkMetric)
     }
 
-    public func handleInboundDataAvailableEvent(path: MultiplexingPathIdentifier) {}
-    public func handleOutboundRoomAvailableEvent(path: MultiplexingPathIdentifier) {}
+    public func handleInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        path: MultiplexingPathIdentifier
+    ) {}
+    public func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        path: MultiplexingPathIdentifier
+    ) {}
 
     public func handleConnectedEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {}
     public func handleDisconnectedEvent(
@@ -1279,8 +1285,8 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
 
     public var reference: ProtocolInstanceReference
 
-    public func serviceUpperSendQueue() {
-        parentProtocol.serviceStreamDataToSend(flow: identifier)
+    public func serviceUpperSendQueue(state: inout NetworkContext.State) {
+        parentProtocol.serviceStreamDataToSend(state: &state, flow: identifier)
     }
 
     public required init(parent: ParentProtocol, inbound: Bool) {
@@ -1294,7 +1300,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
         }
     }
 
-    public func upperReceiveQueueDrainedBytes(_ bytes: Int) {
+    public func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int) {
         // No-op by default
     }
 
@@ -1307,8 +1313,8 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol UnidirectionalAbortingStreamFlow: MultiplexedDatapathFlow, OutboundStreamUnidirectionalAbortHandler {
-    func abortInbound(error: NetworkError?)
-    func abortOutbound(error: NetworkError?)
+    func abortInbound(state: inout NetworkContext.State, error: NetworkError?)
+    func abortOutbound(state: inout NetworkContext.State, error: NetworkError?)
 }
 
 @available(Network 0.1.0, *)
@@ -1345,16 +1351,24 @@ extension UnidirectionalAbortingStreamFlow {
         }
     }
 
-    public func abortInbound(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func abortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(upper: from, #function) } catch { return }
-        guard isConnected(state: &context.state) else { return }
-        abortInbound(error: error)
+        guard isConnected(state: &state) else { return }
+        abortInbound(state: &state, error: error)
     }
 
-    public func abortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?) {
+    public func abortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
         do { try validate(upper: from, #function) } catch { return }
-        guard isConnected(state: &context.state) else { return }
-        abortOutbound(error: error)
+        guard isConnected(state: &state) else { return }
+        abortOutbound(state: &state, error: error)
     }
 }
 
@@ -1525,8 +1539,8 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
 
     public var reference: ProtocolInstanceReference
 
-    public func serviceUpperSendQueue() {
-        parentProtocol.serviceDatagramsToSend(flow: identifier)
+    public func serviceUpperSendQueue(state: inout NetworkContext.State) {
+        parentProtocol.serviceDatagramsToSend(state: &state, flow: identifier)
     }
 
     public required init(parent: ParentProtocol, inbound: Bool) {
@@ -1997,8 +2011,8 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
         parentProtocol.serviceReceivedDatagrams(state: &state, path: identifier)
     }
 
-    public func handleOutboundRoomAvailable() {
-        parentProtocol.handleOutboundRoomAvailableEvent(path: identifier)
+    public func handleOutboundRoomAvailable(state: inout NetworkContext.State) {
+        parentProtocol.handleOutboundRoomAvailableEvent(state: &state, path: identifier)
     }
 
     public required init(state: inout NetworkContext.State, parent: ParentProtocol) {

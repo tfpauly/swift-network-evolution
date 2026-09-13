@@ -739,16 +739,16 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             #if canImport(SwiftTLS) && SWIFTTLS_CERTIFICATE_VERIFICATION
             let contextBoundSelf = ContextBound(self, context: self.context, state: &state)
             handshaker.setAsyncContinuationHandler { result in
-                contextBoundSelf.value.async {
+                contextBoundSelf.value.async { asyncState in
                     contextBoundSelf.value.handshaker.setAsyncResult(result)
                     let instance = contextBoundSelf.value
                     do {
-                        try instance.continueHandshake(state: &instance.context.state)
+                        try instance.continueHandshake(state: &asyncState)
                     } catch {
                         instance.log.error("Failed to continue handshake \(error)")
                         let handshakerErrorCode = instance.handshaker.errorCode
                         if handshakerErrorCode != 0 {
-                            instance.reportError(state: &instance.context.state, handshakerErrorCode)
+                            instance.reportError(state: &asyncState, handshakerErrorCode)
                         }
                     }
                 }

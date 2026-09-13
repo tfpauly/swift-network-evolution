@@ -555,8 +555,8 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         self.applicationAckSpace = AckSpace(logPrefixer: logPrefixer)
     }
 
-    func reset() {
-        connection?.timer.stop()
+    func reset(state contextState: inout NetworkContext.State) {
+        connection?.timer.stop(state: &contextState)
         connection = nil
     }
 
@@ -566,21 +566,22 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         }
     }
 
-    func timerFired(timeNow: NetworkClock.Instant) {
+    func timerFired(state contextState: inout NetworkContext.State, timeNow: NetworkClock.Instant) {
         log.datapath("delayed ACK timer fired")
         if let connection = connection {
             if sendPending(
+                state: &contextState,
                 isAckSet: connection.isAckSet,
                 setAckFrame: connection.scheduleAckFrame,
                 ecn: connection.ecn
             ) {
-                connection.sendFrames(delayedACK: true)
+                connection.sendFrames(state: &contextState, delayedACK: true)
 
                 // An ACK-only packet is not ack-eliciting, so once it is sent
                 // there is nothing left in pending items or in recovery to
                 // observe. This is the only place that can return the
                 // connection to idle after a delayed ACK.
-                connection.checkConnectionIdle()
+                connection.checkConnectionIdle(state: &contextState)
             }
         }
 
@@ -742,6 +743,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
     }
 
     func sendPending(
+        state contextState: inout NetworkContext.State,
         isAckSet: (PacketNumberSpace) -> Bool,
         setAckFrame: (PacketNumberSpace, consuming QUICFrame, Bool) -> Void,
         ecn: borrowing ECN
@@ -759,6 +761,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         }
         if timerScheduled, let timerID = timerID {
             connection.timer.reschedule(
+                state: &contextState,
                 identifier: timerID,
                 fromNow: .zero,
                 timerNow: connection.now
@@ -801,7 +804,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         )
     }
 
-    func scheduleDelayedAck() {
+    func scheduleDelayedAck(state contextState: inout NetworkContext.State) {
         // ACK timer is already scheduled
         if timerScheduled {
             return
@@ -811,6 +814,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         if let timerID = timerID {
             if let connection {
                 connection.timer.reschedule(
+                    state: &contextState,
                     identifier: timerID,
                     fromNow: maxDelay,
                     timerNow: connection.now
@@ -820,6 +824,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
     }
 
     private func processPending(
+        state contextState: inout NetworkContext.State,
         on path: QUICPath<Families>,
         connectionWindow: Int,
         isAckSet: (PacketNumberSpace) -> Bool,
@@ -846,7 +851,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
                     && unackedPacketCount < packetThreshold
                     && now < lastSentTime.advanced(by: delayedTime))
         {
-            scheduleDelayedAck()
+            scheduleDelayedAck(state: &contextState)
             return false
         } else {
             log.datapath("sending ACKs immediately")
@@ -860,6 +865,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
     }
 
     func processPending(
+        state contextState: inout NetworkContext.State,
         connectionWindow: Int,
         isAckSet: (PacketNumberSpace) -> Bool,
         setAckFrame: (PacketNumberSpace, consuming QUICFrame, Bool) -> Void,
@@ -872,6 +878,7 @@ final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
         guard let connection else { return false }
         return connection.withCurrentPath { path in
             processPending(
+                state: &contextState,
                 on: path,
                 connectionWindow: connectionWindow,
                 isAckSet: isAckSet,

@@ -45,7 +45,7 @@ public protocol AutomaticLowerDatagramProcessing: ~Copyable, InboundDatagramHand
     /// A function the framework calls when outbound room becomes available.
     ///
     /// Protocols should implement this function to customize behavior.
-    func handleOutboundRoomAvailable()
+    mutating func handleOutboundRoomAvailable(state: inout NetworkContext.State)
 }
 
 @_spi(ProtocolProvider)
@@ -91,7 +91,7 @@ public protocol AutomaticUpperDatagramProcessing: ~Copyable, OutboundDatagramHan
     /// `upperSendQueue`.
     ///
     /// Protocols should implement this function to customize behavior.
-    func serviceUpperSendQueue()
+    mutating func serviceUpperSendQueue(state: inout NetworkContext.State)
 
     /// The maximum datagram size the upper protocol can send.
     var maximumUpperDatagramSize: Int { get set }
@@ -186,7 +186,7 @@ extension AutomaticLowerDatagramProcessing where Self: ~Copyable {
 
     mutating func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {
         serviceLowerSendQueue(state: &state)
-        handleOutboundRoomAvailable()
+        handleOutboundRoomAvailable(state: &state)
     }
 }
 
@@ -228,6 +228,6 @@ extension AutomaticUpperDatagramProcessing where Self: ~Copyable {
         _ datagrams: consuming FrameArray
     ) throws(NetworkError) {
         upperSendQueue.add(frames: datagrams)
-        serviceUpperSendQueue()
+        serviceUpperSendQueue(state: &state)
     }
 }

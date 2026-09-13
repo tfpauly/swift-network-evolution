@@ -68,7 +68,13 @@ final class RecoveryTests: XCTestCase {
     func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<DefaultQUICLinkageFamilies>) {
         var packets = NetworkUniqueDeque<SentPacketRecord>()
         packets.append(sentPacket)
-        connection.recovery.recordSentPackets(&packets, connection: connection)
+        // Driven straight from the test body rather than from the context queue, so
+        // acquire the state directly instead of going through `fromExternal`.
+        connection.recovery.recordSentPackets(
+            state: &connection.context.state,
+            &packets,
+            connection: connection
+        )
     }
 
     func testInitialValues() {
@@ -368,6 +374,7 @@ final class RecoveryTests: XCTestCase {
         XCTAssertEqual(path.congestionControlWindow, 12000)
 
         connection.recovery.receivedAck(
+            state: &connection.context.state,
             ack: ackFrame,
             ackedPath: connection.currentPath!,
             connection: connection
@@ -422,12 +429,12 @@ final class RecoveryTests: XCTestCase {
             XCTAssertEqual(innerState.ackElicitingPacketsInFlight, 0)
         }
 
-        connection.recovery
-            .receivedAck(
-                ack: ackFrame,
-                ackedPath: connection.currentPath!,
-                connection: connection
-            )
+        connection.recovery.receivedAck(
+            state: &connection.context.state,
+            ack: ackFrame,
+            ackedPath: connection.currentPath!,
+            connection: connection
+        )
 
         XCTAssertEqual(
             connection.recovery.getLargestSentPN(packetNumberSpace: space),
@@ -477,7 +484,9 @@ final class RecoveryTests: XCTestCase {
         }
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.recovery.resetAll()
+            self.connection.fromExternal { state in
+                self.connection.recovery.resetAll(state: &state)
+            }
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 5.0)
@@ -589,7 +598,9 @@ final class RecoveryTests: XCTestCase {
         var expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(1))
-            self.connection.recovery.timerFired(timeNow: timeNow)
+            self.connection.fromExternal { state in
+                self.connection.recovery.timerFired(state: &state, timeNow: timeNow)
+            }
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 5.0)
@@ -610,7 +621,9 @@ final class RecoveryTests: XCTestCase {
         expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(2))
-            self.connection.recovery.timerFired(timeNow: timeNow)
+            self.connection.fromExternal { state in
+                self.connection.recovery.timerFired(state: &state, timeNow: timeNow)
+            }
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 5.0)
@@ -631,7 +644,9 @@ final class RecoveryTests: XCTestCase {
         expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(4))
-            self.connection.recovery.timerFired(timeNow: timeNow)
+            self.connection.fromExternal { state in
+                self.connection.recovery.timerFired(state: &state, timeNow: timeNow)
+            }
             expectation.fulfill()
         }
         wait(for: [expectation], timeout: 5.0)
@@ -696,8 +711,14 @@ final class RecoveryTests: XCTestCase {
         // Fire the PTO with no new ack-eliciting data pending.
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.withCurrentPath { path in
-                self.connection.recovery.sendPTO(connection: self.connection, path: path)
+            self.connection.fromExternal { state in
+                self.connection.withCurrentPath { path in
+                    self.connection.recovery.sendPTO(
+                        state: &state,
+                        connection: self.connection,
+                        path: path
+                    )
+                }
             }
             expectation.fulfill()
         }
@@ -747,8 +768,14 @@ final class RecoveryTests: XCTestCase {
 
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.withCurrentPath { path in
-                self.connection.recovery.sendPTO(connection: self.connection, path: path)
+            self.connection.fromExternal { state in
+                self.connection.withCurrentPath { path in
+                    self.connection.recovery.sendPTO(
+                        state: &state,
+                        connection: self.connection,
+                        path: path
+                    )
+                }
             }
             expectation.fulfill()
         }

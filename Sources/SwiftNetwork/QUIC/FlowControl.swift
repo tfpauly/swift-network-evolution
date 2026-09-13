@@ -345,7 +345,10 @@ extension QUICConnection {
         }
     }
 
-    func updateLastReceivedOffsetForZombie(lastOffsetDelta: UInt64) {
+    func updateLastReceivedOffsetForZombie(
+        state contextState: inout NetworkContext.State,
+        lastOffsetDelta: UInt64
+    ) {
         let connectionMaxData = flowControlState.inboundMaxData
         let connectionCurrentLargestData = flowControlState.largestInboundByteOffsetReceived
         guard connectionMaxData >= connectionCurrentLargestData,
@@ -354,7 +357,7 @@ extension QUICConnection {
             log.error(
                 "Received final size adjustment \(lastOffsetDelta) which had exceeds connection flow control limits"
             )
-            close(with: .flowControlError, "exceeded flow control limits")
+            close(state: &contextState, with: .flowControlError, "exceeded flow control limits")
             return
         }
         // This cannot overflow, since the value has been just checked
@@ -609,6 +612,7 @@ extension QUICStreamInstance {
 
     @inline(always)
     func updateLastReceivedOffset(
+        state contextState: inout NetworkContext.State,
         to newLastReceivedOffset: UInt64,
         connection: QUICConnection<Families>
     ) -> UInt64? {
@@ -622,7 +626,11 @@ extension QUICStreamInstance {
             log.error(
                 "Received final size \(newLastReceivedOffset) which had exceeds stream flow control limits"
             )
-            connection.close(with: .flowControlError, "exceeded stream flow control limits")
+            connection.close(
+                state: &contextState,
+                with: .flowControlError,
+                "exceeded stream flow control limits"
+            )
             return nil
         }
 
@@ -635,7 +643,11 @@ extension QUICStreamInstance {
             log.error(
                 "Received final size \(newLastReceivedOffset) which had exceeds connection flow control limits"
             )
-            connection.close(with: .flowControlError, "exceeded flow control limits")
+            connection.close(
+                state: &contextState,
+                with: .flowControlError,
+                "exceeded flow control limits"
+            )
             return nil
         }
         // This cannot overflow, since the value has been just checked

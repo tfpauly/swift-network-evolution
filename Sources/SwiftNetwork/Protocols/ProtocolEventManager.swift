@@ -633,23 +633,29 @@ extension NetworkContext.State {
         return try body(&self, value)
     }
 
-    fileprivate mutating func runAsync(index: NetworkStateIndex, _ block: () -> Void) {
+    fileprivate mutating func runAsync(
+        index: NetworkStateIndex,
+        _ block: (inout NetworkContext.State) -> Void
+    ) {
         protocolEventStates[index].startAsyncCall()
         defer {
             protocolEventStates[index].finishAsyncCall()
             drainPendingEvents(index: index)
         }
-        block()
+        block(&self)
     }
 
-    fileprivate mutating func runTimerWakeup(index: NetworkStateIndex, referenceToWakeup: ProtocolInstanceReference) {
+    fileprivate mutating func runTimerWakeup(
+        index: NetworkStateIndex,
+        _ wakeup: (inout NetworkContext.State) -> Void
+    ) {
         assert()
         protocolEventStates[index].startTimerWakeupCall()
         defer {
             protocolEventStates[index].finishTimerWakeupCall()
             drainPendingEvents(index: index)
         }
-        referenceToWakeup.timerWakeup()
+        wakeup(&self)
     }
 
     fileprivate mutating func connectRequested(index: NetworkStateIndex) {
@@ -693,7 +699,11 @@ extension NetworkContext.State {
         return protocolEventStates[index].connectedState == .connected
     }
 
-    fileprivate func async(context: NetworkContext, index: NetworkStateIndex, _ block: @escaping () -> Void) {
+    fileprivate func async(
+        context: NetworkContext,
+        index: NetworkStateIndex,
+        _ block: @escaping (inout NetworkContext.State) -> Void
+    ) {
         softAssert()
         self.async {
             context.state.runAsync(index: index, block)
@@ -704,8 +714,8 @@ extension NetworkContext.State {
         context: NetworkContext,
         index: NetworkStateIndex,
         timerReference: TimerReference,
-        referenceToWakeup: ProtocolInstanceReference,
-        milliseconds: UInt64
+        milliseconds: UInt64,
+        _ wakeup: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
         resetTimer(
@@ -713,7 +723,9 @@ extension NetworkContext.State {
             to: .milliseconds(
                 milliseconds,
                 {
-                    context.state.runTimerWakeup(index: index, referenceToWakeup: referenceToWakeup)
+                    // The scheduler hands back no state, so this is where the timer re-enters
+                    // the stack: acquire the state once and thread it into `wakeup`.
+                    context.state.runTimerWakeup(index: index, wakeup)
                 }
             )
         )
@@ -729,7 +741,10 @@ extension NetworkContext {
         #endif
     }
 
-    fileprivate func async(index: NetworkStateIndex, _ block: @escaping () -> Void) {
+    fileprivate func async(
+        index: NetworkStateIndex,
+        _ block: @escaping (inout NetworkContext.State) -> Void
+    ) {
         softAssert()
         self.async {
             self.state.runAsync(index: index, block)
@@ -739,8 +754,8 @@ extension NetworkContext {
     fileprivate func scheduleWakeup(
         index: NetworkStateIndex,
         timerReference: TimerReference,
-        referenceToWakeup: ProtocolInstanceReference,
-        milliseconds: UInt64
+        milliseconds: UInt64,
+        _ wakeup: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
         resetTimer(
@@ -748,7 +763,7 @@ extension NetworkContext {
             to: .milliseconds(
                 milliseconds,
                 {
-                    self.state.runTimerWakeup(index: index, referenceToWakeup: referenceToWakeup)
+                    self.state.runTimerWakeup(index: index, wakeup)
                 }
             )
         )
@@ -880,33 +895,34 @@ extension ProtocolInstanceReference {
         return try state.fromExternal(index: protocolEventStateIndex, value, body)
     }
 
-    public func async(context: NetworkContext, state: inout NetworkContext.State, _ block: @escaping () -> Void) {
+    public func async(
+        context: NetworkContext,
+        state: inout NetworkContext.State,
+        _ block: @escaping (inout NetworkContext.State) -> Void
+    ) {
         let protocolEventStateIndex = protocolEventStateIndex!
         state.async(context: context, index: protocolEventStateIndex, block)
     }
 
-    func timerWakeup() {
-        // TODO: TFPDEBUG Fix this
-//        switch reference {
-//        case .none: return
-//        case .tcp(let instance): instance.wakeup()
-//        #if !NETWORK_NO_SWIFT_QUIC
-//        case .quic(let instance): instance.wakeup()
-//        #endif
-//        #if !NETWORK_EMBEDDED
-//        case .custom(let container, let index): container.accessTimerSchedulable(at: index) { $0.wakeup() }
-//        #endif
-//        default: return
-//        }
-    }
-
-    public func scheduleWakeup(state: inout NetworkContext.State,
-                               milliseconds: UInt64,
-                               timerReference: TimerReference) {
-        // TODO: TFPDEBUG For now we don't have the right type to pass to referenceToWakeup, ignore
-
-//        let protocolEventStateIndex = protocolEventStateIndex!
-//        context.scheduleWakeup(index: protocolEventStateIndex, referenceToWakeup: self, milliseconds: milliseconds)
+    /// Schedules a timer wakeup, running `wakeup` with the context state once the timer fires.
+    ///
+    /// The scheduler hands back no state, so the timer is an entry point into the stack: the
+    /// state is acquired when the timer fires and threaded into `wakeup`.
+    public func scheduleWakeup(
+        context: NetworkContext,
+        state: inout NetworkContext.State,
+        milliseconds: UInt64,
+        timerReference: TimerReference,
+        _ wakeup: @escaping (inout NetworkContext.State) -> Void
+    ) {
+        guard let protocolEventStateIndex else { return }
+        state.scheduleWakeup(
+            context: context,
+            index: protocolEventStateIndex,
+            timerReference: timerReference,
+            milliseconds: milliseconds,
+            wakeup
+        )
     }
 
     public func unscheduleWakeup(state: inout NetworkContext.State, timerReference: TimerReference) {

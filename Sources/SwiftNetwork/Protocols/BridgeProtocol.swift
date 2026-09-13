@@ -160,8 +160,8 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         private var timerSet = false
         func deliverInboundDataAvailableEvent() {
             if linkDelay == .zero {
-                self.async {
-                    self.upper.deliverInboundDataAvailableEvent(state: &self.context.state, self.reference)
+                self.async { state in
+                    self.upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
                 }
             } else {
                 guard !timerSet else { return }
@@ -170,9 +170,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             }
         }
 
-        public func wakeup() {
+        public func wakeup(state: inout NetworkContext.State) {
             timerSet = false
-            self.upper.deliverInboundDataAvailableEvent(state: &self.context.state, self.reference)
+            self.upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
         }
 
         public func setup(
@@ -253,9 +253,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             if datagramDrops?.blockPacketGeneration ?? false {
                 if datagramDrops?.shouldDropPacket() ?? false {
                     log.datapath("blocking \(maximumDatagramCount) datagrams to port: \(self.remoteEndpoint!.port)")
-                    self.async {
+                    self.async { state in
                         self.log.datapath("unblocking outbound data")
-                        self.upper.deliverOutboundRoomAvailableEvent(state: &self.context.state, self.reference)
+                        self.upper.deliverOutboundRoomAvailableEvent(state: &state, self.reference)
                     }
                     return nil
                 }
@@ -489,9 +489,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
                 return
             }
             remoteInstance.incomingFrames.add(frames: streamData)
-            remoteInstance.async {
+            remoteInstance.async { state in
                 remoteInstance.upper.deliverInboundDataAvailableEvent(
-                    state: &remoteInstance.context.state,
+                    state: &state,
                     remoteInstance.reference
                 )
             }

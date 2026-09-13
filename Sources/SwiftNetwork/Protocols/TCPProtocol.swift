@@ -398,7 +398,7 @@ public struct TCPProtocol: NetworkProtocol {
         ) throws(NetworkError) {
             throw NetworkError.posix(ENOTSUP)
         }
-        func wakeup() {}
+        func wakeup(state: inout NetworkContext.State) {}
         func receiveStreamData(
             state: inout NetworkContext.State,
             minimumBytes: Int,

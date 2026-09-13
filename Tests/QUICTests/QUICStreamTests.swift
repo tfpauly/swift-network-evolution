@@ -40,7 +40,9 @@ final class QUICStreamTests: XCTestCase {
 
     func testProcessIncomingStream() {
         let streamFrame = FrameStreamReceived(id: 0, offset: 0, data: [], isFinal: true)
-        let result = stream.processIncomingStream(connection: connection, frame: streamFrame)
+        let result = connection.fromExternal(streamFrame) { state, frame in
+            stream.processIncomingStream(state: &state, connection: connection, frame: frame)
+        }
         XCTAssertTrue(result)
     }
 
@@ -49,7 +51,12 @@ final class QUICStreamTests: XCTestCase {
         let maxStreamDataFrame = FrameMaxStreamData(id: 0, max: newMaxData)
         stream.flowControlState.initializeMaxDataValues(remoteMaxData: 1024, localMaxData: 1024)
         XCTAssertTrue(stream.flowControlState.outboundMaxData == 1024)
-        stream.processIncomingMaxStreamData(remoteMaxStreamData: maxStreamDataFrame.max)
+        connection.fromExternal { state in
+            stream.processIncomingMaxStreamData(
+                state: &state,
+                remoteMaxStreamData: maxStreamDataFrame.max
+            )
+        }
         XCTAssertTrue(stream.flowControlState.outboundMaxData == 2048)
     }
 }

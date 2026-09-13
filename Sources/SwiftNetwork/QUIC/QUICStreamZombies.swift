@@ -56,6 +56,7 @@ struct QUICStreamZombie {
     }
 
     func updateLastOffset<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         newLastOffset: UInt64,
         newFinalSize: UInt64,
@@ -76,6 +77,7 @@ struct QUICStreamZombie {
                 "[false:zombie] endpoint received size \(newLastOffset) that's lower than size of the stream \(lastOffset)"
             )
             connection.close(
+                state: &contextState,
                 with:
                     .finalSizeError,
                 "received final size lower than already received size"
@@ -90,7 +92,10 @@ struct QUICStreamZombie {
             return nil
         }
         let lastOffsetDelta = newLastOffset - lastOffset
-        connection.updateLastReceivedOffsetForZombie(lastOffsetDelta: lastOffsetDelta)
+        connection.updateLastReceivedOffsetForZombie(
+            state: &contextState,
+            lastOffsetDelta: lastOffsetDelta
+        )
         return lastOffsetDelta
     }
 }
@@ -135,6 +140,7 @@ struct QUICStreamZombieList {
      * control.
      */
     mutating func finalSizeReceived<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
         logIDString: String,
         streamID: QUICStreamID,
         finalSize: UInt64,
@@ -168,6 +174,7 @@ struct QUICStreamZombieList {
 
         guard
             let updatedLastOffsetDelta = zombie.updateLastOffset(
+                state: &contextState,
                 connection: connection,
                 newLastOffset: newLastOffset,
                 newFinalSize: finalSize,

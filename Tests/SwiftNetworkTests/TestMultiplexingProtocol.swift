@@ -77,7 +77,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     var multiplexedFlows = [MultiplexedFlowIdentifier: TestDatagramFlow]()
     var multiplexingPaths = [MultiplexingPathIdentifier: TestDatagramPath]()
 
-    func serviceDatagramsToSend(flow: MultiplexedFlowIdentifier) {
+    func serviceDatagramsToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol asked to service datagrams to send from flow \(flow.debugDescription)")
         guard let path = somePathIdentifier else {
             return
@@ -98,11 +98,11 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         }
     }
 
-    func handleInboundDataAvailableEvent(path: MultiplexingPathIdentifier) {
+    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol inbound data available for path \(path.description)")
     }
 
-    func handleOutboundRoomAvailableEvent(path: MultiplexingPathIdentifier) {
+    func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol outbound room available for path \(path.description)")
     }
 

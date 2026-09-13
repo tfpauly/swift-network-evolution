@@ -2594,6 +2594,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
@@ -2613,6 +2614,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
@@ -2634,6 +2636,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
@@ -2654,6 +2657,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
@@ -2675,6 +2679,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
@@ -2695,6 +2700,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
@@ -2717,6 +2723,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
@@ -2738,6 +2745,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
@@ -2759,6 +2767,7 @@ class QUICFrameTests: XCTestCase {
         var frame = Frame(copyBuffer: bytes)
         do {
             _ = try FrameDatagram(
+                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
@@ -3000,6 +3009,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
@@ -3020,6 +3030,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
@@ -3042,6 +3053,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
@@ -3063,6 +3075,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
@@ -3085,6 +3098,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
@@ -3106,6 +3120,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
@@ -3129,6 +3144,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
@@ -3151,6 +3167,7 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
@@ -3173,6 +3190,7 @@ class QUICFrameTests: XCTestCase {
         var frame = Frame(copyBuffer: bytes)
         do {
             _ = try FrameDatagram(
+                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
@@ -3424,6 +3442,7 @@ class QUICFrameTests: XCTestCase {
         }
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
+            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
@@ -3455,6 +3474,7 @@ class QUICFrameTests: XCTestCase {
         do {
             // Ask to parse flow ID and context ID, even though the length doesn't allow for them
             var quicFrame = try FrameDatagram(
+                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: false,

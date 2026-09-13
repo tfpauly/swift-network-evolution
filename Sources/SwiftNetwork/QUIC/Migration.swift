@@ -29,24 +29,28 @@ struct Migration: ~Copyable {
     }
 
     private func sendPendingChallenges<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         now: NetworkClock.Instant = NetworkClock.Instant.now
     ) {
         connection.applyToAllPaths { path in
             if path.hasPendingItems(now: now) {
-                connection.sendFrames(on: path)
+                connection.sendFrames(state: &contextState, on: path)
             }
         }
     }
 
-    func resetTimer<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>) {
+    func resetTimer<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
+        connection: QUICConnection<Families>
+    ) {
         guard let timerID else {
             connection.log.fault("Attempt to arm the migration timer when timer ID is unset")
             return
         }
 
         let now = NetworkClock.Instant.now
-        sendPendingChallenges(connection: connection, now: now)
+        sendPendingChallenges(state: &contextState, connection: connection, now: now)
 
         var firstChallengeTime: NetworkClock.Instant?
         connection.applyToAllPaths { path in
@@ -70,6 +74,7 @@ struct Migration: ~Copyable {
             // re-arms it via reschedule(fromNow: duration) below. remove() would orphan
             // the id, and that later reschedule would silently no-op (find() returns nil).
             connection.timer.reschedule(
+                state: &contextState,
                 identifier: timerID,
                 fromNow: .zero,
                 timerNow: connection.now
@@ -83,19 +88,27 @@ struct Migration: ~Copyable {
             return
         }
         connection.timer.reschedule(
+            state: &contextState,
             identifier: timerID,
             fromNow: duration,
             timerNow: connection.now
         )
     }
 
-    func timerFired<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>) {
+    func timerFired<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
+        connection: QUICConnection<Families>
+    ) {
         connection.log.debug("Migration timer fired")
 
-        sendPendingChallenges(connection: connection)
+        sendPendingChallenges(state: &contextState, connection: connection)
     }
 
-    func migrate<Families: QUICLinkageFamilies>(to path: QUICPath<Families>, connection: QUICConnection<Families>) {
+    func migrate<Families: QUICLinkageFamilies>(
+        state contextState: inout NetworkContext.State,
+        to path: QUICPath<Families>,
+        connection: QUICConnection<Families>
+    ) {
         guard connection.currentPath != path else {
             return
         }
@@ -110,9 +123,9 @@ struct Migration: ~Copyable {
         connection.log.notice("Migrating to path \(path.identifier)")
         connection.currentPath = path
         path.spinValue = connection.initialSpinValue
-        connection.recovery.resetTimer(connection: connection)
+        connection.recovery.resetTimer(state: &contextState, connection: connection)
         path.resetPacer()
-        path.pmtudState.start(on: path)
+        path.pmtudState.start(state: &contextState, on: path)
         connection.applyToAllPaths { otherPath in
             if otherPath != path {
                 otherPath.pmtudState.stop(on: otherPath)
@@ -125,13 +138,13 @@ struct Migration: ~Copyable {
                     $0.ping = true
                 }
             }
-            connection.sendFrames()
+            connection.sendFrames(state: &contextState)
         }
         // TODO: Handle preferred address migration
 
         // Remove the path we just migrated away from.
         if let oldPath, oldPath != path {
-            connection.tearDownMigratedPath(oldPath)
+            connection.tearDownMigratedPath(state: &contextState, oldPath)
         }
     }
 
@@ -169,6 +182,7 @@ struct Migration: ~Copyable {
 @available(Network 0.1.0, *)
 extension QUICConnection {
     public func handlePathChanged(
+        state contextState: inout NetworkContext.State,
         path pathID: MultiplexingPathIdentifier,
         event: MultiplexingPathEvent,
         isPrimary: Bool
@@ -201,8 +215,8 @@ extension QUICConnection {
             }
             if isServer, path != currentPath, !path.isValidated {
                 path.beginValidation()
-                sendFrames(on: path)
-                migration.resetTimer(connection: self)
+                sendFrames(state: &contextState, on: path)
+                migration.resetTimer(state: &contextState, connection: self)
             }
             break
         case .unavailable:
@@ -226,9 +240,9 @@ extension QUICConnection {
 
         // This is a new primary path. Migrate to it if we are the client.
         if !isServer, path != currentPath, isPrimary, path.isRouteEstablished {
-            migration.migrate(to: path, connection: self)
+            migration.migrate(state: &contextState, to: path, connection: self)
             // Send packets if necessary
-            sendFrames(on: path)
+            sendFrames(state: &contextState, on: path)
         }
     }
 
@@ -245,7 +259,10 @@ extension QUICConnection {
     }
 
     // Removes a path we migrated away from.
-    func tearDownMigratedPath(_ oldPath: QUICPath<Families>) {
+    func tearDownMigratedPath(
+        state contextState: inout NetworkContext.State,
+        _ oldPath: QUICPath<Families>
+    ) {
         guard oldPath !== currentPath else {
             log.fault("Refusing to tear down the current path \(oldPath.identifier)")
             return
@@ -259,7 +276,7 @@ extension QUICConnection {
         }
         oldPath.tearDownLowerStack()
         multiplexingPaths.removeValue(forKey: oldPath.identifier)
-        sendFrames()
+        sendFrames(state: &contextState)
     }
 }
 #endif

@@ -96,7 +96,7 @@ public protocol AutomaticUpperStreamProcessing: ~Copyable, OutboundStreamHandler
     /// `upperSendQueue`.
     ///
     /// Protocols should implement this function to customize behavior.
-    func serviceUpperSendQueue()
+    mutating func serviceUpperSendQueue(state: inout NetworkContext.State)
 
     /// The maximum amount of stream data allowed to be pending in the upper send queue.
     ///
@@ -116,7 +116,7 @@ public protocol AutomaticUpperStreamProcessing: ~Copyable, OutboundStreamHandler
     /// `upperReceiveQueue`.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func upperReceiveQueueDrainedBytes(_ bytes: Int)
+    mutating func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int)
 }
 
 @_spi(ProtocolProvider)
@@ -181,8 +181,16 @@ public protocol OutboundStreamHandler: ~Copyable, OutboundDataHandler where Uppe
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public protocol OutboundStreamUnidirectionalAbortHandler: ~Copyable, OutboundStreamHandler {
-    mutating func abortInbound(_ from: ProtocolInstanceReference, error: NetworkError?)
-    mutating func abortOutbound(_ from: ProtocolInstanceReference, error: NetworkError?)
+    mutating func abortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
+    mutating func abortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    )
 }
 
 // MARK: Sending Early Data
@@ -251,12 +259,12 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
             return nil
         }
         defer {
-            upperReceiveQueueDrainedBytes(min(remainingBytes, maximumBytes))
+            upperReceiveQueueDrainedBytes(state: &state, min(remainingBytes, maximumBytes))
         }
         return upperReceiveQueue.drainArray(maximumByteCount: maximumBytes)
     }
 
-    public mutating func upperReceiveQueueDrainedBytes(_ bytes: Int) {
+    public mutating func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int) {
         // No-op by default
     }
 
@@ -278,7 +286,7 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
         _ streamData: consuming FrameArray
     ) throws(NetworkError) {
         upperSendQueue.add(frames: streamData)
-        serviceUpperSendQueue()
+        serviceUpperSendQueue(state: &state)
     }
 }
 
@@ -289,6 +297,6 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable, Self: OutboundSt
         _ streamData: consuming FrameArray
     ) throws(NetworkError) {
         upperSendQueue.add(frames: streamData)
-        serviceUpperSendQueue()
+        serviceUpperSendQueue(state: &state)
     }
 }

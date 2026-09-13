@@ -55,15 +55,23 @@ extension ProtocolInstance where Self: ~Copyable {
 
     /// Schedules an asynchronous block from within a protocol implementation.
     ///
+    /// The block runs later as a fresh entry into the stack, so it receives the context state
+    /// and must thread it into any calls made to other protocols.
+    ///
     /// This is an external entry point: call it from code outside the protocol stack. If you
     /// already hold the context state, call the `state:`-taking variant instead so the state
     /// isn't re-derived from the context.
-    public func async(_ block: @escaping () -> Void) {
+    public func async(_ block: @escaping (inout NetworkContext.State) -> Void) {
         reference.async(context: context, state: &context.state, block)
     }
 
     /// Schedules an asynchronous block, using an already-acquired context state.
-    public func async(state: inout NetworkContext.State, _ block: @escaping () -> Void) {
+    ///
+    /// The block still receives the state that is current when it runs; see `async(_:)`.
+    public func async(
+        state: inout NetworkContext.State,
+        _ block: @escaping (inout NetworkContext.State) -> Void
+    ) {
         reference.async(context: context, state: &state, block)
     }
 
@@ -97,7 +105,10 @@ extension ProtocolInstance where Self: ~Copyable {
 @available(Network 0.1.0, *)
 public protocol TimerSchedulable: ~Copyable, ProtocolInstance {
     /// Handles a wakeup from a timer.
-    func wakeup()
+    ///
+    /// The timer is an entry point into the stack, so the framework acquires the context state
+    /// and hands it in. Thread it into any calls made to other protocols.
+    func wakeup(state: inout NetworkContext.State)
 
     /// A reference for a timer, which should be initialized as `TimerSchedulable()`
     var timerReference: TimerReference { get }
@@ -109,20 +120,21 @@ extension TimerSchedulable {
     ///
     /// This is an external entry point; see `async(_:)`.
     public func scheduleWakeup(milliseconds: UInt64) {
-        reference.scheduleWakeup(
-            state: &context.state,
-            milliseconds: milliseconds,
-            timerReference: timerReference
-        )
+        fromExternal { state in
+            scheduleWakeup(state: &state, milliseconds: milliseconds)
+        }
     }
 
     /// Schedules a timer wakeup, using an already-acquired context state.
     public func scheduleWakeup(state: inout NetworkContext.State, milliseconds: UInt64) {
         reference.scheduleWakeup(
+            context: context,
             state: &state,
             milliseconds: milliseconds,
             timerReference: timerReference
-        )
+        ) { timerState in
+            self.wakeup(state: &timerState)
+        }
     }
 
     /// Unschedules a timer wakeup.

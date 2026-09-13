@@ -607,7 +607,7 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         }
         challengesSent += 1
 
-        parentProtocol.migration.resetTimer(connection: parentProtocol)
+        parentProtocol.migration.resetTimer(state: &contextState, connection: parentProtocol)
     }
 
     func addPendingItems(
@@ -625,7 +625,10 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         addPathChallenge(state: &contextState, to: &pendingItems, now: now)
     }
 
-    func handlePathChallengeResponse(_ data: UInt64) {
+    func handlePathChallengeResponse(
+        state contextState: inout NetworkContext.State,
+        _ data: UInt64
+    ) {
         guard case .probing = state else { return }
         guard
             let pendingOutboundChallenge = pendingOutboundChallenges.first(where: {
@@ -644,10 +647,10 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         changeState(to: .validated)
         // Initialize RTT based on the PATH_RESPONSE duration so that we have a proper RTT estimate when we reset the timers.
         rtt.processNewSample(ackDuration: responseDuration, packetAckedTime: now, ackDelay: .zero)
-        parentProtocol.migration.resetTimer(connection: parentProtocol)
+        parentProtocol.migration.resetTimer(state: &contextState, connection: parentProtocol)
         if migrationPending {
             migrationPending = false
-            parentProtocol.migration.migrate(to: self, connection: parentProtocol)
+            parentProtocol.migration.migrate(state: &contextState, to: self, connection: parentProtocol)
         }
     }
 

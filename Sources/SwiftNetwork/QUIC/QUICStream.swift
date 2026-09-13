@@ -142,6 +142,7 @@ struct QUICStreamIDState<Families: QUICLinkageFamilies>: ~Copyable {
     }
 
     func checkInboundStreamID(
+        state contextState: inout NetworkContext.State,
         _ streamID: QUICStreamID,
         server isServer: Bool,
         connection: QUICConnection<Families>
@@ -149,7 +150,7 @@ struct QUICStreamIDState<Families: QUICLinkageFamilies>: ~Copyable {
 
         guard let nextInboundStreamID else {
             connection.log.fault("nextInboundStreamID is invalid")
-            connection.close(with: .internalError, "inconsistent next inbound stream ID")
+            connection.close(state: &contextState, with: .internalError, "inconsistent next inbound stream ID")
             return (valid: false, checkZombie: false)
         }
 
@@ -167,7 +168,7 @@ struct QUICStreamIDState<Families: QUICLinkageFamilies>: ~Copyable {
                 connection.log.error(
                     "Peer is attempting to open an invalid stream (\(streamID)); our role is \(isServer ? "server" : "client") (last \(logContext) \(largestOutboundStreamID?.description ?? "nil"))"
                 )
-                connection.close(with: .streamStateError, "invalid stream ID")
+                connection.close(state: &contextState, with: .streamStateError, "invalid stream ID")
 
                 return (valid: false, checkZombie: false)
             }
@@ -177,7 +178,7 @@ struct QUICStreamIDState<Families: QUICLinkageFamilies>: ~Copyable {
             connection.log.error(
                 "Stream ID \(streamID) exceeded the maximum allowed"
             )
-            connection.close(with: .streamLimitError, "exceeded maximum stream ID")
+            connection.close(state: &contextState, with: .streamLimitError, "exceeded maximum stream ID")
 
             return (valid: false, checkZombie: false)
         }
@@ -617,15 +618,13 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
             return
         }
         self.sendBuffer.empty()
-        parentProtocol.handleStreamClose(stream: self, error: nil)
+        // `deinit` cannot take the context state, so this is a genuine external entry point.
+        let parent = parentProtocol
+        parent.fromExternal { state in
+            parent.handleStreamClose(state: &state, stream: self, error: nil)
+        }
     }
 
-    func close(errorCode: NetworkError?) {
-        self.sendBuffer.empty()
-        parentProtocol.handleStreamClose(stream: self, error: errorCode)
-    }
-
-    /// Closes the stream using a context state the caller already holds.
     func close(state: inout NetworkContext.State, errorCode: NetworkError?) {
         self.sendBuffer.empty()
         parentProtocol.handleStreamClose(state: &state, stream: self, error: errorCode)
@@ -640,16 +639,16 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
     /// Used for the `RESET_STREAM` frame.
     var outboundApplicationError: UInt64?
 
-    public func abortOutbound(error: NetworkError?) {
+    public func abortOutbound(state: inout NetworkContext.State, error: NetworkError?) {
         self.outboundApplicationError = UInt64(error?.quicApplicationError ?? 0)
         _ = parentProtocol.handleStopWrite(for: self)
-        parentProtocol.sendFrames()  // Send frames since this is an "external" call
+        parentProtocol.sendFrames(state: &state)
     }
 
-    public func abortInbound(error: NetworkError?) {
+    public func abortInbound(state: inout NetworkContext.State, error: NetworkError?) {
         self.inboundApplicationError = UInt64(error?.quicApplicationError ?? 0)
         parentProtocol.handleStopRead(for: self)
-        parentProtocol.sendFrames()  // Send frames since this is an "external" call
+        parentProtocol.sendFrames(state: &state)
     }
 
     func emptyPendingData(connection: QUICConnection<Families>) {
@@ -659,6 +658,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
 
     // This processes an incoming STREAM frame belonging to a QUICStream
     func processIncomingStream(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         frame: consuming FrameStreamReceived
     ) -> Bool {
@@ -675,7 +675,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
 
         var result = true
         if self.receiveState.isReceivingData {
-            result = processIncomingStreamData(connection: connection, frame: frame)
+            result = processIncomingStreamData(state: &contextState, connection: connection, frame: frame)
         } else {
             frame.frame.finalize(success: false)
         }
@@ -684,6 +684,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
     }
 
     private func processIncomingStreamData(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         frame: consuming FrameStreamReceived
     ) -> Bool {
@@ -708,7 +709,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
                 "Stream reassembly queue has too many items, closing"
             )
             frame.frame.finalize(success: false)
-            connection.close(with: .internalError, "exceeded stream reassembly queue limits")
+            connection.close(state: &contextState, with: .internalError, "exceeded stream reassembly queue limits")
             return false
         }
 
@@ -725,13 +726,14 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
 
         guard
             let _ = self.updateLastOffset(
+                state: &contextState,
                 connection: connection,
                 newLastOffset: UInt64(appendResult.lastOffset),
                 newFinalSize: frameFinalSize
             )
         else {
             log.error("final_size invariants violated")
-            connection.close(with: .internalError, "final_size invariants violated")
+            connection.close(state: &contextState, with: .internalError, "final_size invariants violated")
             return false
         }
 
@@ -765,7 +767,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
                 log.error(
                     "Bytes received \(newOffset) > fin offset \(finOffset)"
                 )
-                connection.close(with: .internalError, "bytes received larger than FIN offset")
+                connection.close(state: &contextState, with: .internalError, "bytes received larger than FIN offset")
                 return false
             }
 
@@ -810,6 +812,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
     // the `lastOffset` was incremented.
     @_optimize(speed)
     func updateLastOffset(
+        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         newLastOffset: UInt64,
         newFinalSize: UInt64?
@@ -821,7 +824,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
             log.error(
                 "[true:\(self.receiveState)] endpoint received stream offset \(newLastOffset) that exceeds final size \(finalSize)"
             )
-            connection.close(with: .finalSizeError, "stream offset exceeded its final size")
+            connection.close(state: &contextState, with: .finalSizeError, "stream offset exceeded its final size")
             return nil
         }
 
@@ -832,6 +835,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
                 "[false:\(self.receiveState)] endpoint received size \(newLastOffset) that's lower than size of the stream \(self.lastReceivedOffset)"
             )
             connection.close(
+                state: &contextState,
                 with:
                     .finalSizeError,
                 "received final size lower than already received size"
@@ -846,6 +850,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
                 "[true:\(self.receiveState)] endpoint received final size \(newFinalSize) different from already established \(finalSize)"
             )
             connection.close(
+                state: &contextState,
                 with:
                     .finalSizeError,
                 "received final size different to already established final size"
@@ -858,7 +863,11 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
             log.datapath("final size set to \(newFinalSize)")
         }
 
-        let lastOffsetDelta = updateLastReceivedOffset(to: newLastOffset, connection: connection)
+        let lastOffsetDelta = updateLastReceivedOffset(
+            state: &contextState,
+            to: newLastOffset,
+            connection: connection
+        )
         if lastOffsetDelta != nil {
             log.datapath(
                 "[\(self.finalSize != nil ? "true" : "false"):\(self.receiveState)] adjusted last offset (conn \(connection.lastReceivedOffset), stream \(self.lastReceivedOffset))"
@@ -950,7 +959,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
         return frameArray
     }
 
-    override public func upperReceiveQueueDrainedBytes(_ bytes: Int) {
+    override public func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int) {
 
         // Record with flow control that bytes have been delivered, and update flow credits.
         deliveredInboundBytes(consumedLength: bytes, connection: parentProtocol)
@@ -964,7 +973,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
             receiveState.change(logIDString: logPrefix, to: .dataRead)
             if !self.closed, self.sendState == .dataReceived {
                 // If both directions are closed, and all data is read, close the stream
-                self.close(errorCode: nil)
+                self.close(state: &state, errorCode: nil)
             }
         }
     }
@@ -1017,7 +1026,11 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
         self.sendState.change(logIDString: logPrefix, to: .ready)
     }
 
-    func outboundStreamPending(connected: Bool, connection: QUICConnection<Families>) {
+    func outboundStreamPending(
+        state contextState: inout NetworkContext.State,
+        connected: Bool,
+        connection: QUICConnection<Families>
+    ) {
         if connected {
             if self.unidirectional {
                 if connection.unidirectionalStreams.remoteMaxStreams == 0 {
@@ -1051,7 +1064,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
                 connection.bidirectionalStreams.previousRemoteMaxStreams =
                     connection.bidirectionalStreams.remoteMaxStreams
                 connection.sendStreamsBlockedBidirectional()
-                connection.sendFrames()
+                connection.sendFrames(state: &contextState)
             }
         }
         // Don't send this frame during 0-RTT as we'll revisit once connected.
@@ -1151,7 +1164,10 @@ extension QUICStreamInstance {
         updateOutboundFlowControlCredit(connection: parentProtocol)
     }
 
-    func processIncomingMaxStreamData(remoteMaxStreamData: UInt64) {
+    func processIncomingMaxStreamData(
+        state contextState: inout NetworkContext.State,
+        remoteMaxStreamData: UInt64
+    ) {
         log.datapath("process MAX_STREAM_DATA")
 
         // Ignore MAX_STREAM_DATA when all stream data has been sent
@@ -1172,7 +1188,7 @@ extension QUICStreamInstance {
                 log.error(
                     "Remote max data \(remoteMaxStreamData) is less than the send offset \(self.sendOffset)"
                 )
-                parentProtocol.close(with: .internalError, "Invalid remote max stream data")
+                parentProtocol.close(state: &contextState, with: .internalError, "Invalid remote max stream data")
             }
             return
         }
