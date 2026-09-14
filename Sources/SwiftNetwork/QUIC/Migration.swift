@@ -205,7 +205,7 @@ extension QUICConnection {
                 path.pacePackets = pacingEnabled
                 if self.state == .connected {
                     log.debug("Bringing up path \(pathID.description)")
-                    invokeEstablish(path: pathID)
+                    invokeEstablish(state: &contextState, path: pathID)
                 }
             }
             break
@@ -274,7 +274,7 @@ extension QUICConnection {
         if oldPath.state.isValidStateChange(to: .routeUnavailable) {
             oldPath.changeState(to: .routeUnavailable)
         }
-        oldPath.tearDownLowerStack()
+        oldPath.tearDownLowerStack(state: &contextState)
         multiplexingPaths.removeValue(forKey: oldPath.identifier)
         sendFrames(state: &contextState)
     }

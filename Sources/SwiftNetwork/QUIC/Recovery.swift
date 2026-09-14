@@ -1099,7 +1099,7 @@ struct Recovery<Families: QUICLinkageFamilies>: ~Copyable, PrefixedLoggable, Non
                 var sentPackets = path.pmtudState.tryToSend(state: &contextState, on: path)
                 recordSentPackets(state: &contextState, &sentPackets, connection: connection)
             }
-            connection.sendAllEnqueuedOutboundDatagrams()
+            connection.sendAllEnqueuedOutboundDatagrams(state: &contextState)
         }
         return packetLost
     }

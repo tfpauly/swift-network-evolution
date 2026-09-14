@@ -654,8 +654,8 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
         }
     }
 
-    func tearDownLowerStack() {
-        try? lower.invokeDetach(state: &context.state, self.reference)
+    func tearDownLowerStack(state contextState: inout NetworkContext.State) {
+        try? lower.invokeDetach(state: &contextState, self.reference)
     }
 }
 

@@ -258,8 +258,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
         var serverConnected = false
         var clientUpperHarness: StreamUpperHarness<BaseStreamLinkageFamily>?
         var serverUpperHarness: NewStreamFlowHarness<BaseStreamLinkageFamily>?
-        var clientQUICListener: BaseStreamLinkageFamily.Listener?
-        var serverQUICListener: BaseStreamLinkageFamily.Listener?
+        var clientQUICMultipathLinkage: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage?
+        var serverQUICMultipathLinkage: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage?
 
         var pairedPathsArray = [PairedUDPIPPaths]()
 
@@ -276,8 +276,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             pairedPathsArray.append(pairedPaths)
 
             let clientPath = PathProperties(parameters: clientParameters)
-            let (clientQUICStreamListener, clientQUICDatagramListener, clientQUICMultipath) = storage.createQUICInstance()
-            clientQUICListener = clientQUICStreamListener
+            let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
+            clientQUICMultipathLinkage = clientQUICMultipath
 
             let clientQUICOptions: ProtocolOptions<QUICProtocol>
             if migrateCount > 0 {
@@ -319,8 +319,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             var serverParameters = Parameters()
             serverParameters.isServer = true
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverQUICStreamListener, serverQUICDatagramListener, serverQUICMultipath) = storage.createQUICInstance()
-            serverQUICListener = serverQUICStreamListener
+            let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
+            serverQUICMultipathLinkage = serverQUICMultipath
 
             let serverQUICOptions = self.createQUICTestOptions(
                 server: true,
@@ -374,9 +374,9 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
         XCTAssertTrue(clientConnected, "QUIC stack client wasn't connected")
         XCTAssertTrue(serverConnected, "QUIC stack server wasn't connected")
 
-        XCTAssertNotNil(clientQUICListener)
-        XCTAssertNotNil(serverQUICListener)
-        guard let clientQUICListener, let serverQUICListener else {
+        XCTAssertNotNil(clientQUICMultipathLinkage)
+        XCTAssertNotNil(serverQUICMultipathLinkage)
+        guard let clientQUICMultipathLinkage, let serverQUICMultipathLinkage else {
             return
         }
 
@@ -420,29 +420,29 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                     serverEndpoint: serverEndpoint
                 )
                 pairedPathsArray.append(pairedPaths)
-//                do {
-//                    let clientParameters = Parameters()
-//                    let clientPath = PathProperties(parameters: Parameters())
-//                    let serverParameters = Parameters()
-//                    let severPath = PathProperties(parameters: Parameters())
-//
-//                    try clientQUICReference.attachLowerDatagramProtocolForNewPath(
-//                        pairedPaths.clientTop,
-//                        remote: serverEndpoint,
-//                        local: clientEndpoint,
-//                        parameters: clientParameters,
-//                        path: clientPath
-//                    )
-//                    try serverQUICReference.attachLowerDatagramProtocolForNewPath(
-//                        pairedPaths.serverTop,
-//                        remote: clientEndpoint,
-//                        local: serverEndpoint,
-//                        parameters: serverParameters,
-//                        path: severPath
-//                    )
-//                } catch {
-//                    XCTAssertTrue(false, "Failed to attach stacks to the new path")
-//                }
+                do {
+                    let clientParameters = Parameters()
+                    let clientPath = PathProperties(parameters: Parameters())
+                    let serverParameters = Parameters()
+                    let severPath = PathProperties(parameters: Parameters())
+
+                    try clientQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
+                        pairedPaths.clientTop,
+                        remote: serverEndpoint,
+                        local: clientEndpoint,
+                        parameters: clientParameters,
+                        path: clientPath
+                    )
+                    try serverQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
+                        pairedPaths.serverTop,
+                        remote: clientEndpoint,
+                        local: serverEndpoint,
+                        parameters: serverParameters,
+                        path: severPath
+                    )
+                } catch {
+                    XCTAssertTrue(false, "Failed to attach stacks to the new path")
+                }
 
                 // First, let the server know about the path
                 pairedPaths.server.deliverPathIsNotPrimary()
@@ -459,13 +459,13 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 // Currently we only keep the current path object and remove all the
                 // other path objects we are migrating away from, so the number of
                 // multiplexing paths should be one.
-//                if case .quic(let clientConnection) = clientQUICReference.reference {
-//                    XCTAssertEqual(
-//                        clientConnection.multiplexingPaths.count,
-//                        1,
-//                        "Path leaked after migration \(pathIndex)"
-//                    )
-//                }
+                if let clientConnection = storage.quicInstance(for: clientQUICMultipathLinkage) {
+                    XCTAssertEqual(
+                        clientConnection.multiplexingPaths.count,
+                        1,
+                        "Path leaked after migration \(pathIndex)"
+                    )
+                }
 
                 if let dataToSend {
                     Logger.test.info("Writing data to send on path \(pathIndex)")

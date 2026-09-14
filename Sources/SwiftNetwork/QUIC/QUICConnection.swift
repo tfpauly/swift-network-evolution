@@ -1691,7 +1691,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 return
             }
 
-            if !preDecryption(frame: &frame, path: path, packet: packet) {
+            if !preDecryption(state: &contextState, frame: &frame, path: path, packet: packet) {
                 return
             }
 
@@ -4045,7 +4045,12 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     }
 
     // return value indicates if processing should continue. False = stop processing and drop frame
-    private func preDecryption(frame: inout Frame, path: QUICPath<Families>, packet: borrowing Packet) -> Bool {
+    private func preDecryption(
+        state contextState: inout NetworkContext.State,
+        frame: inout Frame,
+        path: QUICPath<Families>,
+        packet: borrowing Packet
+    ) -> Bool {
         // N.B.: versionSent is an acceptable state because
         //       there might be a delay in receiving the INITIAL packet
         //       and the client might retransmit.
@@ -4061,7 +4066,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         // Server does not recognize the incoming packet version
         if packet.version != self.initialVersion {
             self.negotiatedVersion = self.initialVersion
-            sendVersionNegotiation(packet: packet, path: path)
+            sendVersionNegotiation(state: &contextState, packet: packet, path: path)
             if state != .versionSent {
                 state.change(to: .versionSent, logIDString: logPrefixer.logIDString)
             }
@@ -4095,7 +4100,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
                 _token[Int(index)] = UInt8.random(in: 0..<UInt8.max, using: &randomNumberGenerator)
             }
             initialToken = _token
-            sendRetry(path: path, packet: packet)
+            sendRetry(state: &contextState, path: path, packet: packet)
             log.notice("New SCID: \(scid)")
             guard let dcid = packet.destinationConnectionID else {
                 log.error("Packet does not contain dcid")
@@ -5250,7 +5255,11 @@ extension QUICConnection {
         return applicationCloseError
     }
 
-    func sendVersionNegotiation(packet: borrowing Packet, path: QUICPath<Families>) {
+    func sendVersionNegotiation(
+        state contextState: inout NetworkContext.State,
+        packet: borrowing Packet,
+        path: QUICPath<Families>
+    ) {
         guard let initialVersion = self.initialVersion else {
             log.error("Failed to send version negotiation due to a missing initial version")
             return
@@ -5310,7 +5319,7 @@ extension QUICConnection {
                 path: path.identifier,
                 datagrams: .init(frame: outFrame)
             )
-            try self.sendEnqueuedOutboundDatagrams(path: path.identifier)
+            try self.sendEnqueuedOutboundDatagrams(state: &contextState, path: path.identifier)
         } catch {
             log.error("Failed to send version negotiation frame with error: \(error)")
             return
@@ -5318,7 +5327,11 @@ extension QUICConnection {
         log.info("Sent version negotiation packet")
     }
 
-    func sendRetry(path: QUICPath<Families>, packet: borrowing Packet) {
+    func sendRetry(
+        state contextState: inout NetworkContext.State,
+        path: QUICPath<Families>,
+        packet: borrowing Packet
+    ) {
 
         guard let packetSCID = packet.sourceConnectionID,
             let packetDCID = packet.destinationConnectionID
@@ -5384,7 +5397,7 @@ extension QUICConnection {
                 path: path.identifier,
                 datagrams: .init(frame: outFrame)
             )
-            try self.sendEnqueuedOutboundDatagrams(path: path.identifier)
+            try self.sendEnqueuedOutboundDatagrams(state: &contextState, path: path.identifier)
         } catch {
             log.error("Failed to send retry frame with error: \(error)")
             return

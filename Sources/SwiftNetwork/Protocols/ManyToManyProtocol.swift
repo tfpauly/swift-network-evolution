@@ -1741,9 +1741,12 @@ extension ManyToManyProtocolHandler {
         )
     }
 
-    public func invokeConnect(path pathID: MultiplexingPathIdentifier) {
+    public func invokeConnect(
+        state: inout NetworkContext.State,
+        path pathID: MultiplexingPathIdentifier
+    ) {
         guard let path = self.path(for: pathID) else { return }
-        path.lower.invokeConnect(state: &context.state, path.reference)
+        path.lower.invokeConnect(state: &state, path.reference)
     }
 
     public func invokeDisconnect(path pathID: MultiplexingPathIdentifier, error: NetworkError? = nil) {
@@ -1751,8 +1754,11 @@ extension ManyToManyProtocolHandler {
         path.lower.invokeDisconnect(state: &context.state, path.reference, error: error)
     }
 
-    public func invokeEstablish(path pathID: MultiplexingPathIdentifier) {
-        invokeConnect(path: pathID)
+    public func invokeEstablish(
+        state: inout NetworkContext.State,
+        path pathID: MultiplexingPathIdentifier
+    ) {
+        invokeConnect(state: &state, path: pathID)
     }
 
     public func deliverConnectedEvent(state: inout NetworkContext.State, flow flowID: MultiplexedFlowIdentifier) {
@@ -2016,9 +2022,9 @@ extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramP
         body(&path.lowerReceiveQueue, path)
     }
 
-    public func sendAllEnqueuedOutboundDatagrams() {
+    public func sendAllEnqueuedOutboundDatagrams(state: inout NetworkContext.State) {
         allPathIdentifiers { pathID in
-            try? sendEnqueuedOutboundDatagrams(path: pathID)
+            try? sendEnqueuedOutboundDatagrams(state: &state, path: pathID)
         }
     }
 }
