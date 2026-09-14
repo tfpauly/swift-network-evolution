@@ -330,7 +330,10 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
                 parameters: serverParameters,
                 path: serverPath,
                 context: serverParameters.context
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: serverEndpoint, remote: clientEndpoint, parameters: serverParameters, path: serverPath, context: serverParameters.context), .init())
+            }
+
             XCTAssertNotNil(serverUpperHarness, "Failed to attach QUIC to server upper harness")
             guard let serverUpperHarness else {
                 return

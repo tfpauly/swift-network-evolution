@@ -599,13 +599,14 @@ extension HomogeneousManyToManyProtocolHandler {
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlow: Flow.UpperProtocol.PairedLowerLinkage
-    ) throws(NetworkError) {
-        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
+        existingFlowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> Flow.UpperProtocol.PairedLowerLinkage {
+        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlowReference)
         guard var existingFlow = flow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
         }
         existingFlow.upper = upperProtocol
+        return existingFlow.asLowerLinkage()
     }
 
     public func validate(
@@ -825,24 +826,26 @@ extension HeterogeneousManyToManyProtocolHandler {
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlow: Flow.UpperProtocol.PairedLowerLinkage
-    ) throws(NetworkError) {
-        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
+        existingFlowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> Flow.UpperProtocol.PairedLowerLinkage {
+        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlowReference)
         guard var existingFlow = flow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
         }
         existingFlow.upper = upperProtocol
+        return existingFlow.asLowerLinkage()
     }
 
     public mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: SecondaryFlow.UpperProtocol,
-        existingFlow: SecondaryFlow.UpperProtocol.PairedLowerLinkage
-    ) throws(NetworkError) {
-        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlow.reference)
+        existingFlowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> SecondaryFlow.UpperProtocol.PairedLowerLinkage {
+        let flowID = MultiplexedFlowIdentifier(inboundReference: existingFlowReference)
         guard var existingFlow = secondaryFlow(for: flowID) else {
             throw NetworkError.posix(ENOENT)
         }
         existingFlow.upper = upperProtocol
+        return existingFlow.asLowerLinkage()
     }
 
     public mutating func addInboundSecondaryFlow(

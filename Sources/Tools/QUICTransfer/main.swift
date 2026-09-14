@@ -127,8 +127,10 @@ final class QUICTransfer {
                 parameters: clientParameters,
                 path: path,
                 context: context
-//                listenerProtocol: clientListenerLinkage
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: clientParameters, path: path, context: context), .init())
+            }
+
 
             clientStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
                 identifier: "C1",
@@ -230,8 +232,9 @@ final class QUICTransfer {
                 parameters: serverParameters,
                 path: serverPath,
                 context: serverParameters.context
-//                listenerProtocol: serverListenerLinkage
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: serverParameters, path: serverPath, context: serverParameters.context), .init())
+            }
 
             guard let serverInput else {
                 group.leave()

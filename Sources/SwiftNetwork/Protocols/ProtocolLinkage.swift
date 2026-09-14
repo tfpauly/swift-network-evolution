@@ -214,8 +214,8 @@ public protocol ListenerLinkage: LowerProtocolLinkage where PairedUpperLinkage: 
 
     func invokeAttachUpperProtocolToExistingFlow(
         _ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage,
-        existingFlow: PairedUpperLinkage.DataLinkage
-    ) throws(NetworkError)
+        existingFlowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> PairedUpperLinkage.DataLinkage
 }
 
 @_spi(ProtocolProvider)

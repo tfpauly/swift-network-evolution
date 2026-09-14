@@ -135,7 +135,9 @@ final class QUICStreamLoad {
                 parameters: clientParameters,
                 path: path,
                 context: context
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: serverParameters, path: serverPath, context: context), .init())
+            }
             guard let clientInput else {
                 group.leave()
                 return
@@ -210,8 +212,10 @@ final class QUICStreamLoad {
                 parameters: serverParameters,
                 path: serverPath,
                 context: serverParameters.context
-//                listenerProtocol: serverListenerLinkage
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: serverParameters, path: serverPath, context: context), .init())
+            }
+
             guard let serverInput else {
                 group.leave()
                 return

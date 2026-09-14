@@ -467,9 +467,9 @@ open class BaseNetworkProtocolStorage {
             try upperProtocol.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
         }
 
-        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
             switch protocolType {
-            case .quic(let index): _ = try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlow: existingFlow)
+            case .quic(let index): return try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlowReference: existingFlowReference)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToExistingFlow call")
             }
         }
@@ -1155,9 +1155,9 @@ open class BaseNetworkProtocolStorage {
             try upperProtocol.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
         }
 
-        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlow: PairedUpperLinkage.DataLinkage) throws(NetworkError) {
+        public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
             switch protocolType {
-            case .quic(let index): _ = try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlow: existingFlow)
+            case .quic(let index): return try storage!.quicInstances[index].attachUpperProtocolToExistingFlow(upperProtocol, existingFlowReference: existingFlowReference)
             default: fatalError("Protocol cannot accept invokeAttachUpperProtocolToExistingFlow call")
             }
         }
@@ -1436,11 +1436,13 @@ open class BaseNetworkProtocolStorage {
                                              path: PathProperties,
                                              context: NetworkContext) -> (NewDatagramFlowHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramFlowLinkage) {
         let instance = NewDatagramFlowHarness<BaseDatagramLinkageFamily>(identifier: identifier,
-                                                                        local: local,
-                                                                        remote: remote,
-                                                                        parameters: parameters,
-                                                                        path: path,
-                                                                        context: context)
+                                                                         local: local,
+                                                                         remote: remote,
+                                                                         parameters: parameters,
+                                                                         path: path,
+                                                                         context: context) { state in
+            self.createDatagramUpperHarness(identifier: "Inbound", local: local, remote: remote, parameters: parameters, path: path, context: context)
+        }
         let instanceIndex = newDatagramFlowHarnesses.insert(instance)
 
         let reference = instance.reference
@@ -1551,6 +1553,37 @@ open class BaseNetworkProtocolStorage {
         return (instance, inbound)
     }
 
+    fileprivate func createStreamUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext,
+        state: inout NetworkContext.State
+    ) -> (StreamUpperHarness<BaseStreamLinkageFamily>, BaseInboundStreamLinkage) {
+        let instance = StreamUpperHarness<BaseStreamLinkageFamily>(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            context: context,
+            state: &state
+        )
+        let instanceIndex = streamUpperHarnesses.insert(instance)
+
+        let reference = instance.reference
+        let inbound = BaseInboundStreamLinkage(
+            reference: reference,
+            storage: self,
+            protocolType: .streamUpperHarness(instanceIndex)
+        )
+
+        return (instance, inbound)
+    }
+
+
     internal var newStreamFlowHarnesses = NetworkGappyArray<NewStreamFlowHarness<BaseStreamLinkageFamily>>()
 
     public func createNewStreamFlowHarness(
@@ -1568,7 +1601,11 @@ open class BaseNetworkProtocolStorage {
             parameters: parameters,
             path: path,
             context: context
-        )
+        ) { state in
+            self.createStreamUpperHarness(identifier: "Inbound", local: local, remote: remote,
+                                          parameters: parameters, path: path, context: context,
+                                          state: &state)
+        }
         let instanceIndex = newStreamFlowHarnesses.insert(instance)
 
         let reference = instance.reference
@@ -1863,8 +1900,8 @@ public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
     public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
     }
 
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundDatagramLinkage, existingFlow: DefaultOutboundDatagramLinkage) throws(NetworkError) {
-
+    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundDatagramLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
+        throw .posix(ENOTSUP)
     }
     public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
     }
@@ -2143,8 +2180,8 @@ public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
     public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundStreamLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
     }
 
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundStreamLinkage, existingFlow: DefaultOutboundStreamLinkage) throws(NetworkError) {
-
+    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundStreamLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> DefaultOutboundStreamLinkage {
+        throw .posix(ENOTSUP)
     }
 
     public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {

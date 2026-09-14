@@ -213,7 +213,10 @@ class QUICTestHarness {
                 parameters: clientParameters,
                 path: clientPath,
                 context: self.context
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: self.clientEndpoint, remote: self.serverEndpoint, parameters: clientParameters, path: clientPath, context: self.context), .init())
+            }
+
 //            do {
 //                try clientReference.attachLowerDatagramProtocolForNewPath(
 //                    clientBridge,
@@ -234,7 +237,10 @@ class QUICTestHarness {
                 parameters: serverParameters,
                 path: serverPath,
                 context: self.context
-            )
+            ) { state in
+                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: self.clientEndpoint, remote: self.serverEndpoint, parameters: serverParameters, path: serverPath, context: self.context), .init())
+            }
+
 //            do {
 //                try serverReference.attachLowerDatagramProtocolForNewPath(
 //                    serverBridge,
@@ -261,7 +267,10 @@ class QUICTestHarness {
                     parameters: clientParameters,
                     path: clientPath,
                     context: self.context
-                )
+                ) { state in
+                    (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: self.clientEndpoint, remote: self.serverEndpoint, parameters: serverParameters, path: serverPath, context: self.context), .init())
+                }
+
 
                 let serverDatagramLinkage = DefaultDatagramListenerLinkage(reference: serverReference)
                 serverDatagramHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
@@ -271,7 +280,10 @@ class QUICTestHarness {
                     parameters: serverParameters,
                     path: serverPath,
                     context: self.context
-                )
+                ) { state in
+                    (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: self.clientEndpoint, remote: self.serverEndpoint, parameters: serverParameters, path: serverPath, context: self.context), .init())
+                }
+
             } else {
                 clientDatagramHarness = nil
                 serverDatagramHarness = nil

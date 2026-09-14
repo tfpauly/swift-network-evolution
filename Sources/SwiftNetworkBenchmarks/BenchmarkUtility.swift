@@ -208,9 +208,10 @@ public final class QUICBenchmarkUtility {
             remote: remoteEndpoint,
             parameters: serverParameters,
             path: serverPath,
-            context: context,
-//            streamListenerProtocol: listenerLinkage
-        )
+            context: context
+        ) { state in
+            (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: serverParameters, path: serverPath, context: context), .init())
+        }
 //        guard let serverNewFlowHandler else {
 //            logger.log("Failed to create server new flow handler")
 //            return nil

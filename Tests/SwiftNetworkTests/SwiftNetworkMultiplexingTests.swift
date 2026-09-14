@@ -60,7 +60,9 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 parameters: parameters,
                 path: path,
                 context: parameters.context
-            )
+            ) { state in
+                (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
+            }
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
             guard let listenerHarness else {
                 return
@@ -243,7 +245,10 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 parameters: parameters,
                 path: path,
                 context: parameters.context
-            )
+            ) { state in
+                (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
+            }
+
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
             guard let listenerHarness else {
                 return
