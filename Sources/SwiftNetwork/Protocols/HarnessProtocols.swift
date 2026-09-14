@@ -97,6 +97,28 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         reference = .init(context: context, eventManager: &self.eventManager)
     }
 
+    /// Creates a harness using a context state the caller already holds.
+    ///
+    /// Use this when building a harness from inside a call that carries the state, such as
+    /// handling a new inbound flow, so registering the reference doesn't re-derive it.
+    public required init(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext,
+        state: inout NetworkContext.State
+    ) {
+        self.context = context
+        self.local = local
+        self.remote = remote
+        self.parameters = parameters
+        self.path = path
+        log.logPrefix = "[UpperHarness:\(identifier)]"
+        reference = .init(eventManager: &self.eventManager, context: context, state: &state)
+    }
+
     public func handleConnectedEvent(state: inout NetworkContext.State) {
         log.debug("Received connected event")
         self.receivedConnected = true
@@ -799,7 +821,8 @@ public class NewDatagramFlowHarness<LinkageFamily: DatagramLinkageFamily>: NewFl
                 remote: remote,
                 parameters: parameters,
                 path: path,
-                context: context
+                context: context,
+                state: &state
             )
             // TODO: TFPDEBUG fix this
 //            newUpperHarness.lower = try lower.invokeAttachUpperProtocolToExistingFlow(_:existingProtocol:)
@@ -838,7 +861,8 @@ public class NewStreamFlowHarness<LinkageFamily: StreamLinkageFamily>: NewFlowHa
                 remote: remote,
                 parameters: parameters,
                 path: path,
-                context: context
+                context: context,
+                state: &state
             )
             // TODO: TFPDEBUG FIX THIS
 //            newUpperHarness.lower = try lower.invokeAttachUpperStreamProtocolToExistingFlow(

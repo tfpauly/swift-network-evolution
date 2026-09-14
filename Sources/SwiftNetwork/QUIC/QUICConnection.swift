@@ -2445,7 +2445,11 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             guard let frameArray = stream.dequeueReassembledData(connection: self) else {
                 continue
             }
-            try? deliverInboundStreamData(flow: &stream, streamData: frameArray)
+            try? deliverInboundStreamData(
+                state: &contextState,
+                flow: &stream,
+                streamData: frameArray
+            )
             // When the stream is already in `resetReceived` state,
             // it should be closed when we receive STOP_SENDING, so we
             // only need to handle the `dataRead` state here.
@@ -4499,7 +4503,11 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         }
         if let frameArray = stream.dequeueReassembledData(connection: self) {
             do {
-                try deliverInboundStreamData(flow: flowID, streamData: frameArray)
+                try deliverInboundStreamData(
+                    state: &contextState,
+                    flow: flowID,
+                    streamData: frameArray
+                )
                 sendFrames(state: &contextState)
             } catch {
                 log.error("Error sending frames on stream close: \(error)")
@@ -5627,7 +5635,11 @@ extension QUICConnection {
         ) {
             // create all the missing streams and flows. All will be left invalid until payload or application
             // triggers a transition to active
-            let newStream = QUICStreamInstance<Families>(parent: self, inbound: true)
+            let newStream = QUICStreamInstance<Families>(
+                parent: self,
+                inbound: true,
+                state: &contextState
+            )
             newStream.streamMetadata.quicConnectionMetadata = self.connectionMetadata
 
             let newFlowIdentifier = newStream.identifier
@@ -5645,7 +5657,11 @@ extension QUICConnection {
                 perProtocolMetadata: newStream.streamMetadata,
                 messageIdentifier: SystemUUID(insecure: true)
             )
-            deliverNewInboundFlowEvent(newStream.reference, flowMetadata: abstractMetadata)
+            deliverNewInboundFlowEvent(
+                state: &contextState,
+                newStream.reference,
+                flowMetadata: abstractMetadata
+            )
 
             log.debug(
                 "Set stream \(newStreamID.description) for flow \(newFlowIdentifier.debugDescription)"
@@ -5745,7 +5761,10 @@ extension QUICConnection {
         }
     }
 
-    func processDatagramFrame(_ frame: consuming FrameDatagram) -> Bool {
+    func processDatagramFrame(
+        state contextState: inout NetworkContext.State,
+        _ frame: consuming FrameDatagram
+    ) -> Bool {
         if let datagramFlowID = frame.flowID, let contextID = frame.contextID {
             log.datapath(
                 "received DATAGRAM frame with length: \(frame.length), flow: \(datagramFlowID), context: \(contextID)"
@@ -5773,7 +5792,11 @@ extension QUICConnection {
         })
 
         if matchingFlowIdentifier == nil {
-            let newFlow = QUICDatagramFlow<Families>(parent: self, inbound: true)
+            let newFlow = QUICDatagramFlow<Families>(
+                parent: self,
+                inbound: true,
+                state: &contextState
+            )
             let newFlowIdentifier = newFlow.identifier
             newFlow.setup(
                 datagramFlowID: frame.flowID,
@@ -5781,7 +5804,7 @@ extension QUICConnection {
                 logPrefixer: logPrefixer
             )
             multiplexedSecondaryFlows[newFlowIdentifier] = newFlow
-            deliverNewInboundSecondaryFlowEvent(newFlow.reference)
+            deliverNewInboundSecondaryFlowEvent(state: &contextState, newFlow.reference)
 
             newFlow.log.debug("Created inbound datagram flow for \(newFlowIdentifier)")
 
@@ -5800,7 +5823,11 @@ extension QUICConnection {
 
         var frame = frame.frame
         frame.metadataComplete = true
-        try? deliverInboundDatagrams(flow: matchingFlowIdentifier, datagrams: .init(frame: frame))
+        try? deliverInboundDatagrams(
+            state: &contextState,
+            flow: matchingFlowIdentifier,
+            datagrams: .init(frame: frame)
+        )
         return true
     }
 }
@@ -5865,7 +5892,7 @@ extension QUICConnection {
         case .handshakeDone(let frame):
             return frame.process(state: &contextState, connection: self)
         case .datagram(let frame):
-            return processDatagramFrame(frame)
+            return processDatagramFrame(state: &contextState, frame)
         }
     }
 }

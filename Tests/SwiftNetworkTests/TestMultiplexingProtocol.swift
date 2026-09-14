@@ -94,7 +94,11 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
             return
         }
         accessReceivedDatagrams(path: path) { frames in
-            try? deliverInboundDatagrams(flow: flow, datagrams: frames.drainArray())
+            try? deliverInboundDatagrams(
+                state: &state,
+                flow: flow,
+                datagrams: frames.drainArray()
+            )
         }
     }
 
@@ -152,10 +156,10 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
 
     func triggerNewFlowCreation() {
         log.debug("Multiplexing protocol creating a new inbound flow")
-        fromExternal { _ in
-            let newFlow = Flow(parent: self, inbound: true)
+        fromExternal { state in
+            let newFlow = Flow(parent: self, inbound: true, state: &state)
             multiplexedFlows[newFlow.identifier] = newFlow
-            deliverNewInboundFlowEvent(newFlow.reference, flowMetadata: nil)
+            deliverNewInboundFlowEvent(state: &state, newFlow.reference, flowMetadata: nil)
         }
     }
 

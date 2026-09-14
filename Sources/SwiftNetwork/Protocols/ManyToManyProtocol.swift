@@ -222,6 +222,11 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
     var parentProtocol: ParentProtocol { get set }
     var identifier: MultiplexedFlowIdentifier { get }
     init(parent: ParentProtocol, inbound: Bool)
+    /// Creates a flow using a context state the caller already holds.
+    ///
+    /// Prefer this over `init(parent:inbound:)` anywhere the state is already in scope, so
+    /// registering the flow's reference doesn't re-derive it from the context.
+    init(parent: ParentProtocol, inbound: Bool, state: inout NetworkContext.State)
     var upperReceiveQueue: FrameArray { get set }
     var upperSendQueue: FrameArray { get set }
     func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage
@@ -840,23 +845,28 @@ extension HeterogeneousManyToManyProtocolHandler {
         existingFlow.upper = upperProtocol
     }
 
-    public mutating func addInboundSecondaryFlow() throws(NetworkError) -> MultiplexedFlowIdentifier
+    public mutating func addInboundSecondaryFlow(
+        state: inout NetworkContext.State
+    ) throws(NetworkError) -> MultiplexedFlowIdentifier
     where
         SecondaryFlow.ParentProtocol == Self,
         SecondaryUpperProtocol.DataLinkage.PairedUpperLinkage == SecondaryFlow.UpperProtocol,
         SecondaryUpperProtocol.DataLinkage == SecondaryFlow.UpperProtocol.PairedLowerLinkage
     {
 
-        let newFlow = SecondaryFlow(parent: self, inbound: true)
+        let newFlow = SecondaryFlow(parent: self, inbound: true, state: &state)
         multiplexedSecondaryFlows[newFlow.identifier] = newFlow
-        deliverNewInboundFlowEvent(newFlow.reference, flowMetadata: nil)
+        deliverNewInboundFlowEvent(state: &state, newFlow.reference, flowMetadata: nil)
 
         return newFlow.identifier
     }
 
-    public func deliverNewInboundSecondaryFlowEvent(_ flowReference: ProtocolInstanceReference) {
+    public func deliverNewInboundSecondaryFlowEvent(
+        state: inout NetworkContext.State,
+        _ flowReference: ProtocolInstanceReference
+    ) {
         secondaryInboundFlowLinkage.deliverNewInboundFlowEvent(
-            state: &context.state,
+            state: &state,
             reference,
             flowReference: flowReference,
             flowMetadata: nil
@@ -1221,10 +1231,13 @@ extension ManyToManyApplicationStreamProtocol where Flow: AutomaticUpperStreamPr
         flow.blockUpperSendQueue = true
     }
 
-    public func unblockSending(flow flowID: MultiplexedFlowIdentifier) {
+    public func unblockSending(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) {
         guard var flow = self.flow(for: flowID) else { return }
         flow.blockUpperSendQueue = false
-        flow.upper.deliverOutboundRoomAvailableEvent(state: &context.state, flow.reference)
+        flow.upper.deliverOutboundRoomAvailableEvent(state: &state, flow.reference)
     }
 
     public func enqueueInboundStreamData(
@@ -1235,26 +1248,31 @@ extension ManyToManyApplicationStreamProtocol where Flow: AutomaticUpperStreamPr
         return try flow.addToUpperReceiveQueue(streamData)
     }
 
-    public func deliverEnqueuedInboundStreamData(flow flowID: MultiplexedFlowIdentifier) throws(NetworkError) {
+    public func deliverEnqueuedInboundStreamData(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) throws(NetworkError) {
         guard let flow = self.flow(for: flowID) else { throw NetworkError.posix(EINVAL) }
-        flow.serviceUpperReceiveQueue(state: &context.state)
+        flow.serviceUpperReceiveQueue(state: &state)
     }
     // Enqueue and delivery the stream data all in one shot
     public func deliverInboundStreamData(
+        state: inout NetworkContext.State,
         flow flowID: MultiplexedFlowIdentifier,
         streamData: consuming FrameArray
     ) throws(NetworkError) {
         guard var flow = self.flow(for: flowID) else { throw NetworkError.posix(EINVAL) }
-        try deliverInboundStreamData(flow: &flow, streamData: streamData)
+        try deliverInboundStreamData(state: &state, flow: &flow, streamData: streamData)
     }
 
     // Enqueue and deliver the stream data directly to the flow
     public func deliverInboundStreamData(
+        state: inout NetworkContext.State,
         flow existingFlow: inout Flow,
         streamData: consuming FrameArray
     ) throws(NetworkError) {
         try existingFlow.addToUpperReceiveQueue(streamData)
-        existingFlow.serviceUpperReceiveQueue(state: &context.state)
+        existingFlow.serviceUpperReceiveQueue(state: &state)
     }
 }
 
@@ -1293,6 +1311,17 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
         self.parentProtocol = parent
         self._identifier = nil
         reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference.setParentReference(parent.reference)
+
+        if inbound {
+            self._identifier = .init(inboundReference: reference)
+        }
+    }
+
+    public required init(parent: ParentProtocol, inbound: Bool, state: inout NetworkContext.State) {
+        self.parentProtocol = parent
+        self._identifier = nil
+        reference = .init(eventManager: &self.eventManager, context: parent.context, state: &state)
         reference.setParentReference(parent.reference)
 
         if inbound {
@@ -1432,10 +1461,13 @@ extension ManyToManyApplicationDatagramProtocol where Flow: AutomaticUpperDatagr
         flow.blockUpperSendQueue = true
     }
 
-    public func unblockSending(flow flowID: MultiplexedFlowIdentifier) {
+    public func unblockSending(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) {
         guard var flow = self.flow(for: flowID) else { return }
         flow.blockUpperSendQueue = false
-        flow.upper.deliverOutboundRoomAvailableEvent(state: &context.state, flow.reference)
+        flow.upper.deliverOutboundRoomAvailableEvent(state: &state, flow.reference)
     }
 
     public func enqueueInboundDatagrams(
@@ -1446,19 +1478,23 @@ extension ManyToManyApplicationDatagramProtocol where Flow: AutomaticUpperDatagr
         return try flow.addToUpperReceiveQueue(datagrams)
     }
 
-    public func deliverEnqueuedInboundDatagrams(flow flowID: MultiplexedFlowIdentifier) throws(NetworkError) {
+    public func deliverEnqueuedInboundDatagrams(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) throws(NetworkError) {
         guard let flow = self.flow(for: flowID) else { throw NetworkError.posix(EINVAL) }
-        flow.serviceUpperReceiveQueue(state: &context.state)
+        flow.serviceUpperReceiveQueue(state: &state)
     }
 
     // Enqueue and delivery the datagrams all in one shot
     public func deliverInboundDatagrams(
+        state: inout NetworkContext.State,
         flow flowID: MultiplexedFlowIdentifier,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
         guard var flow = self.flow(for: flowID) else { throw NetworkError.posix(EINVAL) }
         try flow.addToUpperReceiveQueue(datagrams)
-        flow.serviceUpperReceiveQueue(state: &context.state)
+        flow.serviceUpperReceiveQueue(state: &state)
     }
 }
 
@@ -1474,10 +1510,13 @@ extension HeterogeneousManyToManyProtocolHandler where SecondaryFlow: AutomaticU
         flow.blockUpperSendQueue = true
     }
 
-    public func unblockSending(flow flowID: MultiplexedFlowIdentifier) {
+    public func unblockSending(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) {
         guard var flow = self.secondaryFlow(for: flowID) else { return }
         flow.blockUpperSendQueue = false
-        flow.upper.deliverOutboundRoomAvailableEvent(state: &context.state, flow.reference)
+        flow.upper.deliverOutboundRoomAvailableEvent(state: &state, flow.reference)
     }
 
     public func enqueueInboundDatagrams(
@@ -1488,27 +1527,32 @@ extension HeterogeneousManyToManyProtocolHandler where SecondaryFlow: AutomaticU
         return try flow.addToUpperReceiveQueue(datagrams)
     }
 
-    public func deliverEnqueuedInboundDatagrams(flow flowID: MultiplexedFlowIdentifier) throws(NetworkError) {
+    public func deliverEnqueuedInboundDatagrams(
+        state: inout NetworkContext.State,
+        flow flowID: MultiplexedFlowIdentifier
+    ) throws(NetworkError) {
         guard let flow = self.secondaryFlow(for: flowID) else { throw NetworkError.posix(EINVAL) }
-        flow.serviceUpperReceiveQueue(state: &context.state)
+        flow.serviceUpperReceiveQueue(state: &state)
     }
 
     // Enqueue and delivery the datagrams all in one shot
     public func deliverInboundDatagrams(
+        state: inout NetworkContext.State,
         flow flowID: MultiplexedFlowIdentifier,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
         guard var flow = self.secondaryFlow(for: flowID) else { throw NetworkError.posix(EINVAL) }
-        try deliverInboundDatagrams(flow: &flow, datagrams: datagrams)
+        try deliverInboundDatagrams(state: &state, flow: &flow, datagrams: datagrams)
     }
 
     // Enqueue and deliver the datagrams directly to the flow
     public func deliverInboundDatagrams(
+        state: inout NetworkContext.State,
         flow existingFlow: inout SecondaryFlow,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
         try existingFlow.addToUpperReceiveQueue(datagrams)
-        existingFlow.serviceUpperReceiveQueue(state: &context.state)
+        existingFlow.serviceUpperReceiveQueue(state: &state)
     }
 }
 
@@ -1547,6 +1591,16 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
         self.parentProtocol = parent
         self._identifier = nil
         reference = .init(context: parent.context, eventManager: &self.eventManager)
+        reference.setParentReference(parent.reference)
+        if inbound {
+            self._identifier = .init(inboundReference: reference)
+        }
+    }
+
+    public required init(parent: ParentProtocol, inbound: Bool, state: inout NetworkContext.State) {
+        self.parentProtocol = parent
+        self._identifier = nil
+        reference = .init(eventManager: &self.eventManager, context: parent.context, state: &state)
         reference.setParentReference(parent.reference)
         if inbound {
             self._identifier = .init(inboundReference: reference)
@@ -1672,11 +1726,12 @@ extension MultiplexingPath {
 @available(Network 0.1.0, *)
 extension ManyToManyProtocolHandler {
     public func deliverNewInboundFlowEvent(
+        state: inout NetworkContext.State,
         _ flowReference: ProtocolInstanceReference,
         flowMetadata: AbstractProtocolMetadata?
     ) {
         inboundFlowLinkage.deliverNewInboundFlowEvent(
-            state: &context.state,
+            state: &state,
             reference,
             flowReference: flowReference,
             flowMetadata: flowMetadata
