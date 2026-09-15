@@ -84,23 +84,4 @@ public struct DefaultQUICLinkageFamilies: QUICLinkageFamilies {
     public typealias MultipathLinkageType = DefaultDatagramMultipathLinkage
 }
 
-// Spellings of the QUIC types for the default linkage families, for callers that work with a
-// standard stack.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public typealias QUICDefaultPath = QUICPath<DefaultQUICLinkageFamilies>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public typealias QUICDefaultStream = QUICStreamInstance<DefaultQUICLinkageFamilies>
-
-@available(Network 0.1.0, *)
-typealias QUICDefaultAck = Ack<DefaultQUICLinkageFamilies>
-
-@available(Network 0.1.0, *)
-typealias QUICDefaultRecovery = Recovery<DefaultQUICLinkageFamilies>
-
-@available(Network 0.1.0, *)
-typealias QUICDefaultStreamIDState = QUICStreamIDState<DefaultQUICLinkageFamilies>
-
 #endif

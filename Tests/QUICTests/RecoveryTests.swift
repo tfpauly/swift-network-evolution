@@ -32,27 +32,40 @@ let recoveryTestsLogPrefixer: LogPrefixer = LogPrefixer("[RecoveryTests]")
 
 @available(Network 0.1.0, *)
 final class RecoveryTests: XCTestCase {
-    var connection = QUICConnection<DefaultQUICLinkageFamilies>(context: .implicitContext)
-    var path: QUICDefaultPath! = nil
+    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: .implicitContext)
+    var path: QUICTestPath! = nil
+    // The base linkages are storage-backed, so lower harnesses have to come from storage
+    // rather than being wrapped in a bare linkage.
+    let storage = BaseNetworkProtocolStorage(context: .implicitContext)
 
     override func setUp() {
         let expectation = XCTestExpectation()
         self.connection.context.async {
             try? self.connection.setup(remote: nil, local: nil, parameters: nil, path: nil)
-            self.connection.recovery = QUICDefaultRecovery(logPrefixer: recoveryTestsLogPrefixer)
+            self.connection.recovery = QUICTestRecovery(logPrefixer: recoveryTestsLogPrefixer)
             self.connection.recovery.connection = self.connection
-            let lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
+            let (lowerHarness, lowerHarnessLinkage) = self.storage.createDatagramLowerHarness(
                 identifier: "Client",
                 context: .implicitContext
             )
             lowerHarness.fromExternal { state in
                 lowerHarness.connect(state: &state)
             }
-            var newPath = QUICDefaultPath.makeFromExternal(parent: self.connection)
+            var newPath = QUICTestPath.makeFromExternal(parent: self.connection)
             newPath.set(interface: nil, priority: 1, isInitial: true)
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))
-            _ = try? newPath.attachLowerProtocol(.init(reference: lowerHarness.reference))
+            // Bind both directions: `attachLowerProtocol` only points the path at the harness,
+            // so the harness also needs the path as its upper protocol or its `validate(upper:)`
+            // rejects every call and `getDatagramsToSend` fails with EINVAL.
+            _ = try? newPath.attachLowerProtocol(lowerHarnessLinkage)
+            try? lowerHarnessLinkage.invokeAttachUpperProtocol(
+                newPath.asUpperLinkage(),
+                remote: nil,
+                local: nil,
+                parameters: nil,
+                path: nil
+            )
             self.path = newPath
             self.connection.currentPath = newPath
             self.connection.multiplexingPaths[newPath.identifier] = newPath
@@ -65,7 +78,7 @@ final class RecoveryTests: XCTestCase {
         self.connection.currentPath = nil
     }
 
-    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<DefaultQUICLinkageFamilies>) {
+    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<BaseQUICLinkageFamilies>) {
         var packets = NetworkUniqueDeque<SentPacketRecord>()
         packets.append(sentPacket)
         // Driven straight from the test body rather than from the context queue, so
@@ -671,8 +684,15 @@ final class RecoveryTests: XCTestCase {
     // idle timeout closes it.
     func testValidatedPTOProbesWhenTailRetransmitProducesNothing() {
         // Register a flow and close it, so its STREAM data can never be rebuilt for retransmission.
-        let stream = QUICDefaultStream(parent: connection, inbound: true)
-        stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
+        var streamStorage: QUICTestStream? = connection.context.onQueue {
+            let stream = QUICTestStream(parent: connection, inbound: true)
+            stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
+            return stream
+        }
+        // The stream's `deinit` reaches `fromExternal`, so release it on the context queue
+        // rather than letting it deallocate on the main thread at function exit.
+        defer { connection.context.onQueue { streamStorage = nil } }
+        let stream = streamStorage!
         connection.multiplexedFlows[stream.identifier] = stream
         stream.closed = true
         XCTAssertFalse(stream.isOpen)
@@ -738,8 +758,15 @@ final class RecoveryTests: XCTestCase {
     func testPTOProbesWhenNewDataProducesNothing() {
         // A stream queued for service whose flow has since been torn down: it is absent from
         // `multiplexedFlows`, so writing it produces no payload.
-        let unregisteredStream = QUICDefaultStream(parent: connection, inbound: true)
-        unregisteredStream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
+        var unregisteredStreamStorage: QUICTestStream? = connection.context.onQueue {
+            let stream = QUICTestStream(parent: connection, inbound: true)
+            stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
+            return stream
+        }
+        // The stream's `deinit` reaches `fromExternal`, so release it on the context queue
+        // rather than letting it deallocate on the main thread at function exit.
+        defer { connection.context.onQueue { unregisteredStreamStorage = nil } }
+        let unregisteredStream = unregisteredStreamStorage!
         XCTAssertNil(connection.flow(for: unregisteredStream.identifier))
         connection.withPendingItems(for: .initial) { pendingItems in
             pendingItems.streamsToService.append(unregisteredStream.identifier)

@@ -28,7 +28,7 @@ final class QUICStreamZombieListTests: XCTestCase {
 
     func testAppend() {
         NetworkContext.implicitContext.async {
-            let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+            let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
             connection.fromExternal { state in
                 let streamID: QUICStreamID = QUICStreamID(0)
                 self.zombieList.append(

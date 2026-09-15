@@ -46,7 +46,7 @@ let ackTestsLogPrefixer: LogPrefixer = LogPrefixer("[AckTests]")
 
 @available(Network 0.1.0, *)
 final class AckTests: XCTestCase {
-    var ack = QUICDefaultAck(logPrefixer: ackTestsLogPrefixer)
+    var ack = QUICTestAck(logPrefixer: ackTestsLogPrefixer)
 
     override func setUp() {
         ack.delaySize = 2

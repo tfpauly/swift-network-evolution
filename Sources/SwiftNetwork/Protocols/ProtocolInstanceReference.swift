@@ -21,7 +21,7 @@ public struct ProtocolInstanceReference: Hashable {
     var parentEventStateIndex: NetworkStateIndex?
 
     func protocolEventStateIndex(allowParent: Bool = true) -> NetworkStateIndex? {
-        if let parentEventStateIndex { return parentEventStateIndex }
+        if allowParent, let parentEventStateIndex { return parentEventStateIndex }
         return eventStateIndex
     }
 

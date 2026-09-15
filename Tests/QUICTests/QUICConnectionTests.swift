@@ -24,19 +24,21 @@ import XCTest
 
 @available(Network 0.1.0, *)
 final class QUICConnectionTests: XCTestCase {
-    var connection: QUICConnection<DefaultQUICLinkageFamilies>!
+    var connection: QUICConnection<BaseQUICLinkageFamilies>!
     override func setUp() {
-        connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     }
 
     func testCreateInboundStreams() throws {
-        let zeroStreamID: QUICStreamID = QUICStreamID(0)
-        NetworkContext.implicitContext.async {
-            self.connection.fromExternal { state in
-                let _ = self.connection.createInboundStreams(
-                    state: &state,
-                    streamID: zeroStreamID
-                )
+        try self.connection.context.onQueue {
+            let zeroStreamID: QUICStreamID = QUICStreamID(0)
+            NetworkContext.implicitContext.async {
+                self.connection.fromExternal { state in
+                    let _ = self.connection.createInboundStreams(
+                        state: &state,
+                        streamID: zeroStreamID
+                    )
+                }
             }
         }
     }

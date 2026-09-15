@@ -376,43 +376,45 @@ final class QUICStreamIDTests: XCTestCase {
     }
 
     func testQUICStreamIDPendingBidirectionalStreams() {
-        var streamsState = QUICDefaultStreamIDState(.bidirectional)
-        let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        var streamsState = QUICTestStreamIDState(.bidirectional)
+        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         let logPrefixer = LogPrefixer("[testQUICStreamIDPendingStreams]")
+        try connection.context.onQueue {
 
-        // Create 3 inbound pending streams
-        let stream1 = QUICDefaultStream(parent: connection, inbound: true)
-        stream1.setup(streamID: nil, logPrefixer: logPrefixer)
-        let stream2 = QUICDefaultStream(parent: connection, inbound: true)
-        stream2.setup(streamID: nil, logPrefixer: logPrefixer)
-        let stream3 = QUICDefaultStream(parent: connection, inbound: true)
-        stream3.setup(streamID: nil, logPrefixer: logPrefixer)
+            // Create 3 inbound pending streams
+            let stream1 = QUICTestStream(parent: connection, inbound: true)
+            stream1.setup(streamID: nil, logPrefixer: logPrefixer)
+            let stream2 = QUICTestStream(parent: connection, inbound: true)
+            stream2.setup(streamID: nil, logPrefixer: logPrefixer)
+            let stream3 = QUICTestStream(parent: connection, inbound: true)
+            stream3.setup(streamID: nil, logPrefixer: logPrefixer)
 
-        streamsState.addPending(stream1)
-        streamsState.addPending(stream2)
-        streamsState.addPending(stream3)
-        XCTAssertEqual(streamsState.pendingStartStreams.count, 3)
+            streamsState.addPending(stream1)
+            streamsState.addPending(stream2)
+            streamsState.addPending(stream3)
+            XCTAssertEqual(streamsState.pendingStartStreams.count, 3)
 
-        XCTAssertTrue(stream1.identifier != MultiplexedFlowIdentifier.allFlows)
-        XCTAssertTrue(stream2.identifier != MultiplexedFlowIdentifier.allFlows)
-        XCTAssertTrue(stream3.identifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream1.identifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream2.identifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream3.identifier != MultiplexedFlowIdentifier.allFlows)
 
-        // Remove the last added pending stream
-        streamsState.removePending(stream3)
+            // Remove the last added pending stream
+            streamsState.removePending(stream3)
 
-        // stream3 should not be in the pending list
-        XCTAssertFalse(
-            streamsState.pendingStartStreams.contains(where: { $0 === stream3 }),
-            "stream3 should not be in the pending list after removal"
-        )
-        // stream1 still should be in the pending list
-        XCTAssertTrue(
-            streamsState.pendingStartStreams.contains(where: { $0 === stream1 }),
-            "stream1 should still be in the pending list"
-        )
-        // stream2 still should be in the pending list
-        XCTAssertTrue(stream2.pendingStart, "stream2 should still be pending")
-        streamsState.removeAllPending()
+            // stream3 should not be in the pending list
+            XCTAssertFalse(
+                streamsState.pendingStartStreams.contains(where: { $0 === stream3 }),
+                "stream3 should not be in the pending list after removal"
+            )
+            // stream1 still should be in the pending list
+            XCTAssertTrue(
+                streamsState.pendingStartStreams.contains(where: { $0 === stream1 }),
+                "stream1 should still be in the pending list"
+            )
+            // stream2 still should be in the pending list
+            XCTAssertTrue(stream2.pendingStart, "stream2 should still be pending")
+            streamsState.removeAllPending()
+        }
     }
 }
 

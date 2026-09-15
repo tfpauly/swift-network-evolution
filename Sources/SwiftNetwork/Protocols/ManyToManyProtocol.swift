@@ -173,7 +173,10 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
     }
 
     init(inboundReference: ProtocolInstanceReference) {
-        guard let index = inboundReference.protocolEventStateIndex else {
+        // Identify the flow by its own event state, not its parent's: every inbound flow on a
+        // connection shares that parent, so allowing the parent index here would collapse them
+        // all onto one identifier.
+        guard let index = inboundReference.protocolEventStateIndex(allowParent: false) else {
             self = .allFlows
             return
         }

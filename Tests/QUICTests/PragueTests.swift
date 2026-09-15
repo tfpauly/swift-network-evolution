@@ -29,7 +29,7 @@ final class PragueTests: XCTestCase {
     let mss = Constants.initialMSS
     var prague: Prague!
     // These tests drive the algorithm directly, with no path to pace.
-    let noPath: QUICDefaultPath? = nil
+    let noPath: QUICTestPath? = nil
     var pacer: Pacer = Pacer(enabled: true)
     let defaultCongestionWindow = UInt64(12000)
 
@@ -438,8 +438,10 @@ final class PragueTests: XCTestCase {
 
     func testPragueExercisingPacer() {
         // Path holds both Pacer and Prague, thats why its setup this way.
-        let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
-        let path = QUICDefaultPath.makeFromExternal(parent: connection)
+        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let path = connection.context.onQueue {
+            QUICTestPath.makeFromExternal(parent: connection)
+        }
         path.pacePackets = true
         path.set(interface: nil, priority: 1, isInitial: true)
         // startupRate is 10 Mbps, this will affect the pacing time

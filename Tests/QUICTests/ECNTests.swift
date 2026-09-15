@@ -28,14 +28,14 @@ final class ECNTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
     var stats: Statistics!
-    var conn: QUICConnection<DefaultQUICLinkageFamilies>!
+    var conn: QUICConnection<BaseQUICLinkageFamilies>!
     let logPrefixer = LogPrefixer("[ECNTests]")
     // These tests reset ECN state without a path attached.
-    let noPath: QUICDefaultPath? = nil
+    let noPath: QUICTestPath? = nil
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -406,13 +406,13 @@ extension ECNTestStepAck {
 final class ECNValidateTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
-    var conn: QUICConnection<DefaultQUICLinkageFamilies>!
+    var conn: QUICConnection<BaseQUICLinkageFamilies>!
     var stats: Statistics!
     let logPrefixer = LogPrefixer("[ECNValidateTests]")
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -840,7 +840,7 @@ final class ECNValidateTests: XCTestCase {
     }
 
     func testValidateAckReturnsCorrectCECount() async throws {
-        let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,
@@ -881,7 +881,7 @@ final class ECNValidateTests: XCTestCase {
         let context = NetworkContext(identifier: #function)
         context.activate()
 
-        let connection = QUICConnection<DefaultQUICLinkageFamilies>(context: context)
+        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: context)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,

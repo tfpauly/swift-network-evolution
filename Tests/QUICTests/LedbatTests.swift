@@ -28,7 +28,7 @@ final class LedbatTests: XCTestCase {
     let mss = Constants.initialMSS
     var ledbat: Ledbat!
     // These tests drive the algorithm directly, with no path to pace.
-    let noPath: QUICDefaultPath? = nil
+    let noPath: QUICTestPath? = nil
     let defaultCongestionWindow = UInt64(2400)
 
     override func setUp() {
