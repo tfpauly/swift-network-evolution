@@ -1322,7 +1322,7 @@ class QUICTestHarness {
                 let errorExpectation = XCTestExpectation(description: "Wait for ECONNRESET error")
                 var networkError: NetworkError?
                 // Set up error handler before triggering the error
-                let errorBlock: ((NetworkError?) -> Void) = { code in
+                let errorBlock: ((inout NetworkContext.State, NetworkError?) -> Void) = { state, code in
                     guard let code,
                         let applicationErrorCode = code.quicApplicationError
                     else {
@@ -1337,9 +1337,9 @@ class QUICTestHarness {
                         "Application error codes do not match"
                     )
 
-                    if let metadata: ProtocolMetadata<QUICProtocol> = serverUpperHarness.getMetadata(),
-                        let errorCode = metadata.applicationError
-                    {
+                    if let metadata: ProtocolMetadata<QUICProtocol> = serverUpperHarness.getMetadata(
+                        state: &state
+                    ), let errorCode = metadata.applicationError {
                         // Match the sent error in the metadata
                         XCTAssertEqual(errorCode, applicationError, "Application error codes do not match")
                     } else {
@@ -1375,8 +1375,8 @@ class QUICTestHarness {
                     )
                     let halfClosurePayload = Array("half-closure-test".utf8)
                     context.async {
-                        clientUpperHarness.waitForInboundDataAvailable { _ in
-                            let data = clientUpperHarness.read()
+                        clientUpperHarness.waitForInboundDataAvailable { state, _ in
+                            let data = clientUpperHarness.read(state: &state)
                             XCTAssertEqual(
                                 data,
                                 halfClosurePayload,
@@ -1604,7 +1604,7 @@ class QUICTestHarness {
         }
 
         context.async {
-            self.state?.serverHarness.waitForNewFlow {
+            self.state?.serverHarness.waitForNewFlow { state in
                 guard let stream = self.state?.serverHarness.upperHarnesses.last else {
                     XCTFail("Server flow missing")
                     serverFlowExpectation.fulfill()
@@ -1617,8 +1617,8 @@ class QUICTestHarness {
                 // close the stream having never written. The send side is still
                 // `.ready`, so this clean close (no application error) must emit a
                 // zero-length STREAM+FIN, not RESET_STREAM.
-                while stream.read() != nil {}
-                stream.stop()
+                while stream.read(state: &state) != nil {}
+                stream.stop(state: &state)
                 serverClosedExpectation.fulfill()
             }
         }
@@ -1706,8 +1706,11 @@ class QUICTestHarness {
             parameters.defaultStack.transport = .custom(options)
             let path = PathProperties(parameters: parameters)
 
-            let listenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
-            let ninthStream = StreamUpperHarness<BaseStreamLinkageFamily>(
+            guard let listenerLinkage = self.state?.clientQUICStreamListener else {
+                XCTFail("No client QUIC stream listener")
+                return
+            }
+            let (ninthStream, ninthStreamLinkage) = self.storage.createStreamUpperHarness(
                 identifier: identifier,
                 local: self.clientEndpoint,
                 remote: self.serverEndpoint,
@@ -1715,10 +1718,19 @@ class QUICTestHarness {
                 path: path,
                 context: self.context
             )
-//            XCTAssertNotNil(ninthStream, "Failed to attach new QUIC stream")
-//            guard let ninthStream else {
-//                return
-//            }
+
+            do {
+                try listenerLinkage.invokeAttachUpperProtocolToNewFlow(
+                    ninthStreamLinkage,
+                    remote: self.serverEndpoint,
+                    local: self.clientEndpoint,
+                    parameters: parameters,
+                    path: path
+                )
+            } catch {
+                XCTFail("Failed to attach the ninth QUIC stream: \(error)")
+                return
+            }
             // This stream should be added as pending because its over the stream limit
             ninthStream.start()
             self.state?.clientHarness.upperHarnesses.append(ninthStream)

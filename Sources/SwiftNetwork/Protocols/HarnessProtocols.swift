@@ -53,8 +53,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         // thread it into any reads rather than re-deriving it.
         public var inboundDataAvailable: ((inout NetworkContext.State, Bool) -> Void)?
 
-        public var inboundAborted: ((NetworkError?) -> Void)?
-        public var outboundAborted: ((NetworkError?) -> Void)?
+        public var inboundAborted: ((inout NetworkContext.State, NetworkError?) -> Void)?
+        public var outboundAborted: ((inout NetworkContext.State, NetworkError?) -> Void)?
         public var error: ((NetworkError) -> Void)?  // invoked when error detected
         public var earlyDataRejected: (() -> Void)?
         public var receivedRemoteTransportParameters: (([UInt8]) -> Void)?
@@ -246,11 +246,18 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
         fromExternal { state in
-            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
-                return nil
-            }
-            return metadata
+            getMetadata(state: &state)
         }
+    }
+
+    /// Reads metadata using a context state the caller already holds.
+    final public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State
+    ) -> ProtocolMetadata<P>? {
+        guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
+            return nil
+        }
+        return metadata
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
@@ -364,16 +371,16 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
         self.inboundAbortError = error
         if let inboundAbortedCompletion = self.completions.inboundAborted {
             self.completions.inboundAborted = nil
-            inboundAbortedCompletion(self.inboundAbortError)
+            inboundAbortedCompletion(&state, self.inboundAbortError)
         }
     }
     public func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Received outbound aborted event: \(error?.description ?? "no error")")
         self.outboundAborted = true
         self.outboundAbortError = error
-        if let inboundAbortedCompletion = self.completions.outboundAborted {
-            self.completions.inboundAborted = nil
-            inboundAbortedCompletion(self.outboundAbortError)
+        if let outboundAbortedCompletion = self.completions.outboundAborted {
+            self.completions.outboundAborted = nil
+            outboundAbortedCompletion(&state, self.outboundAbortError)
         }
     }
 
@@ -382,20 +389,39 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     var inboundAbortError: NetworkError?
     var outboundAbortError: NetworkError?
 
-    public func waitForInboundAborted(completion: @escaping (NetworkError?) -> Void) {
+    public func waitForInboundAborted(
+        completion: @escaping (inout NetworkContext.State, NetworkError?) -> Void
+    ) {
         if self.inboundAborted {
-            completion(self.inboundAbortError)
+            // Already aborted, so this is an external entry point: acquire the state.
+            fromExternal { state in
+                completion(&state, self.inboundAbortError)
+            }
             return
         }
         completions.inboundAborted = completion
     }
 
-    public func waitForOutboundAborted(completion: @escaping (NetworkError?) -> Void) {
+    /// Registers a completion that does not need the context state.
+    public func waitForInboundAborted(completion: @escaping (NetworkError?) -> Void) {
+        waitForInboundAborted { _, error in completion(error) }
+    }
+
+    public func waitForOutboundAborted(
+        completion: @escaping (inout NetworkContext.State, NetworkError?) -> Void
+    ) {
         if self.outboundAborted {
-            completion(self.outboundAbortError)
+            fromExternal { state in
+                completion(&state, self.outboundAbortError)
+            }
             return
         }
         completions.outboundAborted = completion
+    }
+
+    /// Registers a completion that does not need the context state.
+    public func waitForOutboundAborted(completion: @escaping (NetworkError?) -> Void) {
+        waitForOutboundAborted { _, error in completion(error) }
     }
 
     public func write(_ bytes: [UInt8], sendFIN: Bool = false, earlyData: Bool = false) -> Bool {
@@ -714,7 +740,9 @@ where
         var createNewFlowHandler: ((inout NetworkContext.State) -> (HarnessType, HarnessType.LinkageType))?
         public var connected: ((Bool) -> Void)?
         public var disconnected: (() -> Void)?
-        var newFlow = Deque<(() -> Void)>()
+        // Runs inline while the new-inbound-flow event holds the context state, so the
+        // completion receives it and must thread it into any calls on the new flow.
+        var newFlow = Deque<((inout NetworkContext.State) -> Void)>()
         public var error: ((NetworkError) -> Void)?  // invoked when error detected
         public init() {}
     }
@@ -783,7 +811,7 @@ where
             newUpperHarness.flowMetadata = flowMetadata
             newUpperHarness.invokeConnect(state: &state)
             if let newFlowCompletion = completions.newFlow.popFirst() {
-                newFlowCompletion()
+                newFlowCompletion(&state)
             }
         } catch {
             log.error("Failed to attach new inbound flow")
@@ -874,8 +902,15 @@ where
         }
     }
 
-    public func waitForNewFlow(completion: @escaping () -> Void) {
+    public func waitForNewFlow(
+        completion: @escaping (inout NetworkContext.State) -> Void
+    ) {
         completions.newFlow.append(completion)
+    }
+
+    /// Registers a completion that does not need the context state.
+    public func waitForNewFlow(completion: @escaping () -> Void) {
+        completions.newFlow.append { _ in completion() }
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
@@ -886,11 +921,18 @@ where
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
         fromExternal { state in
-            guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
-                return nil
-            }
-            return metadata
+            getMetadata(state: &state)
         }
+    }
+
+    /// Reads metadata using a context state the caller already holds.
+    final public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State
+    ) -> ProtocolMetadata<P>? {
+        guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
+            return nil
+        }
+        return metadata
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {

@@ -952,8 +952,12 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference,
             error: NetworkError?
         ) throws(NetworkError) {
-            // Unidirectional aborting is not supported by any of the base stream protocols yet.
-            throw NetworkError.posix(ENOTSUP)
+            switch protocolType {
+            case .quicStream(let box):
+                box.instance.abortInbound(state: &state, from, error: error)
+            default:
+                throw NetworkError.posix(ENOTSUP)
+            }
         }
 
         public func abortOutbound(
@@ -961,8 +965,12 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference,
             error: NetworkError?
         ) throws(NetworkError) {
-            // Unidirectional aborting is not supported by any of the base stream protocols yet.
-            throw NetworkError.posix(ENOTSUP)
+            switch protocolType {
+            case .quicStream(let box):
+                box.instance.abortOutbound(state: &state, from, error: error)
+            default:
+                throw NetworkError.posix(ENOTSUP)
+            }
         }
 
         public func isConnected(state: inout NetworkContext.State) -> Bool {

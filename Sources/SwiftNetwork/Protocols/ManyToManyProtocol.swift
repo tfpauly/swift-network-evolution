@@ -1354,35 +1354,35 @@ public protocol UnidirectionalAbortingStreamFlow: MultiplexedDatapathFlow, Outbo
 
 @available(Network 0.1.0, *)
 extension UnidirectionalAbortingStreamFlow {
-    public func deliverInboundAbortedEvent(error: NetworkError?) {
+    public func deliverInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         if upper.isDetached {
             // Enqueue pending event instead of delivering immediately.
             // Inbound multiplexed flows may get attached after creation.
             let selfReference = self.reference
             selfReference.enqueuePendingEventForUpperProtocol(
-                state: &context.state,
+                state: &state,
                 event: .inboundAborted(selfReference, upper.reference, error: error, { _, _, _ in
 
                 })
             )
         } else {
-            upper.deliverInboundAbortedEvent(state: &context.state, self.reference, error: error)
+            upper.deliverInboundAbortedEvent(state: &state, self.reference, error: error)
         }
     }
 
-    public func deliverOutboundAbortedEvent(error: NetworkError?) {
+    public func deliverOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
         if upper.isDetached {
             // Enqueue pending event instead of delivering immediately.
             // Inbound multiplexed flows may get attached after creation.
             let selfReference = self.reference
             selfReference.enqueuePendingEventForUpperProtocol(
-                state: &context.state,
+                state: &state,
                 event: .outboundAborted(selfReference, upper.reference, error: error, { _, _, _ in
 
                 })
             )
         } else {
-            upper.deliverOutboundAbortedEvent(state: &context.state, self.reference, error: error)
+            upper.deliverOutboundAbortedEvent(state: &state, self.reference, error: error)
         }
     }
 

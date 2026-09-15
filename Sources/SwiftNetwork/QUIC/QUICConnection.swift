@@ -4486,14 +4486,18 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         return streamID
     }
 
-    func deliverInboundAbortedEvent(stream: Flow, error: NetworkError?) {
+    func deliverInboundAbortedEvent(
+        state contextState: inout NetworkContext.State,
+        stream: Flow,
+        error: NetworkError?
+    ) {
         guard let streamID = stream.streamID,
             let _ = knownFlows[streamID]
         else {
             log.error("Cannot deliver inbound aborted event: no flow for stream \(stream.streamID?.value ?? 0)")
             return
         }
-        stream.deliverInboundAbortedEvent(error: error)
+        stream.deliverInboundAbortedEvent(state: &contextState, error: error)
     }
 
     func handleStreamClose(

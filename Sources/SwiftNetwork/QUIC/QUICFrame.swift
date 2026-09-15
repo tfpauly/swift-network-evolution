@@ -1155,7 +1155,11 @@ struct FrameResetStream: ~Copyable, QUICFrameProtocol {
         // Set the application error code
         stream.streamMetadata.applicationError = self.code
         stream.inboundApplicationError = self.code
-        connection.deliverInboundAbortedEvent(stream: stream, error: NetworkError(quicApplicationError: self.code))
+        connection.deliverInboundAbortedEvent(
+            state: &contextState,
+            stream: stream,
+            error: NetworkError(quicApplicationError: self.code)
+        )
         connection.log.info(
             "[S\(streamID.value)] received RESET_STREAM; offsets conn (inorder \(stream.receiveState), last \(connection.flowControlState.totalInOrderInboundBytesRead)), stream (inorder \(stream.flowControlState.totalInOrderInboundBytesRead), last \(stream.lastReceivedOffset)), final \(self.finalSize)"
         )
@@ -1333,7 +1337,10 @@ struct FrameStopSending: ~Copyable, QUICFrameProtocol {
         }
         stream.streamMetadata.applicationError = self.code
         stream.outboundApplicationError = self.code
-        stream.deliverOutboundAbortedEvent(error: NetworkError(quicApplicationError: self.code))
+        stream.deliverOutboundAbortedEvent(
+            state: &contextState,
+            error: NetworkError(quicApplicationError: self.code)
+        )
         // If STOP_SENDING was received the outbound write should be closed
         // An endpoint that receives a STOP_SENDING frame MUST send a
         // RESET_STREAM frame if the stream is in the "Ready" or "Send" state.
