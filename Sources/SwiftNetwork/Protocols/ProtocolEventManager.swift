@@ -169,7 +169,9 @@ struct ProtocolEventManagerState: ~Copyable {
             _ newBlock: @escaping EventBlock,
             _ newErrorBlock: @escaping ErrorEventBlock,
             _ newInboundFlowBlock: @escaping NewInboundFlowEventBlock,
-            _ newNetworkProtocolEventBlock: @escaping NetworkProtocolEventBlock
+            _ newNetworkProtocolEventBlock: @escaping NetworkProtocolEventBlock,
+            _ newInboundAbortedBlock: @escaping ErrorEventBlock,
+            _ newOutboundAbortedBlock: @escaping ErrorEventBlock
         ) -> PendingEvent {
             switch self {
             case .connected(let from, _, _): return .connected(from, newTo, newBlock)
@@ -178,9 +180,9 @@ struct ProtocolEventManagerState: ~Copyable {
             case .inboundDataAvailable(let from, _, _): return .inboundDataAvailable(from, newTo, newBlock)
             case .outboundRoomAvailable(let from, _, _): return .outboundRoomAvailable(from, newTo, newBlock)
             case .inboundAborted(let from, _, let error, _):
-                return .inboundAborted(from, newTo, error: error, newErrorBlock)
+                return .inboundAborted(from, newTo, error: error, newInboundAbortedBlock)
             case .outboundAborted(let from, _, let error, _):
-                return .outboundAborted(from, newTo, error: error, newErrorBlock)
+                return .outboundAborted(from, newTo, error: error, newOutboundAbortedBlock)
             case .newInboundFlow(let from, _, let flow, let metadata, _):
                 return .newInboundFlow(
                     from,
@@ -493,7 +495,13 @@ extension NetworkContext.State {
     fileprivate mutating func reassignQueuedPendingEventsForUpperProtocol(
         index: NetworkStateIndex,
         parentIndex: NetworkStateIndex?,
-        newUpper: ProtocolInstanceReference
+        newUpper: ProtocolInstanceReference,
+        block: @escaping ProtocolEventManagerState.PendingEvent.EventBlock,
+        errorBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock,
+        newInboundFlowBlock: @escaping ProtocolEventManagerState.PendingEvent.NewInboundFlowEventBlock,
+        networkProtocolEventBlock: @escaping ProtocolEventManagerState.PendingEvent.NetworkProtocolEventBlock,
+        inboundAbortedBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock,
+        outboundAbortedBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock
     ) {
         softAssert()
         if let parentIndex {
@@ -501,10 +509,12 @@ extension NetworkContext.State {
             while let event = protocolEventStates[index].unassignedPendingEventsToDeliverToUpperProtocol.popFirst() {
                 let event = event.reassign(
                     to: newUpper,
-                    { _, _ in },
-                    { _, _, _ in },
-                    { _, _, _, _ in },
-                    { _, _, _ in }
+                    block,
+                    errorBlock,
+                    newInboundFlowBlock,
+                    networkProtocolEventBlock,
+                    inboundAbortedBlock,
+                    outboundAbortedBlock
                 )
                 deliverEventToUpperProtocol(index: index, parentIndex: parentIndex, event: event, drain: false)
                 foundEvents = true
@@ -516,10 +526,12 @@ extension NetworkContext.State {
             while let event = protocolEventStates[index].unassignedPendingEventsToDeliverToUpperProtocol.popFirst() {
                 let event = event.reassign(
                     to: newUpper,
-                    { _, _ in },
-                    { _, _, _ in },
-                    { _, _, _, _ in },
-                    { _, _, _ in }
+                    block,
+                    errorBlock,
+                    newInboundFlowBlock,
+                    networkProtocolEventBlock,
+                    inboundAbortedBlock,
+                    outboundAbortedBlock
                 )
                 deliverEventToUpperProtocol(index: index, parentIndex: nil, event: event, drain: false)
             }
@@ -855,12 +867,27 @@ extension ProtocolInstanceReference {
     }
 
     @inline(__always)
-    func reassignQueuedPendingEventsForUpperProtocol(state: inout NetworkContext.State, to newUpper: ProtocolInstanceReference) {
+    func reassignQueuedPendingEventsForUpperProtocol(
+        state: inout NetworkContext.State,
+        to newUpper: ProtocolInstanceReference,
+        block: @escaping ProtocolEventManagerState.PendingEvent.EventBlock,
+        errorBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock,
+        newInboundFlowBlock: @escaping ProtocolEventManagerState.PendingEvent.NewInboundFlowEventBlock,
+        networkProtocolEventBlock: @escaping ProtocolEventManagerState.PendingEvent.NetworkProtocolEventBlock,
+        inboundAbortedBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock,
+        outboundAbortedBlock: @escaping ProtocolEventManagerState.PendingEvent.ErrorEventBlock
+    ) {
         guard let eventStateIndex else { return }
         state.reassignQueuedPendingEventsForUpperProtocol(
             index: eventStateIndex,
             parentIndex: parentEventStateIndex,
-            newUpper: newUpper
+            newUpper: newUpper,
+            block: block,
+            errorBlock: errorBlock,
+            newInboundFlowBlock: newInboundFlowBlock,
+            networkProtocolEventBlock: networkProtocolEventBlock,
+            inboundAbortedBlock: inboundAbortedBlock,
+            outboundAbortedBlock: outboundAbortedBlock
         )
     }
 

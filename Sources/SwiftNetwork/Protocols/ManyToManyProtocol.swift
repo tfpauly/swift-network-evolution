@@ -225,6 +225,11 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
     var parentProtocol: ParentProtocol { get set }
     var identifier: MultiplexedFlowIdentifier { get }
     init(parent: ParentProtocol, inbound: Bool)
+    /// Hands over events that were buffered before this flow had an upper protocol.
+    ///
+    /// A requirement rather than just an extension member so that refinements which can deliver
+    /// more event kinds — unidirectional aborts, say — are dispatched to.
+    func drainQueuedEventsForUpperProtocol(state: inout NetworkContext.State)
     /// Creates a flow using a context state the caller already holds.
     ///
     /// Prefer this over `init(parent:inbound:)` anywhere the state is already in scope, so
@@ -1059,6 +1064,10 @@ extension MultiplexedFlow {
             connectRequested(state: &state)
             parentProtocol.connectInternal(state: &state)
         }
+        // Hand over anything buffered while this flow had no upper protocol. This runs after
+        // connecting so the connected event is delivered first, matching the ordering the
+        // non-detached path in `deliverConnectedEvent` produces.
+        drainQueuedEventsForUpperProtocol(state: &state)
     }
 
     public func disconnect(
@@ -1107,6 +1116,34 @@ extension MultiplexedFlow {
         }
     }
 
+    /// Hands over events that were buffered before this flow had an upper protocol.
+    ///
+    /// A buffered event carries its payload but no delivery block, because the upper was unknown
+    /// when it was queued. Supply blocks that route to the now-attached upper linkage.
+    ///
+    /// Flows whose upper linkage can deliver more event kinds (unidirectional aborts, say)
+    /// override this to route those too.
+    public func drainQueuedEventsForUpperProtocol(state: inout NetworkContext.State) {
+        let upperProtocol = upper
+        self.reference.reassignQueuedPendingEventsForUpperProtocol(
+            state: &state,
+            to: upperProtocol.reference,
+            block: { state, from in
+                upperProtocol.handleConnectedEvent(state: &state, from)
+            },
+            errorBlock: { state, from, error in
+                upperProtocol.handleDisconnectedEvent(state: &state, from, error: error)
+            },
+            newInboundFlowBlock: { _, _, _, _ in },
+            networkProtocolEventBlock: { state, from, event in
+                _ = upperProtocol.handleNetworkProtocolEvent(state: &state, from, event: event)
+            },
+            // A plain data linkage has no unidirectional aborts to deliver.
+            inboundAbortedBlock: { _, _, _ in },
+            outboundAbortedBlock: { _, _, _ in }
+        )
+    }
+
     fileprivate func deliverConnectedEvent(state: inout NetworkContext.State) {
         if upper.isDetached {
             // Enqueue pending event instead of delivering immediately.
@@ -1118,7 +1155,7 @@ extension MultiplexedFlow {
         } else {
             // Deliver connected event *followed by* any events which were buffered while detached
             upper.deliverConnectedEvent(state: &state, self.reference)
-            self.reference.reassignQueuedPendingEventsForUpperProtocol(state: &state, to: upper.reference)
+            drainQueuedEventsForUpperProtocol(state: &state)
         }
     }
 
@@ -1337,6 +1374,31 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
 
     public func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int) {
         // No-op by default
+    }
+
+    /// Also routes the unidirectional abort events, which only a stream linkage can handle.
+    public func drainQueuedEventsForUpperProtocol(state: inout NetworkContext.State) {
+        let upperProtocol = upper
+        self.reference.reassignQueuedPendingEventsForUpperProtocol(
+            state: &state,
+            to: upperProtocol.reference,
+            block: { state, from in
+                upperProtocol.handleConnectedEvent(state: &state, from)
+            },
+            errorBlock: { state, from, error in
+                upperProtocol.handleDisconnectedEvent(state: &state, from, error: error)
+            },
+            newInboundFlowBlock: { _, _, _, _ in },
+            networkProtocolEventBlock: { state, from, event in
+                _ = upperProtocol.handleNetworkProtocolEvent(state: &state, from, event: event)
+            },
+            inboundAbortedBlock: { state, from, error in
+                upperProtocol.handleInboundAbortedEvent(state: &state, from, error: error)
+            },
+            outboundAbortedBlock: { state, from, error in
+                upperProtocol.handleOutboundAbortedEvent(state: &state, from, error: error)
+            }
+        )
     }
 
     /// To be overridden by subclasses
