@@ -774,7 +774,7 @@ extension HeterogeneousManyToManyProtocolHandler {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        guard inboundFlowLinkage.isDetached else {
+        guard secondaryInboundFlowLinkage.isDetached else {
             throw NetworkError.posix(EALREADY)
         }
 

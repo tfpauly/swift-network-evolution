@@ -48,8 +48,10 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         public var connected: ((Bool) -> Void)?
         public var disconnected: (() -> Void)?
 
-        // true when inbound data is available, false when disconnected
-        public var inboundDataAvailable: ((Bool) -> Void)?
+        // true when inbound data is available, false when disconnected. The completion runs
+        // inline while the event's context state is held, so it receives that state and must
+        // thread it into any reads rather than re-deriving it.
+        public var inboundDataAvailable: ((inout NetworkContext.State, Bool) -> Void)?
 
         public var inboundAborted: ((NetworkError?) -> Void)?
         public var outboundAborted: ((NetworkError?) -> Void)?
@@ -147,7 +149,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
 
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
-            inboundDataAvailableCompletion(false)
+            inboundDataAvailableCompletion(&state, false)
             self.completions.inboundDataAvailable = nil
         }
     }
@@ -155,7 +157,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     public func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
             self.completions.inboundDataAvailable = nil
-            inboundDataAvailableCompletion(true)
+            inboundDataAvailableCompletion(&state, true)
         } else {
             self.inboundDataAvailableReceived = true
         }
@@ -196,6 +198,11 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         invokeDisconnect(error: error)
     }
 
+    /// Stops using a context state the caller already holds.
+    public func stop(state: inout NetworkContext.State, error: NetworkError? = nil) {
+        invokeDisconnect(state: &state, error: error)
+    }
+
     public func teardown() {
         do throws(NetworkError) {
             var mutatingSelf = self
@@ -205,14 +212,24 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
-    public func waitForInboundDataAvailable(completion: @escaping (Bool) -> Void) {
+    public func waitForInboundDataAvailable(
+        completion: @escaping (inout NetworkContext.State, Bool) -> Void
+    ) {
         if self.inboundDataAvailableReceived {
-            // Received inbound data available, but didn't deliver. Fire now.
+            // Received inbound data available, but didn't deliver. Fire now. This is an
+            // external entry point, so acquire the state for the completion.
             self.inboundDataAvailableReceived = false
-            completion(true)
+            fromExternal { state in
+                completion(&state, true)
+            }
             return
         }
         completions.inboundDataAvailable = completion
+    }
+
+    /// Registers a completion that does not need the context state.
+    public func waitForInboundDataAvailable(completion: @escaping (Bool) -> Void) {
+        waitForInboundDataAvailable { _, available in completion(available) }
     }
 
     public func waitForDisconnected(completion: @escaping () -> Void) {
@@ -265,8 +282,19 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 @available(Network 0.1.0, *)
 public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
     public func write(_ datagram: [UInt8]) -> Bool {
+        fromExternal { state in
+            write(state: &state, datagram)
+        }
+    }
+
+    /// Writes using a context state the caller already holds.
+    public func write(state: inout NetworkContext.State, _ datagram: [UInt8]) -> Bool {
         do throws(NetworkError) {
-            let frames = try invokeGetDatagramsToSend(maximumDatagramCount: 1, minimumDatagramSize: datagram.count)
+            let frames = try invokeGetDatagramsToSend(
+                state: &state,
+                maximumDatagramCount: 1,
+                minimumDatagramSize: datagram.count
+            )
             guard var frames = frames else {
                 log.error("Failed to get datagram to send")
                 return false
@@ -282,7 +310,7 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
                 }
                 return false
             }
-            try invokeSendDatagrams(frames)
+            try invokeSendDatagrams(state: &state, frames)
             return true
         } catch {
             return false
@@ -290,8 +318,18 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
     }
 
     public func read() -> [UInt8]? {
+        fromExternal { state in
+            read(state: &state)
+        }
+    }
+
+    /// Reads using a context state the caller already holds.
+    ///
+    /// Inbound-data completions run inline while the delivering event holds the state, so they
+    /// have to use this rather than `read()`.
+    public func read(state: inout NetworkContext.State) -> [UInt8]? {
         do throws(NetworkError) {
-            let frames = try invokeReceiveDatagrams(maximumDatagramCount: 1)
+            let frames = try invokeReceiveDatagrams(state: &state, maximumDatagramCount: 1)
             guard var frames = frames else {
                 log.debug("Failed to receive datagrams")
                 return nil
@@ -361,6 +399,18 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func write(_ bytes: [UInt8], sendFIN: Bool = false, earlyData: Bool = false) -> Bool {
+        fromExternal { state in
+            write(state: &state, bytes, sendFIN: sendFIN, earlyData: earlyData)
+        }
+    }
+
+    /// Writes using a context state the caller already holds.
+    public func write(
+        state: inout NetworkContext.State,
+        _ bytes: [UInt8],
+        sendFIN: Bool = false,
+        earlyData: Bool = false
+    ) -> Bool {
         do throws(NetworkError) {
             var frame = Frame(count: bytes.count)
             let result = Serializer.serialize(&frame, claim: false) { write throws(SerializationError) in
@@ -375,9 +425,9 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
                 frame.connectionComplete = true
             }
             if earlyData {
-                try invokeSendEarlyStreamData(.init(frame: frame))
+                try invokeSendEarlyStreamData(state: &state, .init(frame: frame))
             } else {
-                try invokeSendStreamData(.init(frame: frame))
+                try invokeSendStreamData(state: &state, .init(frame: frame))
             }
             return true
         } catch {
@@ -410,8 +460,24 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func read(upTo maximumBytes: Int = Int.max) -> [UInt8]? {
+        fromExternal { state in
+            read(state: &state, upTo: maximumBytes)
+        }
+    }
+
+    /// Reads using a context state the caller already holds.
+    ///
+    /// Inbound-data completions run inline while the delivering event holds the state, so they
+    /// have to use this rather than `read(upTo:)`.
+    public func read(state: inout NetworkContext.State, upTo maximumBytes: Int = Int.max) -> [UInt8]? {
         do throws(NetworkError) {
-            guard var frames = try invokeReceiveStreamData(minimumBytes: 1, maximumBytes: maximumBytes) else {
+            guard
+                var frames = try invokeReceiveStreamData(
+                    state: &state,
+                    minimumBytes: 1,
+                    maximumBytes: maximumBytes
+                )
+            else {
                 return nil
             }
             var returnBuffer: [UInt8]? = nil

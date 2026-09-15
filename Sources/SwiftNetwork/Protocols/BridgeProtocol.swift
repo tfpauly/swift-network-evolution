@@ -158,15 +158,27 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         var observeFirstByteHandler: BridgeObserveFirstByteHandler = nil
 
         private var timerSet = false
-        func deliverInboundDataAvailableEvent() {
+
+        /// Notifies the upper protocol that inbound data is ready.
+        ///
+        /// This runs from inside `sendDatagrams` on the peer bridge, which already holds the
+        /// context state, so the state is threaded in rather than re-derived.
+        func deliverInboundDataAvailableEvent(state: inout NetworkContext.State) {
             if linkDelay == .zero {
-                self.async { state in
+                self.async(state: &state) { state in
                     self.upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
                 }
             } else {
                 guard !timerSet else { return }
                 timerSet = true
-                self.scheduleWakeup(milliseconds: UInt64(linkDelay.milliseconds))
+                self.scheduleWakeup(state: &state, milliseconds: UInt64(linkDelay.milliseconds))
+            }
+        }
+
+        /// Entry point for callers with no context state, such as tests injecting a datagram.
+        func deliverInboundDataAvailableEventFromExternal() {
+            fromExternal { state in
+                deliverInboundDataAvailableEvent(state: &state)
             }
         }
 
@@ -253,7 +265,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             if datagramDrops?.blockPacketGeneration ?? false {
                 if datagramDrops?.shouldDropPacket() ?? false {
                     log.datapath("blocking \(maximumDatagramCount) datagrams to port: \(self.remoteEndpoint!.port)")
-                    self.async { state in
+                    self.async(state: &state) { state in
                         self.log.datapath("unblocking outbound data")
                         self.upper.deliverOutboundRoomAvailableEvent(state: &state, self.reference)
                     }
@@ -304,7 +316,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
                 }
             }
             remoteInstance.incomingFrames.add(frames: datagrams)
-            remoteInstance.deliverInboundDataAvailableEvent()
+            remoteInstance.deliverInboundDataAvailableEvent(state: &state)
         }
 
         public static func injectDatagram(_ datagram: consuming Frame, to remotePort: UInt16) {
@@ -312,7 +324,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
                 return
             }
             remoteInstance.incomingFrames.add(frames: .init(frame: datagram))
-            remoteInstance.deliverInboundDataAvailableEvent()
+            remoteInstance.deliverInboundDataAvailableEventFromExternal()
         }
 
         #if !NETWORK_EMBEDDED

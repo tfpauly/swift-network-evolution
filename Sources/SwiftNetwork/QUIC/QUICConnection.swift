@@ -3508,7 +3508,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
             if shouldEndBurst {
                 log.datapath("burst limit application data")
                 applicationPendingItems.rotateFirstStreamToService()
-                burstLimitReached()
+                burstLimitReached(state: &contextState)
                 break
             }
         }
@@ -5502,13 +5502,13 @@ extension QUICConnection {
     // async work on the stack thread/queue to continue sending on another stream
     // after other operations have had a chance to run (such as receive incoming
     // data, handleInbound() path).
-    fileprivate func burstLimitReached() {
+    fileprivate func burstLimitReached(state contextState: inout NetworkContext.State) {
         guard !asyncSendRunning else {
             return
         }
         asyncSendRunning = true
         log.datapath("async: scheduling restart after packet burst")
-        self.async { asyncState in
+        self.async(state: &contextState) { asyncState in
             self.resumeSendingAfterBurstLimit(state: &asyncState)
         }
     }

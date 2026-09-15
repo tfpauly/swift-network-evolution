@@ -1427,6 +1427,37 @@ open class BaseNetworkProtocolStorage {
         return (instance, inbound)
     }
 
+    /// Creates a datagram upper harness using a context state the caller already holds.
+    func createDatagramUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext,
+        state: inout NetworkContext.State
+    ) -> (DatagramUpperHarness<BaseDatagramLinkageFamily>, BaseInboundDatagramLinkage) {
+        let instance = DatagramUpperHarness<BaseDatagramLinkageFamily>(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            context: context,
+            state: &state
+        )
+        let instanceIndex = datagramUpperHarnesses.insert(instance)
+
+        let reference = instance.reference
+        let inbound = BaseInboundDatagramLinkage(
+            reference: reference,
+            storage: self,
+            protocolType: .datagramUpperHarness(instanceIndex)
+        )
+
+        return (instance, inbound)
+    }
+
     internal var newDatagramFlowHarnesses = NetworkGappyArray<NewDatagramFlowHarness<BaseDatagramLinkageFamily>>()
 
     public func createNewDatagramFlowHarness(identifier: String = "",
@@ -1441,7 +1472,15 @@ open class BaseNetworkProtocolStorage {
                                                                          parameters: parameters,
                                                                          path: path,
                                                                          context: context) { state in
-            self.createDatagramUpperHarness(identifier: "Inbound", local: local, remote: remote, parameters: parameters, path: path, context: context)
+            self.createDatagramUpperHarness(
+                identifier: "Inbound",
+                local: local,
+                remote: remote,
+                parameters: parameters,
+                path: path,
+                context: context,
+                state: &state
+            )
         }
         let instanceIndex = newDatagramFlowHarnesses.insert(instance)
 
