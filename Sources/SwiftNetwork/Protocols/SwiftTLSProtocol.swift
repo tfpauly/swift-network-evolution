@@ -387,6 +387,22 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
         }
 
+        /// Registers using a context state the caller already holds, so the state isn't
+        /// re-derived from the context.
+        init(
+            context: NetworkContext,
+            state: inout NetworkContext.State,
+            quicCrypto: QUICCrypto<Families>?
+        ) {
+            self.quicCrypto = quicCrypto
+            self.context = context
+            self.reference = ProtocolInstanceReference(
+                eventManager: &self.eventManager,
+                context: context,
+                state: &state
+            )
+        }
+
         func setup(
             remote: Endpoint?,
             local: Endpoint?,

@@ -1961,7 +1961,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         log.info("Retransmitting INITIAL with version \(version.rawValue)")
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop(state: &contextState)
-        crypto = QUICCrypto<Families>(context: context)
+        crypto = QUICCrypto<Families>(context: context, state: &contextState)
         guard let tlsOptions, crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions) else {
             log.error("Failed to start TLS")
             return
@@ -2058,7 +2058,7 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
         log.info("Retransmitting INITIAL with token len: \(packet.tokenLength)")
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop(state: &contextState)
-        crypto = QUICCrypto<Families>(context: context)
+        crypto = QUICCrypto<Families>(context: context, state: &contextState)
         guard let tlsOptions, crypto.start(state: &contextState, with: self, tlsOptions: tlsOptions) else {
             log.error("Failed to start TLS")
             return
@@ -5292,6 +5292,7 @@ extension QUICConnection {
         let requestedFrameLength = versionNegotiation.header.count
         guard
             var outFrames = try? getDatagramsToSend(
+                state: &contextState,
                 path: path.identifier,
                 maximumDatagramCount: 1,
                 minimumDatagramSize: requestedFrameLength
@@ -5373,6 +5374,7 @@ extension QUICConnection {
         let requestedFrameLength = retryPacket.header.count
         guard
             var outFrames = try? getDatagramsToSend(
+                state: &contextState,
                 path: path.identifier,
                 maximumDatagramCount: 1,
                 minimumDatagramSize: requestedFrameLength

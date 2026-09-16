@@ -108,6 +108,22 @@ final class QUICCrypto<Families: QUICLinkageFamilies> {
         )
     }
 
+    /// Registers using a context state the caller already holds, so the state isn't re-derived
+    /// from the context. Use this when replacing the crypto instance from inside the stack, such
+    /// as when restarting the handshake after version negotiation or a retry.
+    init(context: NetworkContext, state: inout NetworkContext.State) {
+        reference = ProtocolInstanceReference(
+            eventManager: &self.eventManager,
+            context: context,
+            state: &state
+        )
+        tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>(
+            context: context,
+            state: &state,
+            quicCrypto: self
+        )
+    }
+
     func start(
         state: inout NetworkContext.State,
         with parentConnection: QUICConnection<Families>,
