@@ -74,14 +74,4 @@ public protocol QUICPathUpperLinkage: Sendable {
     init(_ quicStream: QUICPath<QUICFamilies>)
 }
 
-/// The linkage families used by a QUIC connection in a standard protocol stack.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultQUICLinkageFamilies: QUICLinkageFamilies {
-    public typealias StreamFlowLinkageFamily = DefaultStreamLinkageFamily
-    public typealias DatagramFlowLinkageFamily = DefaultDatagramLinkageFamily
-    public typealias PathLinkageFamily = DefaultDatagramLinkageFamily
-    public typealias MultipathLinkageType = DefaultDatagramMultipathLinkage
-}
-
 #endif

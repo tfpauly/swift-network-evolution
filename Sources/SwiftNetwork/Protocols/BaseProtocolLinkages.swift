@@ -1790,15 +1790,6 @@ public struct DefaultDatagramLinkageFamily: DatagramLinkageFamily {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public struct DefaultStreamLinkageFamily: StreamLinkageFamily {
-    public typealias Upper = DefaultInboundStreamLinkage
-    public typealias Lower = DefaultOutboundStreamLinkage
-    public typealias Listener = DefaultStreamListenerLinkage
-    public typealias InboundFlow = DefaultInboundStreamFlowLinkage
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
 public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
     public typealias PairedLowerLinkage = DefaultOutboundDatagramLinkage
     private(set) public var reference: ProtocolInstanceReference
@@ -1839,30 +1830,6 @@ public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage, @unchecked 
     }
 
     public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked Sendable {
-    public typealias MultipathLowerProtocol = DefaultOutboundDatagramLinkage
-
-    private(set) public var reference: ProtocolInstanceReference
-    public init(reference: ProtocolInstanceReference) {
-        self.reference = reference
-    }
-    public init() {
-        reference = .init()
-    }
-
-    public mutating func invokeAttachLowerProtocolForNewPath(
-        _ lowerProtocol: MultipathLowerProtocol,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
 
     }
 }
@@ -2229,125 +2196,6 @@ public struct DefaultInboundStreamLinkage: InboundStreamLinkage {
     }
 }
 
-
-/// A stub inbound stream flow linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundStreamFlowLinkage: InboundStreamFlowLinkage {
-    public typealias PairedLowerLinkage = DefaultStreamListenerLinkage
-    public typealias DataLinkage = DefaultOutboundStreamLinkage
-
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLowerLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-
-    }
-
-    public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
-    ) {
-
-    }
-}
-
-/// A stub stream listener linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultStreamListenerLinkage: StreamListenerLinkage {
-    public typealias PairedUpperLinkage = DefaultInboundStreamFlowLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedUpperLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-
-    }
-
-    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundStreamLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
-    }
-
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundStreamLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> DefaultOutboundStreamLinkage {
-        throw .posix(ENOTSUP)
-    }
-
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-}
-
 // MARK: - QUIC Linkage Construction
 
 // A protocol stack that supports QUIC needs to be able to wrap a QUIC stream, datagram flow,
@@ -2393,35 +2241,5 @@ extension BaseNetworkProtocolStorage.BaseInboundDatagramLinkage: QUICPathUpperLi
             storage: nil,
             protocolType: .quicPath(.init(quicPath))
         )
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-extension DefaultOutboundStreamLinkage: QUICStreamLowerLinkage {
-    public typealias QUICFamilies = DefaultQUICLinkageFamilies
-
-    public init(_ quicStream: QUICStreamInstance<DefaultQUICLinkageFamilies>) {
-        self.init()
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-extension DefaultOutboundDatagramLinkage: QUICDatagramFlowLowerLinkage {
-    public typealias QUICFamilies = DefaultQUICLinkageFamilies
-
-    public init(_ quicDatagramFlow: QUICDatagramFlow<DefaultQUICLinkageFamilies>) {
-        self.init()
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-extension DefaultInboundDatagramLinkage: QUICPathUpperLinkage {
-    public typealias QUICFamilies = DefaultQUICLinkageFamilies
-
-    public init(_ quicPath: QUICPath<DefaultQUICLinkageFamilies>) {
-        self.init()
     }
 }
