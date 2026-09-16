@@ -54,6 +54,12 @@ public protocol ManyToManyProtocolHandler: ListenerHandler, LoggableProtocol whe
     func disconnect(state: inout NetworkContext.State, error: NetworkError?)
     func teardown(state: inout NetworkContext.State)
     mutating func teardownIfPossible(state: inout NetworkContext.State)
+    /// Whether every upper linkage has detached, so the instance's storage can be released.
+    ///
+    /// A single instance can be shared by more than one upper linkage, such as a QUIC connection
+    /// serving both a stream listener and a datagram listener. Each of those detaches separately,
+    /// so storage may only be released once the last one has gone.
+    var isFullyDetached: Bool { get }
     func handleApplicationEvent(
         state: inout NetworkContext.State,
         _ event: ApplicationEvent
@@ -633,6 +639,8 @@ extension HomogeneousManyToManyProtocolHandler {
         multiplexedFlows.isEmpty && inboundFlowLinkage.isDetached
     }
 
+    public var isFullyDetached: Bool { hasNoUpperLinkages }
+
     public mutating func teardownIfPossible(state: inout NetworkContext.State) {
         guard hasNoUpperLinkages else {
             // Still has some flow
@@ -698,7 +706,10 @@ extension HomogeneousManyToManyProtocolHandler {
 extension HeterogeneousManyToManyProtocolHandler {
     fileprivate var hasNoUpperLinkages: Bool {
         multiplexedFlows.isEmpty && multiplexedSecondaryFlows.isEmpty && inboundFlowLinkage.isDetached
+            && secondaryInboundFlowLinkage.isDetached
     }
+
+    public var isFullyDetached: Bool { hasNoUpperLinkages }
 
     public mutating func teardownIfPossible(state: inout NetworkContext.State) {
         guard hasNoUpperLinkages else {
@@ -715,7 +726,11 @@ extension HeterogeneousManyToManyProtocolHandler {
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         do { try validate(inbound: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        inboundFlowLinkage = .init()
+        if from == secondaryInboundFlowLinkage.reference {
+            secondaryInboundFlowLinkage = .init()
+        } else {
+            inboundFlowLinkage = .init()
+        }
         teardownIfPossible(state: &state)
     }
 

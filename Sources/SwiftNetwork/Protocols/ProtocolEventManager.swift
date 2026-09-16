@@ -342,7 +342,45 @@ struct ProtocolEventManagerState: ~Copyable {
     var pendingEventsToDeliverToUpperProtocol = NetworkUniqueDeque<PendingEvent>()
     var unassignedPendingEventsToDeliverToUpperProtocol = NetworkUniqueDeque<PendingEvent>()
 
-    var timerScheduled = false
+    // Number of things that still hold this index: queued async blocks, at most one scheduled
+    // timer wakeup, and any such block currently running. They all dereference the index, so the
+    // event state must outlive them; see `retiring`.
+    private(set) var outstandingWakeups: UInt32 = 0
+
+    // Whether the scheduled timer wakeup is currently counted in `outstandingWakeups`. Timers are
+    // rescheduled in place rather than stacked, so this keeps a reschedule from counting twice.
+    private var timerScheduled = false
+
+    // Set when unregistration was requested while blocks were still outstanding. The last block
+    // to finish removes the event state.
+    var retiring = false
+
+    mutating func addOutstandingWakeup() {
+        outstandingWakeups += 1
+    }
+
+    mutating func finishOutstandingWakeup() {
+        outstandingWakeups -= 1
+    }
+
+    mutating func addScheduledTimer() {
+        // Rescheduling replaces the existing timer entry, so it is still just one outstanding
+        // wakeup.
+        guard !timerScheduled else { return }
+        timerScheduled = true
+        outstandingWakeups += 1
+    }
+
+    mutating func clearScheduledTimer() {
+        guard timerScheduled else { return }
+        timerScheduled = false
+        outstandingWakeups -= 1
+    }
+
+    // Whether the event state can be removed, meaning no scheduled block still holds its index.
+    var canRemove: Bool {
+        outstandingWakeups == 0
+    }
 
     var drainingEvents = false
 
@@ -374,7 +412,7 @@ public struct ProtocolEventManager: ~Copyable {
     }
     internal mutating func unregister(state: inout NetworkContext.State) {
         guard let contextIndex else { return }
-        state.unregisterProtocolEventState(contextIndex)
+        state.retireProtocolEventState(contextIndex)
         self.contextIndex = nil
     }
 }
@@ -385,6 +423,34 @@ extension NetworkContext.State {
         #if DEBUG
         self.assert()
         #endif
+    }
+
+    // Marks a scheduled timer for `index` as no longer outstanding, dropping the event state if
+    // that was the last thing keeping a retiring one alive.
+    fileprivate mutating func clearScheduledTimer(_ index: NetworkStateIndex) {
+        protocolEventStates[index].clearScheduledTimer()
+        removeProtocolEventStateIfRetired(index)
+    }
+
+    // Removes an event state that is retiring once nothing scheduled still holds its index.
+    fileprivate mutating func removeProtocolEventStateIfRetired(_ index: NetworkStateIndex) {
+        guard protocolEventStates[index].retiring, protocolEventStates[index].canRemove else {
+            return
+        }
+        unregisterProtocolEventState(index)
+    }
+
+    // Retires the event state for `index`, removing it now if nothing scheduled still holds it.
+    //
+    // Queued async blocks and scheduled timer wakeups capture the index and dereference it when
+    // they run, so removing the state while any are outstanding would leave them pointing at an
+    // empty slot. In that case the state is marked retiring and the last such block removes it.
+    fileprivate mutating func retireProtocolEventState(_ index: NetworkStateIndex) {
+        guard protocolEventStates[index].canRemove else {
+            protocolEventStates[index].retiring = true
+            return
+        }
+        unregisterProtocolEventState(index)
     }
     @inline(always)
     fileprivate mutating func runEvents(on referenceToTrigger: ProtocolInstanceReference) {
@@ -653,6 +719,10 @@ extension NetworkContext.State {
         defer {
             protocolEventStates[index].finishAsyncCall()
             drainPendingEvents(index: index)
+            // This block no longer holds the index. Account for it after draining, since draining
+            // can schedule further work, and drop the event state if this was the last holder.
+            protocolEventStates[index].finishOutstandingWakeup()
+            removeProtocolEventStateIfRetired(index)
         }
         block(&self)
     }
@@ -662,10 +732,18 @@ extension NetworkContext.State {
         _ wakeup: (inout NetworkContext.State) -> Void
     ) {
         assert()
+        // The scheduler drops a timer entry when it fires, so that entry is no longer outstanding.
+        // The wakeup call itself now holds the index instead: `wakeup` can unregister this event
+        // state, and the `defer` below still needs it. Swapping one holder for the other keeps the
+        // count from reaching zero mid-call, and lets `wakeup` arm a fresh timer.
+        protocolEventStates[index].addOutstandingWakeup()
+        protocolEventStates[index].clearScheduledTimer()
         protocolEventStates[index].startTimerWakeupCall()
         defer {
             protocolEventStates[index].finishTimerWakeupCall()
             drainPendingEvents(index: index)
+            protocolEventStates[index].finishOutstandingWakeup()
+            removeProtocolEventStateIfRetired(index)
         }
         wakeup(&self)
     }
@@ -711,18 +789,20 @@ extension NetworkContext.State {
         return protocolEventStates[index].connectedState == .connected
     }
 
-    fileprivate func async(
+    fileprivate mutating func async(
         context: NetworkContext,
         index: NetworkStateIndex,
         _ block: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
+        // The queued block holds `index` until it runs, so keep the event state alive until then.
+        protocolEventStates[index].addOutstandingWakeup()
         self.async {
             context.state.runAsync(index: index, block)
         }
     }
 
-    fileprivate func scheduleWakeup(
+    fileprivate mutating func scheduleWakeup(
         context: NetworkContext,
         index: NetworkStateIndex,
         timerReference: TimerReference,
@@ -730,6 +810,8 @@ extension NetworkContext.State {
         _ wakeup: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
+        // The scheduled wakeup holds `index` until it fires or is unscheduled.
+        protocolEventStates[index].addScheduledTimer()
         resetTimer(
             for: timerReference,
             to: .milliseconds(
@@ -758,6 +840,7 @@ extension NetworkContext {
         _ block: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
+        self.state.protocolEventStates[index].addOutstandingWakeup()
         self.async {
             self.state.runAsync(index: index, block)
         }
@@ -770,6 +853,7 @@ extension NetworkContext {
         _ wakeup: @escaping (inout NetworkContext.State) -> Void
     ) {
         softAssert()
+        self.state.protocolEventStates[index].addScheduledTimer()
         resetTimer(
             for: timerReference,
             to: .milliseconds(
@@ -955,5 +1039,7 @@ extension ProtocolInstanceReference {
     public func unscheduleWakeup(state: inout NetworkContext.State, timerReference: TimerReference) {
         state.assert()
         state.resetTimer(for: timerReference, to: .unschedule)
+        guard let protocolEventStateIndex else { return }
+        state.clearScheduledTimer(protocolEventStateIndex)
     }
 }

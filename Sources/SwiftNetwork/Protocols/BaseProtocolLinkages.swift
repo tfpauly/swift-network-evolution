@@ -505,6 +505,7 @@ open class BaseNetworkProtocolStorage {
         public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .quic(let index):
+                guard storage!.quicInstances[index].isFullyDetached else { return }
                 storage!.quicInstances[index].eventManager.unregister(state: &state)
                 storage!.quicInstances.remove(index: index)
             default: break
@@ -1201,6 +1202,7 @@ open class BaseNetworkProtocolStorage {
         public func teardown(state: inout NetworkContext.State) {
             switch protocolType {
             case .quic(let index):
+                guard storage!.quicInstances[index].isFullyDetached else { return }
                 storage!.quicInstances[index].eventManager.unregister(state: &state)
                 storage!.quicInstances.remove(index: index)
             default: break
