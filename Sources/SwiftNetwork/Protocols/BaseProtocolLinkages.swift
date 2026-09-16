@@ -974,10 +974,16 @@ open class BaseNetworkProtocolStorage {
             _ from: ProtocolInstanceReference,
             streamData: consuming FrameArray
         ) throws(NetworkError) {
-            // Sending early stream data is not supported by any of the base stream protocols yet.
-            var streamData = streamData
-            streamData.finalizeAllFramesAsFailed()
-            throw NetworkError.posix(ENOTSUP)
+            switch protocolType {
+            case .quicStream(let box):
+                var instance = box.instance
+                try instance.sendEarlyStreamData(state: &state, from, streamData: streamData)
+            default:
+                // Only QUIC supports sending data before the handshake completes.
+                var streamData = streamData
+                streamData.finalizeAllFramesAsFailed()
+                throw NetworkError.posix(ENOTSUP)
+            }
         }
 
         public func abortInbound(
