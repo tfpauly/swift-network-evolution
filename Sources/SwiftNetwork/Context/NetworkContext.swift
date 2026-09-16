@@ -115,16 +115,17 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         }
     }
 
+    public let identifier: String
+
     #if !NETWORK_PRIVATE || NETWORK_STANDALONE
     public static func == (lhs: NetworkContext, rhs: NetworkContext) -> Bool {
         lhs === rhs
     }
 
     public struct State: ~Copyable {
-        var globals: NetworkContext.Globals
+        let globals: NetworkContext.Globals
         let scheduler: any NetworkContext.Scheduler
         let schedulerIsDefault: Bool
-        internal let identifier: String
 
 #if !NETWORK_DRIVERKIT && !NETWORK_STANDALONE
         func assert() {
@@ -154,22 +155,24 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         scheduler: any NetworkContext.Scheduler,
         schedulerIsDefault: Bool
     ) {
-        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: schedulerIsDefault, identifier: identifier)
+        self.scheduler = scheduler
+        self.globals = globals
+        self.identifier = identifier
+        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: schedulerIsDefault)
     }
 
     public static let implicitContext: NetworkContext = NetworkContext(identifier: "context")
 
-    public var identifier: String {
-        state.identifier
-    }
-
-    private var schedulerIsDefault: Bool {
-        state.schedulerIsDefault
-    }
-
     var cacheContext: NetworkContext {
         self
     }
+
+    // The scheduler and globals, held directly so `async(_:)` and `queue` don't read `state`.
+    // Both are immutable for the lifetime of the context, and both are reached from places where
+    // the caller may already hold the state: `async(_:)` from `deinit`, and `queue` from protocol
+    // setup that runs inside an attach. `Globals` is a class, so this is a single reference.
+    private let scheduler: any NetworkContext.Scheduler
+    private let globals: NetworkContext.Globals
 
     internal let _privacyLevel = NetworkMutex<PrivacyLevel>(.privateLogs)
     var privacyLevel: PrivacyLevel {
@@ -191,12 +194,18 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
     public init(identifier: String) {
         let globals = Globals(label: identifier)
         let scheduler = DefaultScheduler(globals: globals)
-        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: true, identifier: identifier)
+        self.scheduler = scheduler
+        self.globals = globals
+        self.identifier = identifier
+        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: true)
     }
 
     public init(identifier: String, externalScheduler: any Scheduler) {
         let globals = Globals(label: identifier)
-        state = .init(globals: globals, scheduler: externalScheduler, schedulerIsDefault: false, identifier: identifier)
+        self.scheduler = externalScheduler
+        self.globals = globals
+        self.identifier = identifier
+        state = .init(globals: globals, scheduler: externalScheduler, schedulerIsDefault: false)
     }
     #endif
 
@@ -372,20 +381,23 @@ extension NetworkContext {
 @available(Network 0.1.0, *)
 extension NetworkContext {
 
+    // Read during protocol setup, which runs inside an attach with the state already held.
     var queue: DispatchQueue {
-        state.queue
+        globals.queue
     }
 
+    // Schedules onto the context queue without reading `state`. This is reachable from `deinit`
+    // and from callbacks running inline with a delivering event, where the state is already held.
     public func async(_ block: @escaping () -> Void) {
-        state.async(block)
+        scheduler.runImmediate(block)
     }
 
     public func barrierAsync(_ block: @escaping () -> Void) {
-        state.barrierAsync(block)
+        scheduler.runImmediate(block)
     }
 
     public var runningInContext: Bool {
-        state.runningInContext
+        scheduler.runningInScheduler
     }
 
     func assert() {

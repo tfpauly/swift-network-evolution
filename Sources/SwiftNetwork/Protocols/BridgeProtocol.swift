@@ -501,7 +501,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
                 return
             }
             remoteInstance.incomingFrames.add(frames: streamData)
-            remoteInstance.async { state in
+            remoteInstance.async(state: &state) { state in
                 remoteInstance.upper.deliverInboundDataAvailableEvent(
                     state: &state,
                     remoteInstance.reference
