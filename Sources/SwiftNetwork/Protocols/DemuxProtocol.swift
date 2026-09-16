@@ -119,7 +119,7 @@ public struct DemuxPattern: Sendable, Hashable {
 public struct DemuxProtocol: NetworkProtocol {
     public typealias Options = DemuxOptions
     public typealias Metadata = DemuxMetadata
-    public typealias Instance = DemuxInstance
+    public typealias Instance = DemuxInstance<DefaultDatagramLinkageFamily>
 
     public struct DemuxOptions: PerProtocolOptions {
         var demuxPatterns = Deque<DemuxPattern>()
@@ -167,11 +167,12 @@ public struct DemuxProtocol: NetworkProtocol {
         }
     }
 
-    public final class DemuxInstance: OutboundDatagramHandler, InboundDatagramHandler, LoggableProtocol
-    {
-        public typealias UpperProtocol = DefaultInboundDatagramLinkage
-        public typealias LowerProtocol = DefaultOutboundDatagramLinkage
-        
+    public final class DemuxInstance<
+        LinkageFamily: DatagramLinkageFamily
+    >: OutboundDatagramHandler, InboundDatagramHandler, LoggableProtocol {
+        public typealias UpperProtocol = LinkageFamily.Upper
+        public typealias LowerProtocol = LinkageFamily.Lower
+
         var defaultUpper = UpperProtocol()
         var defaultInboundFrames = FrameArray()
 
@@ -221,7 +222,7 @@ public struct DemuxProtocol: NetworkProtocol {
         }
 
         public func attachUpperProtocol(
-            _ upperProtocol: DefaultInboundDatagramLinkage,
+            _ upperProtocol: UpperProtocol,
             remote: Endpoint?,
             local: Endpoint?,
             parameters: Parameters?,
@@ -253,6 +254,14 @@ public struct DemuxProtocol: NetworkProtocol {
                 }
                 #endif
             }
+        }
+
+        /// Whether every upper protocol has detached, so the instance's storage can be released.
+        ///
+        /// A demux instance is shared by its default upper and one upper per pattern set, each of
+        /// which detaches separately, so storage may only be released once the last one has gone.
+        public var isFullyDetached: Bool {
+            defaultUpper.isDetached && demuxEntries.isEmpty
         }
 
         public func attachLowerProtocol(
@@ -398,32 +407,26 @@ public struct DemuxProtocol: NetworkProtocol {
             _ from: ProtocolInstanceReference
         ) throws(NetworkError) {
             do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-            var shouldTeardown: Bool
             if from == defaultUpper.reference {
-                shouldTeardown = true
+                defaultUpper = .init()
+                defaultInboundFrames.finalizeAllFramesAsFailed()
             } else {
                 for i in 0..<demuxEntries.count {
                     if demuxEntries[i].upper.reference == from {
-                        demuxEntries[i].upper = .init(reference: .init())
+                        demuxEntries[i].upper = .init()
                         demuxEntries[i].inboundFrames.finalizeAllFramesAsFailed()
                         demuxEntries.remove(at: i)
                         break
                     }
                 }
-
-                shouldTeardown = (defaultUpper.isDetached && demuxEntries.isEmpty)
             }
 
-            guard shouldTeardown else { return }
+            // The remaining uppers still share this instance's lower protocol, so only detach it
+            // once every upper has gone.
+            guard isFullyDetached else { return }
 
-            defaultUpper = .init(reference: .init())
-            defaultInboundFrames.finalizeAllFramesAsFailed()
-            for i in 0..<demuxEntries.count {
-                demuxEntries[i].upper = .init(reference: .init())
-                demuxEntries[i].inboundFrames.finalizeAllFramesAsFailed()
-            }
             try lower.invokeDetach(state: &state, self.reference)
-            lower = .init(reference: .init())
+            lower = .init()
         }
 
         public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
@@ -570,7 +573,7 @@ public struct DemuxProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> DemuxMetadata? { DemuxMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        DemuxInstance(context: context).reference
+        DemuxInstance<DefaultDatagramLinkageFamily>(context: context).reference
     }
 
     static let identifier = ProtocolIdentifier(name: "demux", level: .link, mapping: .oneToOne)

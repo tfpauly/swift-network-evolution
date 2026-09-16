@@ -74,6 +74,7 @@ open class BaseNetworkProtocolStorage {
             case ip(NetworkStateIndex)
             case tcp(NetworkStateIndex)
             case datagramUpperHarness(NetworkStateIndex)
+            case demux(NetworkStateIndex)
             case datagramEndpointFlow(ProtocolInstanceBox<DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>>)
             case quicPath(ProtocolInstanceBox<QUICPath<BaseQUICLinkageFamilies>>)
         }
@@ -82,6 +83,7 @@ open class BaseNetworkProtocolStorage {
             let overrideUpperLinkage: Self?
             switch protocolType {
             case .udp(let index): overrideUpperLinkage = try storage!.udpInstances[index].attachLowerProtocol(lowerProtocol)
+            case .demux(let index): overrideUpperLinkage = try storage!.demuxInstances[index].attachLowerProtocol(lowerProtocol)
             case .ip(let index): overrideUpperLinkage = try storage!.ipInstances[index].attachLowerProtocol(lowerProtocol)
             case .tcp(let index): overrideUpperLinkage = try storage!.tcpInstances[index].attachLowerProtocol(lowerProtocol)
             case .datagramUpperHarness(let index): overrideUpperLinkage = try storage!.datagramUpperHarnesses[index].attachLowerProtocol(lowerProtocol)
@@ -100,6 +102,7 @@ open class BaseNetworkProtocolStorage {
         public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
             case .udp(let index): storage!.udpInstances[index].handleConnectedEvent(state: &state, from)
+            case .demux(let index): storage!.demuxInstances[index].handleConnectedEvent(state: &state, from)
             case .ip(let index): storage!.ipInstances[index].handleConnectedEvent(state: &state, from)
             case .tcp(let index): storage!.tcpInstances[index].handleConnectedEvent(state: &state, from)
             case .datagramUpperHarness(let index):
@@ -120,6 +123,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
+            case .demux(let index):
+                storage!.demuxInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .ip(let index):
                 storage!.ipInstances[index].handleDisconnectedEvent(state: &state, from, error: error)
             case .tcp(let index):
@@ -142,6 +147,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
+            case .demux(let index):
+                storage!.demuxInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .ip(let index):
                 storage!.ipInstances[index].handleNetworkProtocolEvent(state: &state, from, event: event)
             case .tcp(let index):
@@ -164,6 +171,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].handleInboundDataAvailableEvent(state: &state, from)
+            case .demux(let index):
+                storage!.demuxInstances[index].handleInboundDataAvailableEvent(state: &state, from)
             case .ip(let index):
                 storage!.ipInstances[index].handleInboundDataAvailableEvent(state: &state, from)
             case .tcp(let index):
@@ -186,6 +195,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 storage!.udpInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
+            case .demux(let index):
+                storage!.demuxInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .ip(let index):
                 storage!.ipInstances[index].handleOutboundRoomAvailableEvent(state: &state, from)
             case .tcp(let index):
@@ -234,6 +245,7 @@ open class BaseNetworkProtocolStorage {
             case udp(NetworkStateIndex)
             case ip(NetworkStateIndex)
             case datagramLowerHarness(NetworkStateIndex)
+            case demux(NetworkStateIndex)
             case bridgeDatagram(NetworkStateIndex)
             case quicDatagramFlow(ProtocolInstanceBox<QUICDatagramFlow<BaseQUICLinkageFamilies>>)
         }
@@ -242,6 +254,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 return try storage!.udpInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+            case .demux(let index):
+                return try storage!.demuxInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
             case .ip(let index):
                 return try storage!.ipInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
             case .datagramLowerHarness(let index):
@@ -260,6 +274,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 return try storage!.udpInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+            case .demux(let index):
+                return try storage!.demuxInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
             case .ip(let index):
                 return try storage!.ipInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
             case .datagramLowerHarness(let index):
@@ -277,6 +293,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 try storage!.udpInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+            case .demux(let index):
+                try storage!.demuxInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
             case .ip(let index):
                 try storage!.ipInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
             case .datagramLowerHarness(let index):
@@ -298,6 +316,7 @@ open class BaseNetworkProtocolStorage {
         public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
             switch protocolType {
             case .udp(let index): storage!.udpInstances[index].connect(state: &state, from)
+            case .demux(let index): storage!.demuxInstances[index].connect(state: &state, from)
             case .ip(let index): storage!.ipInstances[index].connect(state: &state, from)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].connect(state: &state, from)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].connect(state: &state, from)
@@ -309,6 +328,7 @@ open class BaseNetworkProtocolStorage {
         public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
             switch protocolType {
             case .udp(let index): storage!.udpInstances[index].disconnect(state: &state, from, error: error)
+            case .demux(let index): storage!.demuxInstances[index].disconnect(state: &state, from, error: error)
             case .ip(let index): storage!.ipInstances[index].disconnect(state: &state, from, error: error)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].disconnect(state: &state, from, error: error)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].disconnect(state: &state, from, error: error)
@@ -321,6 +341,8 @@ open class BaseNetworkProtocolStorage {
             switch protocolType {
             case .udp(let index):
                 try storage!.udpInstances[index].detach(state: &state, from)
+            case .demux(let index):
+                try storage!.demuxInstances[index].detach(state: &state, from)
             case .ip(let index):
                 try storage!.ipInstances[index].detach(state: &state, from)
             case .datagramLowerHarness(let index):
@@ -339,6 +361,12 @@ open class BaseNetworkProtocolStorage {
             case .udp(let index):
                 storage!.udpInstances[index].eventManager.unregister(state: &state)
                 storage!.udpInstances.remove(index: index)
+            case .demux(let index):
+                // A demux instance is shared by its default upper and one upper per pattern set,
+                // which detach separately. Only release the storage once the last one has gone.
+                guard storage!.demuxInstances[index].isFullyDetached else { return }
+                storage!.demuxInstances[index].eventManager.unregister(state: &state)
+                storage!.demuxInstances.remove(index: index)
             case .ip(let index):
                 storage!.ipInstances[index].eventManager.unregister(state: &state)
                 storage!.ipInstances.remove(index: index)
@@ -357,6 +385,7 @@ open class BaseNetworkProtocolStorage {
         public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
             switch protocolType {
             case .udp(let index): storage!.udpInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .demux(let index): storage!.demuxInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .ip(let index): storage!.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].handleApplicationEvent(state: &state, from, event: event)
@@ -368,6 +397,7 @@ open class BaseNetworkProtocolStorage {
         public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
             switch protocolType {
             case .udp(let index): return storage!.udpInstances[index].getMetadata(state: &state, from)
+            case .demux(let index): return storage!.demuxInstances[index].getMetadata(state: &state, from)
             case .ip(let index): return storage!.ipInstances[index].getMetadata(state: &state, from)
             case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetadata(state: &state, from)
             case .bridgeDatagram(let index): return storage!.bridgeDatagramInstances[index].getMetadata(state: &state, from)
@@ -383,6 +413,7 @@ open class BaseNetworkProtocolStorage {
         ) -> NetworkMetrics? {
             switch protocolType {
             case .udp(let index): return storage!.udpInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .demux(let index): return storage!.demuxInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .ip(let index): return storage!.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .bridgeDatagram(let index): return storage!.bridgeDatagramInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
@@ -394,6 +425,7 @@ open class BaseNetworkProtocolStorage {
         public func invokeAttachUpperProtocol(_ upperProtocol: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
             switch protocolType {
             case .udp(let index): try storage!.udpInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .demux(let index): try storage!.demuxInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .ip(let index): try storage!.ipInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .datagramLowerHarness(let index): try storage!.datagramLowerHarnesses[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .bridgeDatagram(let index): try storage!.bridgeDatagramInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
@@ -1370,6 +1402,20 @@ open class BaseNetworkProtocolStorage {
         let reference = udpInstances[instanceIndex].reference
         let inbound = BaseInboundDatagramLinkage(reference: reference, storage: self, protocolType: .udp(instanceIndex))
         let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .udp(instanceIndex))
+
+        return (inbound, outbound)
+    }
+
+    internal var demuxInstances = NetworkGappyArray<DemuxProtocol.DemuxInstance<BaseDatagramLinkageFamily>>()
+
+    public func createDemuxInstance() -> (BaseInboundDatagramLinkage, BaseOutboundDatagramLinkage) {
+        let instance = DemuxProtocol.DemuxInstance<BaseDatagramLinkageFamily>(context: context)
+
+        let instanceIndex = demuxInstances.insert(instance)
+
+        let reference = demuxInstances[instanceIndex].reference
+        let inbound = BaseInboundDatagramLinkage(reference: reference, storage: self, protocolType: .demux(instanceIndex))
+        let outbound = BaseOutboundDatagramLinkage(reference: reference, storage: self, protocolType: .demux(instanceIndex))
 
         return (inbound, outbound)
     }
