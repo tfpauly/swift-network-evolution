@@ -607,6 +607,7 @@ extension HomogeneousManyToManyProtocolHandler {
 
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
+        newFlow.upper = upperProtocol
         multiplexedFlows[flowID] = newFlow
 
         return newFlow.asLowerLinkage()
@@ -821,6 +822,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 
         var newFlow = Flow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
+        newFlow.upper = upperProtocol
         multiplexedFlows[flowID] = newFlow
 
         return newFlow.asLowerLinkage()
@@ -843,6 +845,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 
         var newFlow = SecondaryFlow(parent: self, inbound: false)
         newFlow.log.logPrefix = self.log.logPrefix
+        newFlow.upper = upperProtocol
         multiplexedSecondaryFlows[flowID] = newFlow
 
         return newFlow.asLowerLinkage()
@@ -1043,7 +1046,10 @@ extension MultiplexedFlow {
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        guard upper.isDetached else {
+        // `attachUpperProtocolToNewFlow` already bound this upper when it created the flow, so
+        // seeing the same one again is the expected second leg of the attach, not a conflict.
+        // A *different* upper is still rejected.
+        guard upper.isDetached || upper == upperProtocol else {
             throw NetworkError.posix(EALREADY)
         }
         upper = upperProtocol

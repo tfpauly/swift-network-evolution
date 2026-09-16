@@ -366,17 +366,10 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         path: PathProperties?
     ) throws(NetworkError) {
         switch protocolType {
-        case .multiplexedFlow(let flow):
-            // Binding the upper here is what lets the flow accept calls from it: the flow
-            // validates every inbound call against `upper.reference`.
-            var flow = flow
-            try flow.attachUpperProtocol(
-                upperProtocol,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
+        case .multiplexedFlow:
+            // `attachUpperProtocolToNewFlow` binds the upper when it creates the flow, so there
+            // is nothing more to do here.
+            break
         case .datagramLowerHarness(let harness):
             var harness = harness
             try harness.attachUpperProtocol(
