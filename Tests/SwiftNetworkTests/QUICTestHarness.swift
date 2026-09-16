@@ -627,9 +627,11 @@ class QUICTestHarness {
         context.async {
             state.clientHarness.stop()
             state.serverHarness.stop()
+            state.clientDatagramHarness?.stop()
             state.serverDatagramHarness?.stop()
             state.clientHarness.teardown()
             state.serverHarness.teardown()
+            state.clientDatagramHarness?.teardown()
             state.serverDatagramHarness?.teardown()
             stopCompleteExpectation.fulfill()
             self.state = nil

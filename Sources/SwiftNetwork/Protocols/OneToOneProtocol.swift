@@ -644,14 +644,6 @@ extension OneToOneDatapathProtocol where Self: ~Copyable {
 }
 
 @available(Network 0.1.0, *)
-extension OneToOneProtocolHandler where Self: ~Copyable, UpperProtocol == DefaultInboundDatagramLinkage {
-    public func deliverInboundDataAvailableEvent(state: inout NetworkContext.State) {
-        guard passthroughEvents || isConnected(state: &state) else { return }
-        upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
-    }
-}
-
-@available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundDatagramLinkage {
     public func invokeReceiveDatagrams(
         state: inout NetworkContext.State,
