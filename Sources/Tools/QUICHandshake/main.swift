@@ -48,28 +48,34 @@ final class QUICHandshake {
         for index in 0..<iterations {
             group.enter()
             context.async {
-                let clientInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: context)
+                // The storage owns the protocol instances and hands back the linkages used to
+                // wire the stack together.
+                let storage = BaseNetworkProtocolStorage(context: context)
+
+                let (clientStreamListener, _, clientMultipath) = storage.createQUICInstance()
                 let clientOptions = self.quicBenchmarkUtility.createQUICTestOptions(datagram: false)
                 clientOptions.setLogID(
                     prefix: "C",
                     parent: "1",
                     protocolLogIDNumber: 1
                 )
-                clientOptions.setProtocolInstance(clientInstance.reference)
+                clientOptions.setProtocolInstance(clientStreamListener.reference)
 
-                let serverInstance = QUICConnection<DefaultQUICLinkageFamilies>(context: context)
+                let (serverStreamListener, _, serverMultipath) = storage.createQUICInstance()
                 let serverOptions = self.quicBenchmarkUtility.createQUICTestOptions(server: true, datagram: false)
                 serverOptions.setLogID(
                     prefix: "L",
                     parent: "1",
                     protocolLogIDNumber: 1
                 )
-                serverOptions.setProtocolInstance(serverInstance.reference)
+                serverOptions.setProtocolInstance(serverStreamListener.reference)
 
                 // Create endpoints
                 guard
                     let client = try? self.quicBenchmarkUtility.createClientEndpoint(
-                        instance: clientInstance,
+                        storage: storage,
+                        streamListener: clientStreamListener,
+                        multipath: clientMultipath,
                         context: context,
                         options: clientOptions,
                         localEndpoint: self.ipv4Client,
@@ -82,7 +88,9 @@ final class QUICHandshake {
                 }
                 guard
                     let server = try? self.quicBenchmarkUtility.createServerEndpoint(
-                        instance: serverInstance,
+                        storage: storage,
+                        streamListener: serverStreamListener,
+                        multipath: serverMultipath,
                         context: context,
                         options: serverOptions,
                         localEndpoint: self.ipv4Server,
@@ -100,7 +108,7 @@ final class QUICHandshake {
                     clientNetworkLayer: client.lowerHandler,
                     serverApplicationLayer: server.upperHandler,
                     serverNetworkLayer: server.lowerHandler,
-                    serverInstance: serverInstance,
+                    serverInstance: server.instance,
                     clientNewFlowHandler: client.clientNewFlowHandler
                 )
 

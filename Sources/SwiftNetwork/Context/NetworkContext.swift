@@ -400,7 +400,7 @@ extension NetworkContext.State {
         globals.queue
     }
 
-    func async(_ block: @escaping () -> Void) {
+    public func async(_ block: @escaping () -> Void) {
         scheduler.runImmediate(block)
     }
 

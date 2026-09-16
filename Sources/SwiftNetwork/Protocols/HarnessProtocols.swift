@@ -212,6 +212,19 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
     }
 
+    /// Tears down using a context state the caller already holds.
+    ///
+    /// Completions that run inline while a delivering event holds the state have to use this
+    /// rather than `teardown()`.
+    public func teardown(state: inout NetworkContext.State) {
+        do throws(NetworkError) {
+            var mutatingSelf = self
+            try mutatingSelf.invokeDetach(state: &state)
+        } catch {
+            log.error("Failed to detach lower protocol: \(error)")
+        }
+    }
+
     public func waitForInboundDataAvailable(
         completion: @escaping (inout NetworkContext.State, Bool) -> Void
     ) {
@@ -222,6 +235,23 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
             fromExternal { state in
                 completion(&state, true)
             }
+            return
+        }
+        completions.inboundDataAvailable = completion
+    }
+
+    /// Registers an inbound-data completion using a context state the caller already holds.
+    ///
+    /// Re-registering from inside a completion has to use this: the state is already held there,
+    /// so `waitForInboundDataAvailable(completion:)` would re-enter it via `fromExternal` when
+    /// data had already arrived, and the pending read would be lost.
+    public func waitForInboundDataAvailable(
+        state: inout NetworkContext.State,
+        completion: @escaping (inout NetworkContext.State, Bool) -> Void
+    ) {
+        if self.inboundDataAvailableReceived {
+            self.inboundDataAvailableReceived = false
+            completion(&state, true)
             return
         }
         completions.inboundDataAvailable = completion
@@ -464,8 +494,24 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     public var receivedFIN: Bool = false
 
     public func readAndDrop(upTo maximumBytes: Int = Int.max) -> Int {
+        fromExternal { state in
+            readAndDrop(state: &state, upTo: maximumBytes)
+        }
+    }
+
+    /// Reads and discards inbound data, using a context state the caller already holds.
+    ///
+    /// Inbound-data and new-flow completions run inline while the delivering event holds the
+    /// state, so they have to use this rather than `readAndDrop(upTo:)`.
+    public func readAndDrop(state: inout NetworkContext.State, upTo maximumBytes: Int = Int.max) -> Int {
         do throws(NetworkError) {
-            guard var frames = try invokeReceiveStreamData(minimumBytes: 1, maximumBytes: maximumBytes) else {
+            guard
+                var frames = try invokeReceiveStreamData(
+                    state: &state,
+                    minimumBytes: 1,
+                    maximumBytes: maximumBytes
+                )
+            else {
                 return 0
             }
             var bytesRead = 0

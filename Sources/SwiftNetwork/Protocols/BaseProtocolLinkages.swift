@@ -1746,21 +1746,21 @@ open class BaseNetworkProtocolStorage {
         return (stream, datagram, multipath)
     }
 
-    internal func quicInstance(for linkage: BaseStreamListenerLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
+    public func quicInstance(for linkage: BaseStreamListenerLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil
         }
     }
 
-    internal func quicInstance(for linkage: BaseDatagramListenerLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
+    public func quicInstance(for linkage: BaseDatagramListenerLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil
         }
     }
 
-    internal func quicInstance(for linkage: BaseDatagramMultipathLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
+    public func quicInstance(for linkage: BaseDatagramMultipathLinkage) -> QUICConnection<BaseQUICLinkageFamilies>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil

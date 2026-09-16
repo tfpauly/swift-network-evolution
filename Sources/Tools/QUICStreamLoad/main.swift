@@ -71,9 +71,9 @@ final class QUICStreamLoad {
         var handshakeDuration = NetworkDuration.zero
         var streamRoundTripDurations = [NetworkDuration]()
 
-        var clientInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
-        var clientListenerLinkage: DefaultStreamListenerLinkage? = nil
-        var serverInput: NewStreamFlowHarness<DefaultStreamLinkageFamily>? = nil
+        var clientInput: NewStreamFlowHarness<BaseStreamLinkageFamily>? = nil
+        var clientQUICStreamListenerLinkage: BaseNetworkProtocolStorage.BaseStreamListenerLinkage? = nil
+        var serverInput: NewStreamFlowHarness<BaseStreamLinkageFamily>? = nil
 
         group.enter()
         var clientParameters = Parameters()
@@ -87,25 +87,28 @@ final class QUICStreamLoad {
         let serverPath = PathProperties(parameters: serverParameters)
 
         context.activate()
+        // The storage owns the protocol instances and hands back the linkages used to wire the
+        // stack together.
+        let storage = BaseNetworkProtocolStorage(context: context)
         context.async {
 
             let handshakeStart = NetworkClock.Instant.now
 
             // Client
-            let clientIP = IPProtocol.instance(context: clientParameters.context)
+            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(clientIP)
+            clientIPOptions.setProtocolInstance(clientIPLower.reference)
             clientParameters.defaultStack.internet = .ip(clientIPOptions)
 
-            let clientUDP = UDPProtocol.instance(context: context)
+            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            clientUDPOptions.setProtocolInstance(clientUDP)
+            clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
             clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
-            let clientQUIC = QUICProtocol.instance(context: context)
+            let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
             var clientTLSOptions = SwiftTLSProtocol.Options()
             clientTLSOptions.applicationProtocols = ["network_test"]
             clientTLSOptions.serverName = "quic-test.local"
@@ -117,74 +120,82 @@ final class QUICStreamLoad {
             clientQUICOptions.connectionOptions.initialMaxStreamsBidirectional = 100
             clientQUICOptions.connectionOptions.maximumConcurrentBidirectionalStreams = concurrentStreams * 2
             clientQUICOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientQUICOptions.setProtocolInstance(clientQUIC)
+            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.reference)
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
-            let clientOutput = BridgeDatagramProtocol.instance(context: clientParameters.context)
+            let clientOutput = storage.createBridgeDatagramInstance()
             let bridgeOptions = BridgeDatagramProtocol.options()
             bridgeOptions.linkDelay = linkDelay
-            bridgeOptions.setProtocolInstance(clientOutput)
+            bridgeOptions.setProtocolInstance(clientOutput.reference)
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
-            clientListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
-            clientInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
+            clientQUICStreamListenerLinkage = clientQUICStreamListener
+            let (clientInputInstance, clientInputLinkage) = storage.createNewStreamFlowHarness(
                 identifier: "Client",
                 local: ipv4Client,
                 remote: ipv4Server,
                 parameters: clientParameters,
                 path: path,
                 context: context
-            ) { state in
-                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: serverParameters, path: serverPath, context: context), .init())
-            }
+            )
+            clientInput = clientInputInstance
             guard let clientInput else {
                 group.leave()
                 return
             }
 
-//            do {
-//                try clientQUIC.attachLowerDatagramProtocolForNewPath(
-//                    clientUDP,
-//                    remote: ipv4Server,
-//                    local: ipv4Client,
-//                    parameters: clientParameters,
-//                    path: path
-//                )
-//                try clientUDP.attachLowerDatagramProtocol(
-//                    clientIP,
-//                    remote: ipv4Server,
-//                    local: ipv4Client,
-//                    parameters: clientParameters,
-//                    path: path
-//                )
-//                try clientIP.attachLowerDatagramProtocol(
-//                    clientOutput,
-//                    remote: ipv4Server,
-//                    local: ipv4Client,
-//                    parameters: clientParameters,
-//                    path: path
-//                )
-//            } catch {
-//                loggingHandle.log("Failed to attach client IP to lower protocol")
-//                group.leave()
-//                return
-//            }
+            do {
+                // Attach from the upper linkage so both directions are bound.
+                try clientInputLinkage.invokeAttachLowerProtocol(
+                    clientQUICStreamListener,
+                    remote: ipv4Server,
+                    local: ipv4Client,
+                    parameters: clientParameters,
+                    path: path
+                )
+                // QUIC -> UDP -> IP -> BridgeProtocol
+                try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
+                    clientUDPLower,
+                    remote: ipv4Server,
+                    local: ipv4Client,
+                    parameters: clientParameters,
+                    path: path
+                )
+                try clientUDPUpper.invokeAttachLowerProtocol(
+                    clientIPLower,
+                    remote: ipv4Server,
+                    local: ipv4Client,
+                    parameters: clientParameters,
+                    path: path
+                )
+                try clientIPUpper.invokeAttachLowerProtocol(
+                    clientOutput,
+                    remote: ipv4Server,
+                    local: ipv4Client,
+                    parameters: clientParameters,
+                    path: path
+                )
+            } catch {
+                loggingHandle.log("Failed to attach client IP to lower protocol")
+                group.leave()
+                return
+            }
             // Server
-            let serverIP = IPProtocol.instance(context: clientParameters.context)
+            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(serverIP)
+            serverIPOptions.setProtocolInstance(serverIPLower.reference)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-            let serverUDP = UDPProtocol.instance(context: context)
+            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
-            serverUDPOptions.setProtocolInstance(serverUDP)
+            serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
-            let serverQUIC = QUICProtocol.instance(context: context)
+            let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
             var serverTLSOptions = SwiftTLSProtocol.Options()
             serverTLSOptions.applicationProtocols = ["network_test"]
             serverTLSOptions.serverName = "quic-test.local"
@@ -195,60 +206,66 @@ final class QUICStreamLoad {
             serverQUICOptions.connectionOptions.initialMaxStreamsBidirectional = 100
             serverQUICOptions.connectionOptions.maximumConcurrentBidirectionalStreams = concurrentStreams * 2
             serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverQUICOptions.setProtocolInstance(serverQUIC)
+            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
-            let serverOutput = BridgeDatagramProtocol.instance(context: serverParameters.context)
+            let serverOutput = storage.createBridgeDatagramInstance()
             let serverBridgeOptions = BridgeDatagramProtocol.options()
             serverBridgeOptions.linkDelay = linkDelay
-            serverBridgeOptions.setProtocolInstance(serverOutput)
+            serverBridgeOptions.setProtocolInstance(serverOutput.reference)
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
-            let serverListenerLinkage = DefaultStreamListenerLinkage() // TODO: TFPDEBUG FIX THIS
-            serverInput = NewStreamFlowHarness<DefaultStreamLinkageFamily>(
+            let (serverInputInstance, serverInputLinkage) = storage.createNewStreamFlowHarness(
                 identifier: "Server",
                 local: ipv4Server,
                 remote: ipv4Client,
                 parameters: serverParameters,
                 path: serverPath,
-                context: serverParameters.context
-            ) { state in
-                (StreamUpperHarness<DefaultStreamLinkageFamily>(identifier: "Inbound", local: ipv4Client, remote: ipv4Server, parameters: serverParameters, path: serverPath, context: context), .init())
-            }
+                context: context
+            )
+            serverInput = serverInputInstance
 
             guard let serverInput else {
                 group.leave()
                 return
             }
 
-//            do {
-//                try serverQUIC.attachLowerDatagramProtocolForNewPath(
-//                    serverUDP,
-//                    remote: ipv4Client,
-//                    local: ipv4Server,
-//                    parameters: serverParameters,
-//                    path: serverPath
-//                )
-//
-//                try serverUDP.attachLowerDatagramProtocol(
-//                    serverIP,
-//                    remote: ipv4Client,
-//                    local: ipv4Server,
-//                    parameters: clientParameters,
-//                    path: path
-//                )
-//                try serverIP.attachLowerDatagramProtocol(
-//                    serverOutput,
-//                    remote: ipv4Client,
-//                    local: ipv4Server,
-//                    parameters: serverParameters,
-//                    path: serverPath
-//                )
-//            } catch {
-//                loggingHandle.log("Failed to attach server IP to lower protocol")
-//                group.leave()
-//                return
-//            }
+            do {
+                // Attach from the upper linkage so both directions are bound.
+                try serverInputLinkage.invokeAttachLowerProtocol(
+                    serverQUICStreamListener,
+                    remote: ipv4Client,
+                    local: ipv4Server,
+                    parameters: serverParameters,
+                    path: serverPath
+                )
+                // QUIC -> UDP -> IP -> BridgeProtocol
+                try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
+                    serverUDPLower,
+                    remote: ipv4Client,
+                    local: ipv4Server,
+                    parameters: serverParameters,
+                    path: serverPath
+                )
+                try serverUDPUpper.invokeAttachLowerProtocol(
+                    serverIPLower,
+                    remote: ipv4Client,
+                    local: ipv4Server,
+                    parameters: serverParameters,
+                    path: serverPath
+                )
+                try serverIPUpper.invokeAttachLowerProtocol(
+                    serverOutput,
+                    remote: ipv4Client,
+                    local: ipv4Server,
+                    parameters: serverParameters,
+                    path: serverPath
+                )
+            } catch {
+                loggingHandle.log("Failed to attach server IP to lower protocol")
+                group.leave()
+                return
+            }
             serverInput.start { connected in
                 handshakeDuration = handshakeStart.duration(to: .now)
                 group.leave()
@@ -257,7 +274,7 @@ final class QUICStreamLoad {
         }
         group.wait()
 
-        guard let serverInput, let clientInput, let clientListenerLinkage else {
+        guard let serverInput, let clientInput, let clientQUICStreamListenerLinkage else {
             return .zero
         }
 
@@ -276,8 +293,7 @@ final class QUICStreamLoad {
             let streamStart = NetworkClock.Instant.now
 
             let myIndex = index
-            // TODO: TFPDEBUG FIX THIS
-            let clientStream = StreamUpperHarness<DefaultStreamLinkageFamily>(
+            let (clientStream, clientStreamLinkage) = storage.createStreamUpperHarness(
                 identifier: "Client\(myIndex)",
                 local: ipv4Client,
                 remote: ipv4Server,
@@ -285,17 +301,27 @@ final class QUICStreamLoad {
                 path: path,
                 context: context
             )
-//            guard let clientStream else {
-//                group.leave()
-//                return
-//            }
+            do {
+                // Each load stream is a new outbound flow on the shared client connection.
+                try clientQUICStreamListenerLinkage.invokeAttachUpperProtocolToNewFlow(
+                    clientStreamLinkage,
+                    remote: ipv4Server,
+                    local: ipv4Client,
+                    parameters: clientParameters,
+                    path: path
+                )
+            } catch {
+                print("Failed to attach client stream \(myIndex) to QUIC: \(error)")
+                group.leave()
+                return
+            }
 
             clientStream.start()
 
-            var serverStreamToTeardown: StreamUpperHarness<DefaultStreamLinkageFamily>? = nil
+            var serverStreamToTeardown: StreamUpperHarness<BaseStreamLinkageFamily>? = nil
 
             // Get new server stream
-            serverInput.waitForNewFlow {
+            serverInput.waitForNewFlow { newFlowState in
                 guard let serverStream = serverInput.upperHarnesses.last else {
                     group.leave()
                     return
@@ -306,9 +332,9 @@ final class QUICStreamLoad {
                 // Read on server, respond to client
                 var serverPayloadReceived = false
                 var serverReadDataSize = 0
-                var serverReadCompletion: ((Bool) -> Void)? = nil
-                serverReadCompletion = { _ in
-                    let readBytes = serverStream.readAndDrop()
+                var serverReadCompletion: ((inout NetworkContext.State, Bool) -> Void)? = nil
+                serverReadCompletion = { state, _ in
+                    let readBytes = serverStream.readAndDrop(state: &state)
                     if readBytes > 0 {
                         serverReadDataSize += readBytes
                     }
@@ -317,26 +343,29 @@ final class QUICStreamLoad {
                     }
 
                     if !serverPayloadReceived {
-                        serverStream.waitForInboundDataAvailable(completion: serverReadCompletion!)
+                        serverStream.waitForInboundDataAvailable(state: &state, completion: serverReadCompletion!)
                     } else {
                         serverReadCompletion = nil
-                        let writeSuccess = serverStream.write(downloadPayload, sendFIN: true, earlyData: true)
+                        let writeSuccess = serverStream.write(
+                            state: &state,
+                            downloadPayload,
+                            sendFIN: true,
+                            earlyData: true
+                        )
                         if !writeSuccess {
                             print("Issue took place writing on the server \(myIndex)")
                         }
-                        serverStream.stop()
+                        serverStream.stop(state: &state)
                     }
                 }
-                serverStream.fromExternal { _ in
-                    serverReadCompletion!(true)
-                }
+                serverReadCompletion!(&newFlowState, true)
 
                 // Read on client
                 var clientPayloadReceived = false
                 var clientReadDataSize = 0
-                var clientReadCompletion: ((Bool) -> Void)? = nil
-                clientReadCompletion = { _ in
-                    let readBytes = clientStream.readAndDrop()
+                var clientReadCompletion: ((inout NetworkContext.State, Bool) -> Void)? = nil
+                clientReadCompletion = { state, _ in
+                    let readBytes = clientStream.readAndDrop(state: &state)
                     if readBytes > 0 {
                         clientReadDataSize += readBytes
                     }
@@ -345,26 +374,28 @@ final class QUICStreamLoad {
                     }
 
                     if !clientPayloadReceived {
-                        clientStream.waitForInboundDataAvailable(completion: clientReadCompletion!)
+                        clientStream.waitForInboundDataAvailable(state: &state, completion: clientReadCompletion!)
                     } else {
                         streamRoundTripDurations.append(streamStart.duration(to: .now))
 
                         clientReadCompletion = nil
                         group.leave()
-                        clientStream.stop()
+                        clientStream.stop(state: &state)
 
-                        // Start the next stream
+                        // Start the next stream on a fresh hop: it builds new protocol instances,
+                        // which is an external entry point and cannot run while this event still
+                        // holds the context state.
                         if index < streamCount, let testStreamBlock {
-                            testStreamBlock()
+                            state.async {
+                                testStreamBlock()
+                            }
                         }
 
-                        clientStream.teardown()
-                        serverStreamToTeardown?.teardown()
+                        clientStream.teardown(state: &state)
+                        serverStreamToTeardown?.teardown(state: &state)
                     }
                 }
-                clientStream.fromExternal { _ in
-                    clientReadCompletion!(true)
-                }
+                clientReadCompletion!(&newFlowState, true)
             }
 
             // Send from client to server, which triggers the new flow above
