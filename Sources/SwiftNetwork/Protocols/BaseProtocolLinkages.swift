@@ -247,6 +247,7 @@ open class BaseNetworkProtocolStorage {
             case datagramLowerHarness(NetworkStateIndex)
             case demux(NetworkStateIndex)
             case bridgeDatagram(NetworkStateIndex)
+            case socketDatagram(NetworkStateIndex)
             case quicDatagramFlow(ProtocolInstanceBox<QUICDatagramFlow<BaseQUICLinkageFamilies>>)
         }
 
@@ -262,6 +263,8 @@ open class BaseNetworkProtocolStorage {
                 return try storage!.datagramLowerHarnesses[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
             case .bridgeDatagram(let index):
                 return try storage!.bridgeDatagramInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+            case .socketDatagram(let index):
+                return try storage!.socketDatagramInstances[index].receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
             case .quicDatagramFlow(let box):
                 var instance = box.instance
                 return try instance.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
@@ -282,6 +285,8 @@ open class BaseNetworkProtocolStorage {
                 return try storage!.datagramLowerHarnesses[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
             case .bridgeDatagram(let index):
                 return try storage!.bridgeDatagramInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+            case .socketDatagram(let index):
+                return try storage!.socketDatagramInstances[index].getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
             case .quicDatagramFlow(let box):
                 return try box.instance.getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
             default:
@@ -301,6 +306,8 @@ open class BaseNetworkProtocolStorage {
                 try storage!.datagramLowerHarnesses[index].sendDatagrams(state: &state, from, datagrams: datagrams)
             case .bridgeDatagram(let index):
                 try storage!.bridgeDatagramInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
+            case .socketDatagram(let index):
+                try storage!.socketDatagramInstances[index].sendDatagrams(state: &state, from, datagrams: datagrams)
             case .quicDatagramFlow(let box):
                 var instance = box.instance
                 try instance.sendDatagrams(state: &state, from, datagrams: datagrams)
@@ -320,6 +327,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): storage!.ipInstances[index].connect(state: &state, from)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].connect(state: &state, from)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].connect(state: &state, from)
+            case .socketDatagram(let index): storage!.socketDatagramInstances[index].connect(state: &state, from)
             case .quicDatagramFlow(let box): box.instance.connect(state: &state, from)
             default: fatalError("Protocol cannot accept connect call")
             }
@@ -332,6 +340,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): storage!.ipInstances[index].disconnect(state: &state, from, error: error)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].disconnect(state: &state, from, error: error)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].disconnect(state: &state, from, error: error)
+            case .socketDatagram(let index): storage!.socketDatagramInstances[index].disconnect(state: &state, from, error: error)
             case .quicDatagramFlow(let box): box.instance.disconnect(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept disconnect call")
             }
@@ -349,6 +358,8 @@ open class BaseNetworkProtocolStorage {
                 try storage!.datagramLowerHarnesses[index].detach(state: &state, from)
             case .bridgeDatagram(let index):
                 try storage!.bridgeDatagramInstances[index].detach(state: &state, from)
+            case .socketDatagram(let index):
+                try storage!.socketDatagramInstances[index].detach(state: &state, from)
             case .quicDatagramFlow(let box):
                 var instance = box.instance
                 try instance.detach(state: &state, from)
@@ -376,6 +387,9 @@ open class BaseNetworkProtocolStorage {
             case .bridgeDatagram(let index):
                 storage!.bridgeDatagramInstances[index].eventManager.unregister(state: &state)
                 storage!.bridgeDatagramInstances.remove(index: index)
+            case .socketDatagram(let index):
+                storage!.socketDatagramInstances[index].eventManager.unregister(state: &state)
+                storage!.socketDatagramInstances.remove(index: index)
             case .quicDatagramFlow(let box):
                 box.instance.eventManager.unregister(state: &state)
             default: break
@@ -389,6 +403,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): storage!.ipInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .datagramLowerHarness(let index): storage!.datagramLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
             case .bridgeDatagram(let index): storage!.bridgeDatagramInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .socketDatagram(let index): storage!.socketDatagramInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .quicDatagramFlow(let box): box.instance.handleApplicationEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleApplicationEvent call")
             }
@@ -401,6 +416,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): return storage!.ipInstances[index].getMetadata(state: &state, from)
             case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetadata(state: &state, from)
             case .bridgeDatagram(let index): return storage!.bridgeDatagramInstances[index].getMetadata(state: &state, from)
+            case .socketDatagram(let index): return storage!.socketDatagramInstances[index].getMetadata(state: &state, from)
             case .quicDatagramFlow(let box): return box.instance.getMetadata(state: &state, from)
             default: fatalError("Protocol cannot accept getMetadata call")
             }
@@ -417,6 +433,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): return storage!.ipInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .datagramLowerHarness(let index): return storage!.datagramLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .bridgeDatagram(let index): return storage!.bridgeDatagramInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .socketDatagram(let index): return storage!.socketDatagramInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .quicDatagramFlow(let box): return box.instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             default: fatalError("Protocol cannot accept getMetrics call")
             }
@@ -429,6 +446,7 @@ open class BaseNetworkProtocolStorage {
             case .ip(let index): try storage!.ipInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .datagramLowerHarness(let index): try storage!.datagramLowerHarnesses[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .bridgeDatagram(let index): try storage!.bridgeDatagramInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .socketDatagram(let index): try storage!.socketDatagramInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .quicDatagramFlow(let box):
                 var instance = box.instance
                 try instance.attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
@@ -905,6 +923,7 @@ open class BaseNetworkProtocolStorage {
             case tcp(NetworkStateIndex)
             case streamLowerHarness(NetworkStateIndex)
             case bridgeStream(NetworkStateIndex)
+            case socketStream(NetworkStateIndex)
             case quicStream(ProtocolInstanceBox<QUICStreamInstance<BaseQUICLinkageFamilies>>)
         }
 
@@ -921,6 +940,8 @@ open class BaseNetworkProtocolStorage {
                 return try storage!.streamLowerHarnesses[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             case .bridgeStream(let index):
                 return try storage!.bridgeStreamInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+            case .socketStream(let index):
+                return try storage!.socketStreamInstances[index].receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
             case .quicStream(let box):
                 var instance = box.instance
                 return try instance.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
@@ -940,6 +961,8 @@ open class BaseNetworkProtocolStorage {
                 return try storage!.streamLowerHarnesses[index].getOutboundStreamDataRoomAvailable(state: &state, from)
             case .bridgeStream(let index):
                 return try storage!.bridgeStreamInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
+            case .socketStream(let index):
+                return try storage!.socketStreamInstances[index].getOutboundStreamDataRoomAvailable(state: &state, from)
             case .quicStream(let box):
                 return try box.instance.getOutboundStreamDataRoomAvailable(state: &state, from)
             default:
@@ -959,6 +982,8 @@ open class BaseNetworkProtocolStorage {
                 try storage!.streamLowerHarnesses[index].sendStreamData(state: &state, from, streamData: streamData)
             case .bridgeStream(let index):
                 try storage!.bridgeStreamInstances[index].sendStreamData(state: &state, from, streamData: streamData)
+            case .socketStream(let index):
+                try storage!.socketStreamInstances[index].sendStreamData(state: &state, from, streamData: streamData)
             case .quicStream(let box):
                 var instance = box.instance
                 try instance.sendStreamData(state: &state, from, streamData: streamData)
@@ -1021,6 +1046,7 @@ open class BaseNetworkProtocolStorage {
             case .tcp(let index): storage!.tcpInstances[index].connect(state: &state, from)
             case .streamLowerHarness(let index): storage!.streamLowerHarnesses[index].connect(state: &state, from)
             case .bridgeStream(let index): storage!.bridgeStreamInstances[index].connect(state: &state, from)
+            case .socketStream(let index): storage!.socketStreamInstances[index].connect(state: &state, from)
             case .quicStream(let box): box.instance.connect(state: &state, from)
             default: fatalError("Protocol cannot accept connect call")
             }
@@ -1033,6 +1059,8 @@ open class BaseNetworkProtocolStorage {
                 storage!.streamLowerHarnesses[index].disconnect(state: &state, from, error: error)
             case .bridgeStream(let index):
                 storage!.bridgeStreamInstances[index].disconnect(state: &state, from, error: error)
+            case .socketStream(let index):
+                storage!.socketStreamInstances[index].disconnect(state: &state, from, error: error)
             case .quicStream(let box):
                 box.instance.disconnect(state: &state, from, error: error)
             default: fatalError("Protocol cannot accept disconnect call")
@@ -1047,6 +1075,8 @@ open class BaseNetworkProtocolStorage {
                 try storage!.streamLowerHarnesses[index].detach(state: &state, from)
             case .bridgeStream(let index):
                 try storage!.bridgeStreamInstances[index].detach(state: &state, from)
+            case .socketStream(let index):
+                try storage!.socketStreamInstances[index].detach(state: &state, from)
             case .quicStream(let box):
                 var instance = box.instance
                 try instance.detach(state: &state, from)
@@ -1065,6 +1095,9 @@ open class BaseNetworkProtocolStorage {
             case .bridgeStream(let index):
                 storage!.bridgeStreamInstances[index].eventManager.unregister(state: &state)
                 storage!.bridgeStreamInstances.remove(index: index)
+            case .socketStream(let index):
+                storage!.socketStreamInstances[index].eventManager.unregister(state: &state)
+                storage!.socketStreamInstances.remove(index: index)
             case .quicStream(let box):
                 box.instance.eventManager.unregister(state: &state)
             default: break
@@ -1078,6 +1111,8 @@ open class BaseNetworkProtocolStorage {
                 storage!.streamLowerHarnesses[index].handleApplicationEvent(state: &state, from, event: event)
             case .bridgeStream(let index):
                 storage!.bridgeStreamInstances[index].handleApplicationEvent(state: &state, from, event: event)
+            case .socketStream(let index):
+                storage!.socketStreamInstances[index].handleApplicationEvent(state: &state, from, event: event)
             case .quicStream(let box):
                 box.instance.handleApplicationEvent(state: &state, from, event: event)
             default: fatalError("Protocol cannot accept handleApplicationEvent call")
@@ -1091,6 +1126,8 @@ open class BaseNetworkProtocolStorage {
                 return storage!.streamLowerHarnesses[index].getMetadata(state: &state, from)
             case .bridgeStream(let index):
                 return storage!.bridgeStreamInstances[index].getMetadata(state: &state, from)
+            case .socketStream(let index):
+                return storage!.socketStreamInstances[index].getMetadata(state: &state, from)
             case .quicStream(let box):
                 return box.instance.getMetadata(state: &state, from)
             default: fatalError("Protocol cannot accept getMetadata call")
@@ -1109,6 +1146,8 @@ open class BaseNetworkProtocolStorage {
                 return storage!.streamLowerHarnesses[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .bridgeStream(let index):
                 return storage!.bridgeStreamInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+            case .socketStream(let index):
+                return storage!.socketStreamInstances[index].getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             case .quicStream(let box):
                 return box.instance.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
             default: fatalError("Protocol cannot accept getMetrics call")
@@ -1126,6 +1165,7 @@ open class BaseNetworkProtocolStorage {
             case .tcp(let index): try storage!.tcpInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .streamLowerHarness(let index): try storage!.streamLowerHarnesses[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .bridgeStream(let index): try storage!.bridgeStreamInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
+            case .socketStream(let index): try storage!.socketStreamInstances[index].attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
             case .quicStream(let box):
                 var instance = box.instance
                 try instance.attachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
@@ -1454,6 +1494,18 @@ open class BaseNetworkProtocolStorage {
         return (instance, outbound)
     }
 
+    internal var socketDatagramInstances = NetworkGappyArray<SocketDatagramProtocol<BaseDatagramLinkageFamily>>()
+
+    public func createSocketDatagramInstance() -> BaseOutboundDatagramLinkage {
+        let instance = SocketDatagramProtocol<BaseDatagramLinkageFamily>(context: context)
+        let instanceIndex = socketDatagramInstances.insert(instance)
+        return BaseOutboundDatagramLinkage(
+            reference: socketDatagramInstances[instanceIndex].reference,
+            storage: self,
+            protocolType: .socketDatagram(instanceIndex)
+        )
+    }
+
     internal var bridgeDatagramInstances = NetworkGappyArray< BridgeDatagramProtocol.BridgeInstance>()
 
     public func createBridgeDatagramInstance() -> BaseOutboundDatagramLinkage {
@@ -1609,6 +1661,18 @@ open class BaseNetworkProtocolStorage {
         )
 
         return (instance, outbound)
+    }
+
+    internal var socketStreamInstances = NetworkGappyArray<SocketStreamProtocol<BaseStreamLinkageFamily>>()
+
+    public func createSocketStreamInstance() -> BaseOutboundStreamLinkage {
+        let instance = SocketStreamProtocol<BaseStreamLinkageFamily>(context: context)
+        let instanceIndex = socketStreamInstances.insert(instance)
+        return BaseOutboundStreamLinkage(
+            reference: socketStreamInstances[instanceIndex].reference,
+            storage: self,
+            protocolType: .socketStream(instanceIndex)
+        )
     }
 
     internal var bridgeStreamInstances = NetworkGappyArray<BridgeStreamProtocol.BridgeInstance>()
@@ -1775,425 +1839,6 @@ public struct BaseQUICLinkageFamilies: QUICLinkageFamilies {
     public typealias DatagramFlowLinkageFamily = BaseDatagramLinkageFamily
     public typealias PathLinkageFamily = BaseDatagramLinkageFamily
     public typealias MultipathLinkageType = BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage
-}
-
-// MARK: - Stub "default" types to be removed
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultDatagramLinkageFamily: DatagramLinkageFamily {
-    public typealias Upper = DefaultInboundDatagramLinkage
-    public typealias Lower = DefaultOutboundDatagramLinkage
-    public typealias Listener = DefaultDatagramListenerLinkage
-    public typealias InboundFlow = DefaultInboundDatagramFlowLinkage
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
-    public typealias PairedLowerLinkage = DefaultOutboundDatagramLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init(reference: ProtocolInstanceReference) { self.reference = reference }
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLowerLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-
-    }
-
-    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-
-    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable {
-    public typealias PairedUpperLinkage = DefaultInboundDatagramLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init(reference: ProtocolInstanceReference) {
-        self.reference = reference
-    }
-    public init() {
-        reference = .init()
-    }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedUpperLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-
-    public func receiveDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int
-    ) throws(NetworkError) -> FrameArray? {
-        return nil
-    }
-    public func getDatagramsToSend(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int,
-        minimumDatagramSize: Int
-    ) throws(NetworkError) -> FrameArray? {
-        return nil
-    }
-    public func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        datagrams: consuming FrameArray
-    ) throws(NetworkError) {
-        var datagrams = datagrams
-        datagrams.finalizeAllFramesAsFailed()
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundDatagramFlowLinkage: InboundDatagramFlowLinkage {
-    public typealias PairedLowerLinkage = DefaultDatagramListenerLinkage
-    public typealias DataLinkage = DefaultOutboundDatagramLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init(reference: ProtocolInstanceReference) { self.reference = reference }
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLowerLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-
-    }
-
-    public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
-    ) {
-
-    }
-}
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultDatagramListenerLinkage: DatagramListenerLinkage {
-    public typealias PairedUpperLinkage = DefaultInboundDatagramFlowLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init(reference: ProtocolInstanceReference) { self.reference = reference }
-    public init() { self.reference = .init() }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedUpperLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func invokeAttachUpperProtocolToNewFlow(_ upperProtocol: DefaultInboundDatagramLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
-    }
-
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: DefaultInboundDatagramLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> DefaultOutboundDatagramLinkage {
-        throw .posix(ENOTSUP)
-    }
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-}
-
-/// A stub outbound stream linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Sendable {
-    public typealias PairedUpperLinkage = DefaultInboundStreamLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachUpperProtocol(
-        _ upperProtocol: PairedUpperLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) {
-    }
-
-    public func teardown(state: inout NetworkContext.State) {
-    }
-
-    public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
-    ) {
-    }
-
-    public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) -> ProtocolMetadata<P>? {
-        return nil
-    }
-
-    public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
-    ) -> NetworkMetrics? {
-        return nil
-    }
-
-    public func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        minimumBytes: Int,
-        maximumBytes: Int
-    ) throws(NetworkError) -> FrameArray? {
-        return nil
-    }
-    public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
-    ) throws(NetworkError) -> Int {
-        return 0
-    }
-    public func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
-    ) throws(NetworkError) {
-        var streamData = streamData
-        streamData.finalizeAllFramesAsFailed()
-    }
-
-    public func sendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
-    ) throws(NetworkError) {
-        var streamData = streamData
-        streamData.finalizeAllFramesAsFailed()
-    }
-
-    public func abortInbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) throws(NetworkError) {
-    }
-    public func abortOutbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) throws(NetworkError) {
-    }
-}
-
-
-/// A stub inbound stream linkage, for protocols that haven't yet moved over to a
-/// concrete stream linkage family.
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct DefaultInboundStreamLinkage: InboundStreamLinkage {
-    public typealias PairedLowerLinkage = DefaultOutboundStreamLinkage
-    private(set) public var reference: ProtocolInstanceReference
-    public init() { self.reference = .init() }
-
-    public func invokeAttachLowerProtocol(
-        _ lowerProtocol: PairedLowerLinkage,
-        remote: Endpoint?,
-        local: Endpoint?,
-        parameters: Parameters?,
-        path: PathProperties?
-    ) throws(NetworkError) {
-    }
-
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
-    ) {
-    }
-
-    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-    }
-
-    public func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
-
-    public func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
-    ) {
-    }
 }
 
 // MARK: - QUIC Linkage Construction

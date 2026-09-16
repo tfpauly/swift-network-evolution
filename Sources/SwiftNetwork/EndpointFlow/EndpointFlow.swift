@@ -108,9 +108,18 @@ final class EndpointFlow: CustomDebugStringConvertible {
     let connectionID: SystemUUID
     #if !NETWORK_NO_SWIFT_QUIC
     var quicConnectionReference: ProtocolInstanceReference? = nil
+    var quicStreamListenerLinkage: BaseNetworkProtocolStorage.BaseStreamListenerLinkage? = nil
     #endif
 
     var privateStorage = EndpointFlowPrivateStorage()
+
+    // Owns the protocol instances backing this flow's stack, and hands back the linkages used to
+    // wire them together. Each flow keeps its own storage for now; eventually this should be
+    // shared at a higher level so instances can outlive an individual flow.
+    //
+    // A reused flow inherits the storage of the flow it reuses, since it opens another stream on
+    // that flow's existing connection rather than building a new stack.
+    lazy var storage = BaseNetworkProtocolStorage(context: self.context)
 
     enum FlowProtocol {
         case stream(StreamEndpointFlowProtocol<BaseStreamLinkageFamily>)
@@ -127,6 +136,11 @@ final class EndpointFlow: CustomDebugStringConvertible {
         self.connectionID = uuid
         self.reuse = true
         self.identifier = EndpointFlow.nextInstanceCounter
+        self.storage = flow.storage
+        #if !NETWORK_NO_SWIFT_QUIC
+        self.quicConnectionReference = flow.quicConnectionReference
+        self.quicStreamListenerLinkage = flow.quicStreamListenerLinkage
+        #endif
 
         self.privateStorage.initForReuse(self)
     }

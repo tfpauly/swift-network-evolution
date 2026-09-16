@@ -41,19 +41,17 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
         let remoteEndpoint = Endpoint(address: IPv4Address(SwiftNetworkMultiplexingTests.localIPv4Address)!, port: 2345)
 
         var instance: TestMultiplexingProtocol? = nil
-        var upperHarness1: DatagramUpperHarness<DefaultDatagramLinkageFamily>?
-        var lowerHarness: DatagramLowerHarness<DefaultDatagramLinkageFamily>?
-        var listenerHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
+        var upperHarness1: DatagramUpperHarness<BaseDatagramLinkageFamily>?
+        var lowerHarness: DatagramLowerHarness<BaseDatagramLinkageFamily>?
+        var listenerHarness: NewDatagramFlowHarness<BaseDatagramLinkageFamily>?
         let expectation = XCTestExpectation()
         context.async {
             instance = TestMultiplexingProtocol(context: context)
             XCTAssertNotNil(instance)
             guard var instance else { return }
 
-            let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
-
             // TODO: TFPDEBUG fix these
-            listenerHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
+            listenerHarness = NewDatagramFlowHarness<BaseDatagramLinkageFamily>(
                 identifier: "Listener1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -61,14 +59,14 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 path: path,
                 context: parameters.context
             ) { state in
-                (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
+                (DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
             }
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
             guard let listenerHarness else {
                 return
             }
 
-            upperHarness1 = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            upperHarness1 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
                 identifier: "Client1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -83,7 +81,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 expectation.fulfill()
                 return
             }
-            lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
+            lowerHarness = DatagramLowerHarness<BaseDatagramLinkageFamily>(
                 identifier: "Client",
                 context: parameters.context
             )
@@ -122,8 +120,6 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
             XCTAssertNotNil(instance)
             guard let instance else { return }
 
-            let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
-
             let outputMessage = SwiftNetworkMultiplexingTests.outputMessage
             let inputMessage = SwiftNetworkMultiplexingTests.inputMessage
 
@@ -156,7 +152,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
             XCTAssertEqual(listenerHarness.upperHarnesses.count, 1, "Listener expects to have 1 inbound flows")
 
             // TODO: FIX THIS
-            let upperHarness2 = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let upperHarness2 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
                 identifier: "Client2",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -172,7 +168,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
 
             upperHarness2.start { _ in }
 
-            let upperHarness3 = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+            let upperHarness3 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
                 identifier: "Client3",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -229,16 +225,15 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
 
         // Use a high number of streams to ensure that we don't have poor scaling
         let upperHarnessCount = 1000
-        var upperHarnesses = [DatagramUpperHarness<DefaultDatagramLinkageFamily>]()
-        var lowerHarness: DatagramLowerHarness<DefaultDatagramLinkageFamily>?
-        var listenerHarness: NewDatagramFlowHarness<DefaultDatagramLinkageFamily>?
+        var upperHarnesses = [DatagramUpperHarness<BaseDatagramLinkageFamily>]()
+        var lowerHarness: DatagramLowerHarness<BaseDatagramLinkageFamily>?
+        var listenerHarness: NewDatagramFlowHarness<BaseDatagramLinkageFamily>?
         let expectation = XCTestExpectation()
         context.async {
             var instance = TestMultiplexingProtocol(context: context)
             instance.delayConnected = true
-            let listenerLinkage = DefaultDatagramListenerLinkage(reference: instance.reference)
 
-            listenerHarness = NewDatagramFlowHarness<DefaultDatagramLinkageFamily>(
+            listenerHarness = NewDatagramFlowHarness<BaseDatagramLinkageFamily>(
                 identifier: "Listener1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
@@ -246,7 +241,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 path: path,
                 context: parameters.context
             ) { state in
-                (DatagramUpperHarness<DefaultDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
+                (DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
             }
 
             XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
@@ -254,7 +249,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 return
             }
 
-            lowerHarness = DatagramLowerHarness<DefaultDatagramLinkageFamily>(
+            lowerHarness = DatagramLowerHarness<BaseDatagramLinkageFamily>(
                 identifier: "Client",
                 context: parameters.context
             )
@@ -277,7 +272,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
 
             for index in 0..<upperHarnessCount {
                 // TODO: TFPDEBUG FIX THIS
-                let upperHarness = DatagramUpperHarness<DefaultDatagramLinkageFamily>(
+                let upperHarness = DatagramUpperHarness<BaseDatagramLinkageFamily>(
                     identifier: "Client\(index)",
                     local: localEndpoint,
                     remote: remoteEndpoint,

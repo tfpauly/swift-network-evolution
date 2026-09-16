@@ -40,11 +40,6 @@ extension EndpointFlow {
             let path = PathProperties(parameters: parameters)
             switch stack.transport {
             case .quic(let options):
-                guard let instance = options.protocolInstance else {
-                    throw NetworkError.posix(EINVAL)
-                }
-
-
                 let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                     identifier: String(self.identifier),
                     local: self.localEndpoint,
@@ -53,9 +48,22 @@ extension EndpointFlow {
                     path: path,
                     context: self.parameters.context
                 )
-                let flowLinkage = BaseNetworkProtocolStorage.linkage(for: flow)
-                // TODO: TFPDEBUG Hook up lower protocol
                 self.flowProtocol = .stream(flow)
+
+                // Reuse opens another stream on the connection the options already name. The
+                // storage is inherited from the flow being reused, so the listener linkage for
+                // that existing connection resolves here.
+                guard let listener = self.quicStreamListenerLinkage else {
+                    Logger.connection.error("Unable to find the connection to reuse")
+                    throw NetworkError.posix(ENOENT)
+                }
+                try listener.invokeAttachUpperProtocolToNewFlow(
+                    BaseNetworkProtocolStorage.linkage(for: flow),
+                    remote: self.remoteEndpoint,
+                    local: self.localEndpoint,
+                    parameters: self.parameters,
+                    path: path
+                )
                 options.setLogID(
                     prefix: "C",
                     parent: String(self.identifier),
@@ -77,20 +85,33 @@ extension EndpointFlow {
 
                 switch transport {
                 case .tcp(let options):
-                    // In bridged (test-harness) mode drive a raw TCP instance directly;
+                    // In bridged (test-harness) mode drive a raw TCP instance over the bridge;
                     // otherwise use a real kernel socket. The flow wiring is identical.
-                    let reference: ProtocolInstanceReference
+                    let bridged: Bool
                     if case .custom(let linkOptions) = stack.link,
                         linkOptions.identifier == BridgeDatagramProtocol.identifier
                     {
-                        guard let bridged = TCPProtocol().newProtocolInstance(context: context) else {
-                            throw NetworkError.posix(EINVAL)
-                        }
-                        reference = bridged
+                        bridged = true
                     } else {
-                        reference = SocketStreamProtocol<BaseStreamLinkageFamily>.instance(context: context)
+                        bridged = false
                     }
-                    options.setProtocolInstance(reference)
+
+                    let transportLower: BaseNetworkProtocolStorage.BaseOutboundStreamLinkage
+                    if bridged {
+                        let (tcpUpper, tcpLower) = self.storage.createTCPInstance()
+                        transportLower = tcpLower
+                        let bridge = self.storage.createBridgeDatagramInstance()
+                        try tcpUpper.invokeAttachLowerProtocol(
+                            bridge,
+                            remote: effectiveRemoteEndpoint,
+                            local: effectiveLocalEndpoint,
+                            parameters: self.parameters,
+                            path: path
+                        )
+                    } else {
+                        transportLower = self.storage.createSocketStreamInstance()
+                    }
+                    options.setProtocolInstance(transportLower.reference)
                     let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -99,43 +120,60 @@ extension EndpointFlow {
                         path: path,
                         context: context
                     )
-                    // TODO: TFPDEBUG Hook up lower protocol
                     self.flowProtocol = .stream(flow)
                     options.setLogID(
                         prefix: "C",
                         parent: String(self.identifier),
                         protocolLogIDNumber: Int(self.identifier)
                     )
+                    // Attach from the upper linkage so both directions are bound.
+                    try BaseNetworkProtocolStorage.linkage(for: flow).invokeAttachLowerProtocol(
+                        transportLower,
+                        remote: effectiveRemoteEndpoint,
+                        local: effectiveLocalEndpoint,
+                        parameters: self.parameters,
+                        path: path
+                    )
                 case .udp(let options):
+                    let (udpUpper, udpLower) = self.storage.createUDPInstance()
+                    options.setProtocolInstance(udpUpper.reference)
+                    let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
+                        identifier: String(self.identifier),
+                        local: effectiveLocalEndpoint,
+                        remote: self.remoteEndpoint,
+                        parameters: self.parameters,
+                        path: path,
+                        context: context
+                    )
+                    self.flowProtocol = .datagram(flow)
+                    options.setLogID(
+                        prefix: "C",
+                        parent: String(self.identifier),
+                        protocolLogIDNumber: Int(self.identifier)
+                    )
+
+                    // Attach from the upper linkage so both directions are bound.
+                    try BaseNetworkProtocolStorage.linkage(for: flow).invokeAttachLowerProtocol(
+                        udpLower,
+                        remote: effectiveRemoteEndpoint,
+                        local: effectiveLocalEndpoint,
+                        parameters: self.parameters,
+                        path: path
+                    )
+
                     if case .custom(let linkOptions) = stack.link,
                         linkOptions.identifier == BridgeDatagramProtocol.identifier
                     {
-                        let (upper, lower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = UDPProtocol.instance(context: context)
-                        let (ipUpper, ipLower): (DefaultInboundDatagramLinkage, DefaultOutboundDatagramLinkage) = IPProtocol.instance(context: context)
-                        options.setProtocolInstance(upper.reference)
-                        let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
-                            identifier: String(self.identifier),
-                            local: effectiveLocalEndpoint,
-                            remote: self.remoteEndpoint,
-                            parameters: self.parameters,
-                            path: path,
-                            context: context
-                        )
-                        // TODO: TFPDEBUG Hook up lower protocol
-                        self.flowProtocol = .datagram(flow)
-                        options.setLogID(
-                            prefix: "C",
-                            parent: String(self.identifier),
-                            protocolLogIDNumber: Int(self.identifier)
-                        )
-                        try upper.invokeAttachLowerProtocol(
+                        // Bridged (test-harness) mode: UDP -> IP -> BridgeProtocol.
+                        let (ipUpper, ipLower) = self.storage.createIPInstance()
+                        try udpUpper.invokeAttachLowerProtocol(
                             ipLower,
                             remote: effectiveRemoteEndpoint,
                             local: effectiveLocalEndpoint,
                             parameters: self.parameters,
                             path: path
                         )
-                        let bridge: DefaultOutboundDatagramLinkage = BridgeDatagramProtocol.instance(context: context)
+                        let bridge = self.storage.createBridgeDatagramInstance()
                         try ipUpper.invokeAttachLowerProtocol(
                             bridge,
                             remote: effectiveRemoteEndpoint,
@@ -144,30 +182,24 @@ extension EndpointFlow {
                             path: path
                         )
                     } else {
-                        let socketReference = SocketDatagramProtocol<BaseDatagramLinkageFamily>.instance(context: context)
-                        let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
-                            identifier: String(self.identifier),
+                        // Real networking: UDP straight onto a kernel socket.
+                        let socket = self.storage.createSocketDatagramInstance()
+                        try udpUpper.invokeAttachLowerProtocol(
+                            socket,
+                            remote: effectiveRemoteEndpoint,
                             local: effectiveLocalEndpoint,
-                            remote: self.remoteEndpoint,
                             parameters: self.parameters,
-                            path: path,
-                            context: context,
-                        )
-                        // TODO: TFPDEBUG Hook up lower protocol
-                        self.flowProtocol = .datagram(flow)
-                        options.setLogID(
-                            prefix: "C",
-                            parent: String(self.identifier),
-                            protocolLogIDNumber: Int(self.identifier)
+                            path: path
                         )
                     }
                 #if !NETWORK_NO_SWIFT_QUIC
                 case .quic(let options):
-                    let quicReference = QUICProtocol.instance(context: context)
+                    let (quicStreamListener, _, quicMultipath) = self.storage.createQUICInstance()
 
-                    self.quicConnectionReference = quicReference
+                    self.quicConnectionReference = quicStreamListener.reference
+                    self.quicStreamListenerLinkage = quicStreamListener
 
-                    options.setProtocolInstance(quicReference)
+                    options.setProtocolInstance(quicStreamListener.reference)
                     options.setLogID(
                         prefix: "C",
                         parent: String(self.identifier),
@@ -181,47 +213,58 @@ extension EndpointFlow {
                         path: path,
                         context: context,
                     )
-                    // TODO: TFPDEBUG Hook up lower protocol
                     self.flowProtocol = .stream(flow)
 
-//                    if case .custom(let linkOptions) = stack.link,
-//                        linkOptions.identifier == BridgeDatagramProtocol.identifier
-//                    {
-//                        let udpReference = UDPProtocol.instance(context: context)
-//                        let ipReference = IPProtocol.instance(context: context)
-//                        try quicReference.attachLowerDatagramProtocolForNewPath(
-//                            udpReference,
-//                            remote: effectiveRemoteEndpoint,
-//                            local: effectiveLocalEndpoint,
-//                            parameters: self.parameters,
-//                            path: path
-//                        )
-//                        try udpReference.attachLowerDatagramProtocol(
-//                            ipReference,
-//                            remote: effectiveRemoteEndpoint,
-//                            local: effectiveLocalEndpoint,
-//                            parameters: self.parameters,
-//                            path: path
-//                        )
-//                        let reference = BridgeDatagramProtocol.instance(context: context)
-//                        try ipReference.attachLowerDatagramProtocol(
-//                            reference,
-//                            remote: effectiveRemoteEndpoint,
-//                            local: effectiveLocalEndpoint,
-//                            parameters: self.parameters,
-//                            path: path
-//                        )
-//                    } else {
-//                        let socketReference = SocketDatagramProtocol.instance(context: context)
-//                        try quicReference.attachLowerDatagramProtocolForNewPath(
-//                            socketReference,
-//                            remote: effectiveRemoteEndpoint,
-//                            local: effectiveLocalEndpoint,
-//                            parameters: self.parameters,
-//                            path: path
-//                        )
-//                    }
-                #endif
+                    // This flow is the client's outbound stream on the connection.
+                    try quicStreamListener.invokeAttachUpperProtocolToNewFlow(
+                        BaseNetworkProtocolStorage.linkage(for: flow),
+                        remote: effectiveRemoteEndpoint,
+                        local: effectiveLocalEndpoint,
+                        parameters: self.parameters,
+                        path: path
+                    )
+
+                    if case .custom(let linkOptions) = stack.link,
+                        linkOptions.identifier == BridgeDatagramProtocol.identifier
+                    {
+                        // Bridged (test-harness) mode: QUIC -> UDP -> IP -> BridgeProtocol.
+                        let (udpUpper, udpLower) = self.storage.createUDPInstance()
+                        let (ipUpper, ipLower) = self.storage.createIPInstance()
+                        try quicMultipath.invokeAttachLowerProtocolForNewPath(
+                            udpLower,
+                            remote: effectiveRemoteEndpoint,
+                            local: effectiveLocalEndpoint,
+                            parameters: self.parameters,
+                            path: path
+                        )
+                        try udpUpper.invokeAttachLowerProtocol(
+                            ipLower,
+                            remote: effectiveRemoteEndpoint,
+                            local: effectiveLocalEndpoint,
+                            parameters: self.parameters,
+                            path: path
+                        )
+                        let bridge = self.storage.createBridgeDatagramInstance()
+                        try ipUpper.invokeAttachLowerProtocol(
+                            bridge,
+                            remote: effectiveRemoteEndpoint,
+                            local: effectiveLocalEndpoint,
+                            parameters: self.parameters,
+                            path: path
+                        )
+                    } else {
+                        // Real networking: QUIC straight onto a kernel socket.
+                        let socket = self.storage.createSocketDatagramInstance()
+                        try quicMultipath.invokeAttachLowerProtocolForNewPath(
+                            socket,
+                            remote: effectiveRemoteEndpoint,
+                            local: effectiveLocalEndpoint,
+                            parameters: self.parameters,
+                            path: path
+                        )
+                    }
+
+#endif
                 default:
                     Logger.connection.error("Unsupported transport protocol")
                     throw NetworkError.posix(EINVAL)
@@ -234,7 +277,7 @@ extension EndpointFlow {
                             // TODO: It'd be nice if we could do this w/o checking for specific protocols here,
                             // but we're not there quite yet
                             if options.identifier == BridgeStreamProtocol.identifier {
-                                let reference = BridgeStreamProtocol.instance(context: context)
+                                let bridge = self.storage.createBridgeStreamInstance()
                                 let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                                     identifier: String(self.identifier),
                                     local: effectiveLocalEndpoint,
@@ -243,8 +286,15 @@ extension EndpointFlow {
                                     path: path,
                                     context: context,
                                 )
-                                // TODO: TFPDEBUG Hook up lower protocol
                                 self.flowProtocol = .stream(flow)
+                                // Attach from the upper linkage so both directions are bound.
+                                try BaseNetworkProtocolStorage.linkage(for: flow).invokeAttachLowerProtocol(
+                                    bridge,
+                                    remote: effectiveRemoteEndpoint,
+                                    local: effectiveLocalEndpoint,
+                                    parameters: self.parameters,
+                                    path: path
+                                )
                             } else {
                                 Logger.connection.error("Unknown link protocol")
                                 throw NetworkError.posix(EINVAL)
@@ -272,36 +322,15 @@ extension EndpointFlow {
                             path: path,
                             context: context,
                         )
-                        // TODO: TFPDEBUG Hook up lower protocol
                         self.flowProtocol = .stream(flow)
                         options.setLogID(
                             prefix: "C",
                             parent: String(self.identifier),
                             protocolLogIDNumber: Int(self.identifier)
                         )
-                        if let link = stack.link {
-//                            switch link {
-//                            case .custom(let options):
-//                                // TODO: It'd be nice if we could do this w/o checking for specific protocols here,
-//                                // but we're not there quite yet
-//                                if options.identifier == BridgeStreamProtocol.identifier {
-//                                    let bridgeReference = BridgeStreamProtocol.instance(context: context)
-//                                    try reference.attachLowerStreamProtocol(
-//                                        bridgeReference,
-//                                        remote: effectiveRemoteEndpoint,
-//                                        local: effectiveLocalEndpoint,
-//                                        parameters: self.parameters,
-//                                        path: path
-//                                    )
-//                                } else {
-//                                    Logger.connection.error("Unknown link protocol")
-//                                    throw NetworkError.posix(EINVAL)
-//                                }
-//                            default:
-//                                Logger.connection.error("Unknown link protocol")
-//                                throw NetworkError.posix(EINVAL)
-//                            }
-                        }
+                        // TODO: The TLS instance has no base linkage yet, so there is nothing to
+                        // attach the flow to. `newProtocolInstance` above returns nil today, so
+                        // this branch always throws before reaching here.
                     default:
                         Logger.connection.error("Unsupported application protocol")
                         throw NetworkError.posix(EINVAL)

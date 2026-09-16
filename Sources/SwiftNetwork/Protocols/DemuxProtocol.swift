@@ -119,7 +119,6 @@ public struct DemuxPattern: Sendable, Hashable {
 public struct DemuxProtocol: NetworkProtocol {
     public typealias Options = DemuxOptions
     public typealias Metadata = DemuxMetadata
-    public typealias Instance = DemuxInstance<DefaultDatagramLinkageFamily>
 
     public struct DemuxOptions: PerProtocolOptions {
         var demuxPatterns = Deque<DemuxPattern>()
@@ -573,7 +572,7 @@ public struct DemuxProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> DemuxMetadata? { DemuxMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        DemuxInstance<DefaultDatagramLinkageFamily>(context: context).reference
+        nil
     }
 
     static let identifier = ProtocolIdentifier(name: "demux", level: .link, mapping: .oneToOne)
