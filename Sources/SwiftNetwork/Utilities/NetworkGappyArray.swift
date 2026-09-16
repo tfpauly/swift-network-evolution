@@ -36,6 +36,10 @@ struct NetworkStateIndex: Hashable {
         .init(index: index, generation: generation)
     }
     var rawValue: Int { index }
+
+    // The generation this index was issued for. Callers that persist a slot's identity beyond the
+    // element's lifetime must include this, so a reused slot is not mistaken for the original.
+    var rawGeneration: UInt64 { generation }
 }
 
 // A "gappy array" is an array of non-copyable elements where the index of

@@ -167,15 +167,15 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
 @available(Network 0.1.0, *)
 @frozen public enum MultiplexedFlowIdentifier: Hashable, CustomDebugStringConvertible {
     case allFlows
-    case outboundFlow(index: Int)
-    case inboundFlow(index: Int)
+    case outboundFlow(index: Int, generation: UInt64)
+    case inboundFlow(index: Int, generation: UInt64)
 
     init(_ reference: ProtocolInstanceReference) {
         guard let index = reference.protocolEventStateIndex else {
             self = .allFlows
             return
         }
-        self = .outboundFlow(index: index.rawValue)
+        self = .outboundFlow(index: index.rawValue, generation: index.rawGeneration)
     }
 
     init(inboundReference: ProtocolInstanceReference) {
@@ -186,7 +186,7 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
             self = .allFlows
             return
         }
-        self = .inboundFlow(index: index.rawValue)
+        self = .inboundFlow(index: index.rawValue, generation: index.rawGeneration)
     }
 
     public func hash(into hasher: inout Hasher) {
@@ -194,14 +194,15 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
     }
 
     private var rawHashKey: UInt64 {
-        // Use the bottom two bits as a discriminator for the different cases.
+        // Use the bottom two bits as a discriminator for the different cases. The generation is
+        // mixed in so that two flows sharing a reused slot hash differently.
         switch self {
         case .allFlows:
             return 0
-        case .outboundFlow(let index):
-            return UInt64(bitPattern: Int64(index)) << 2 | 0b01
-        case .inboundFlow(let index):
-            return UInt64(bitPattern: Int64(index)) << 2 | 0b10
+        case .outboundFlow(let index, let generation):
+            return (UInt64(bitPattern: Int64(index)) << 2 | 0b01) ^ (generation << 32)
+        case .inboundFlow(let index, let generation):
+            return (UInt64(bitPattern: Int64(index)) << 2 | 0b10) ^ (generation << 32)
         }
     }
 
@@ -213,8 +214,8 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
         switch self {
         case .allFlows: return "All Flows"
         #if !NETWORK_EMBEDDED
-        case .outboundFlow(let index): return index.description
-        case .inboundFlow(let index): return index.description
+        case .outboundFlow(let index, let generation): return "\(index)/\(generation)"
+        case .inboundFlow(let index, let generation): return "\(index)/\(generation)"
         #else
         case .outboundFlow: return "Outbound Flow"
         case .inboundFlow: return "Inbound Flow"

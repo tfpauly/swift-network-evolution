@@ -244,8 +244,8 @@ final class SendItemsTests: XCTestCase {
 
     func testStreamDataBlocked_pendingFlagMirrorsDequeAfterPartialDequeue() {
         var pendingItems = PendingItems(packetNumberSpace: .applicationData)
-        pendingItems.appendStreamDataBlockedFlow(.outboundFlow(index: 1))
-        pendingItems.appendStreamDataBlockedFlow(.outboundFlow(index: 2))
+        pendingItems.appendStreamDataBlockedFlow(.outboundFlow(index: 1, generation: 1))
+        pendingItems.appendStreamDataBlockedFlow(.outboundFlow(index: 2, generation: 1))
 
         var transmittedItems = TransmittedItems()
         FrameStreamDataBlocked.addToTransmittedItems(
