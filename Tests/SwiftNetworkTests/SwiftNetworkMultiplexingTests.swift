@@ -40,67 +40,89 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
         let localEndpoint = Endpoint(address: IPv4Address(SwiftNetworkMultiplexingTests.localIPv4Address)!, port: 1234)
         let remoteEndpoint = Endpoint(address: IPv4Address(SwiftNetworkMultiplexingTests.localIPv4Address)!, port: 2345)
 
+        let storage = TestNetworkProtocolStorage(context: context)
+
         var instance: TestMultiplexingProtocol? = nil
-        var upperHarness1: DatagramUpperHarness<BaseDatagramLinkageFamily>?
-        var lowerHarness: DatagramLowerHarness<BaseDatagramLinkageFamily>?
-        var listenerHarness: NewDatagramFlowHarness<BaseDatagramLinkageFamily>?
+        var listener: TestDatagramListenerLinkage? = nil
+        var upperHarness1: DatagramUpperHarness<TestDatagramLinkageFamily>?
+        var lowerHarness: DatagramLowerHarness<TestDatagramLinkageFamily>?
+        var listenerHarness: NewDatagramFlowHarness<TestDatagramLinkageFamily>?
         let expectation = XCTestExpectation()
         context.async {
-            instance = TestMultiplexingProtocol(context: context)
-            XCTAssertNotNil(instance)
-            guard var instance else { return }
+            // The multiplexing protocol lives outside the framework, and so do the linkages that
+            // reach it: the test storage hands back a listener and a multipath linkage for it.
+            let (listenerLinkage, multipathLinkage, multiplexing) =
+                storage.createTestMultiplexingInstance()
+            instance = multiplexing
+            listener = listenerLinkage
 
-            // TODO: TFPDEBUG fix these
-            listenerHarness = NewDatagramFlowHarness<BaseDatagramLinkageFamily>(
+            listenerHarness = storage.createTestNewDatagramFlowHarness(
                 identifier: "Listener1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
-                path: path,
-                context: parameters.context
-            ) { state in
-                (DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
-            }
-            XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
+                path: path
+            )
             guard let listenerHarness else {
+                XCTFail("Failed to create listener harness")
+                expectation.fulfill()
+                return
+            }
+            do {
+                try TestInboundDatagramFlowLinkage(harness: listenerHarness)
+                    .invokeAttachLowerProtocol(
+                        listenerLinkage,
+                        remote: remoteEndpoint,
+                        local: localEndpoint,
+                        parameters: parameters,
+                        path: path
+                    )
+            } catch {
+                XCTFail("Failed to attach listener harness to multiplexing protocol: \(error)")
+                expectation.fulfill()
                 return
             }
 
-            upperHarness1 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
+            upperHarness1 = storage.createTestDatagramUpperHarness(
                 identifier: "Client1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
-                path: path,
-                context: parameters.context
-//                listenerProtocol: listenerLinkage
+                path: path
             )
-
-            XCTAssertNotNil(upperHarness1, "Failed to attach multiplexing test to upper harness")
             guard let upperHarness1 else {
                 expectation.fulfill()
                 return
             }
-            lowerHarness = DatagramLowerHarness<BaseDatagramLinkageFamily>(
-                identifier: "Client",
-                context: parameters.context
-            )
+            lowerHarness = storage.createTestDatagramLowerHarness(identifier: "Client")
             guard let lowerHarness else {
                 expectation.fulfill()
                 return
             }
-//            do {
-//                try instance.attachLowerDatagramProtocolForNewPath(
-//                    lowerHarness.reference,
-//                    remote: remoteEndpoint,
-//                    local: localEndpoint,
-//                    parameters: parameters,
-//                    path: path
-//                )
-//            } catch {
-//                XCTAssertTrue(false, "Failed to add multiplexing test to lower harness")
-//                return
-//            }
+
+            do {
+                // A new outbound flow on the multiplexing protocol for the client harness.
+                try listenerLinkage.invokeAttachUpperProtocolToNewFlow(
+                    TestInboundDatagramLinkage(harness: upperHarness1),
+                    remote: remoteEndpoint,
+                    local: localEndpoint,
+                    parameters: parameters,
+                    path: path
+                )
+                // And the multiplexing protocol's single path onto the lower harness.
+                var multipathLinkage = multipathLinkage
+                try multipathLinkage.invokeAttachLowerProtocolForNewPath(
+                    TestOutboundDatagramLinkage(harness: lowerHarness),
+                    remote: remoteEndpoint,
+                    local: localEndpoint,
+                    parameters: parameters,
+                    path: path
+                )
+            } catch {
+                XCTFail("Failed to attach multiplexing test stack: \(error)")
+                expectation.fulfill()
+                return
+            }
 
             upperHarness1.start { connected in
                 XCTAssertTrue(connected, "Protocol failed to become connected")
@@ -111,7 +133,8 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
         }
         wait(for: [expectation], timeout: 5.0)
 
-        guard let upperHarness1, let lowerHarness, let listenerHarness else {
+        guard let upperHarness1, let lowerHarness, let listenerHarness, let listenerLinkage = listener
+        else {
             return
         }
 
@@ -151,37 +174,38 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
             instance.triggerNewFlowCreation()
             XCTAssertEqual(listenerHarness.upperHarnesses.count, 1, "Listener expects to have 1 inbound flows")
 
-            // TODO: FIX THIS
-            let upperHarness2 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
+            // Two more outbound flows on the same multiplexing protocol.
+            let upperHarness2 = storage.createTestDatagramUpperHarness(
                 identifier: "Client2",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
-                path: path,
-                context: parameters.context
-//                listenerProtocol: listenerLinkage
+                path: path
             )
-            XCTAssertNotNil(upperHarness2, "Failed to attach multiplexing test to inbound harness 2")
-//            guard let upperHarness2 else {
-//                return
-//            }
-
-            upperHarness2.start { _ in }
-
-            let upperHarness3 = DatagramUpperHarness<BaseDatagramLinkageFamily>(
+            let upperHarness3 = storage.createTestDatagramUpperHarness(
                 identifier: "Client3",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
-                path: path,
-                context: parameters.context
-//                listenerProtocol: listenerLinkage
+                path: path
             )
-            XCTAssertNotNil(upperHarness3, "Failed to attach multiplexing test to inbound harness 3")
-//            guard let upperHarness3 else {
-//                return
-//            }
+            do {
+                for harness in [upperHarness2, upperHarness3] {
+                    try listenerLinkage.invokeAttachUpperProtocolToNewFlow(
+                        TestInboundDatagramLinkage(harness: harness),
+                        remote: remoteEndpoint,
+                        local: localEndpoint,
+                        parameters: parameters,
+                        path: path
+                    )
+                }
+            } catch {
+                XCTFail("Failed to attach additional flows: \(error)")
+                dataExpectation.fulfill()
+                return
+            }
 
+            upperHarness2.start { _ in }
             upperHarness3.start { _ in }
 
             let wrote2 = upperHarness2.write(outputMessage)
@@ -225,66 +249,90 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
 
         // Use a high number of streams to ensure that we don't have poor scaling
         let upperHarnessCount = 1000
-        var upperHarnesses = [DatagramUpperHarness<BaseDatagramLinkageFamily>]()
-        var lowerHarness: DatagramLowerHarness<BaseDatagramLinkageFamily>?
-        var listenerHarness: NewDatagramFlowHarness<BaseDatagramLinkageFamily>?
+        let storage = TestNetworkProtocolStorage(context: context)
+        var upperHarnesses = [DatagramUpperHarness<TestDatagramLinkageFamily>]()
+        var lowerHarness: DatagramLowerHarness<TestDatagramLinkageFamily>?
+        var listenerHarness: NewDatagramFlowHarness<TestDatagramLinkageFamily>?
         let expectation = XCTestExpectation()
         context.async {
-            var instance = TestMultiplexingProtocol(context: context)
+            let (listenerLinkage, multipathLinkage, instance) =
+                storage.createTestMultiplexingInstance()
             instance.delayConnected = true
 
-            listenerHarness = NewDatagramFlowHarness<BaseDatagramLinkageFamily>(
+            listenerHarness = storage.createTestNewDatagramFlowHarness(
                 identifier: "Listener1",
                 local: localEndpoint,
                 remote: remoteEndpoint,
                 parameters: parameters,
-                path: path,
-                context: parameters.context
-            ) { state in
-                (DatagramUpperHarness<BaseDatagramLinkageFamily>(identifier: "Inbound", local: localEndpoint, remote: remoteEndpoint, parameters: parameters, path: path, context: parameters.context), .init())
-            }
-
-            XCTAssertNotNil(listenerHarness, "Failed to attach multiplexing test to listener harness")
+                path: path
+            )
             guard let listenerHarness else {
+                XCTFail("Failed to create listener harness")
+                expectation.fulfill()
+                return
+            }
+            do {
+                try TestInboundDatagramFlowLinkage(harness: listenerHarness)
+                    .invokeAttachLowerProtocol(
+                        listenerLinkage,
+                        remote: remoteEndpoint,
+                        local: localEndpoint,
+                        parameters: parameters,
+                        path: path
+                    )
+            } catch {
+                XCTFail("Failed to attach listener harness: \(error)")
+                expectation.fulfill()
                 return
             }
 
-            lowerHarness = DatagramLowerHarness<BaseDatagramLinkageFamily>(
-                identifier: "Client",
-                context: parameters.context
-            )
+            lowerHarness = storage.createTestDatagramLowerHarness(identifier: "Client")
             guard let lowerHarness else {
                 expectation.fulfill()
                 return
             }
-//            do {
-//                try instance.attachLowerDatagramProtocolForNewPath(
-//                    lowerHarness.reference,
-//                    remote: remoteEndpoint,
-//                    local: localEndpoint,
-//                    parameters: parameters,
-//                    path: path
-//                )
-//            } catch {
-//                XCTAssertTrue(false, "Failed to add multiplexing test to lower harness")
-//                return
-//            }
+            do {
+                var multipathLinkage = multipathLinkage
+                try multipathLinkage.invokeAttachLowerProtocolForNewPath(
+                    TestOutboundDatagramLinkage(harness: lowerHarness),
+                    remote: remoteEndpoint,
+                    local: localEndpoint,
+                    parameters: parameters,
+                    path: path
+                )
+            } catch {
+                XCTFail("Failed to attach lower harness: \(error)")
+                expectation.fulfill()
+                return
+            }
 
             for index in 0..<upperHarnessCount {
-                // TODO: TFPDEBUG FIX THIS
-                let upperHarness = DatagramUpperHarness<BaseDatagramLinkageFamily>(
+                let upperHarness = storage.createTestDatagramUpperHarness(
                     identifier: "Client\(index)",
                     local: localEndpoint,
                     remote: remoteEndpoint,
                     parameters: parameters,
-                    path: path,
-                    context: parameters.context
+                    path: path
                 )
+                do {
+                    try listenerLinkage.invokeAttachUpperProtocolToNewFlow(
+                        TestInboundDatagramLinkage(harness: upperHarness),
+                        remote: remoteEndpoint,
+                        local: localEndpoint,
+                        parameters: parameters,
+                        path: path
+                    )
+                } catch {
+                    XCTFail("Failed to attach flow \(index): \(error)")
+                    expectation.fulfill()
+                    return
+                }
 
                 upperHarnesses.append(upperHarness)
-                upperHarness.start { connected in
-                    // Send a placeholder event
-                    upperHarness.invokeApplicationEvent(.connectionIdle)
+                upperHarness.start { state, connected in
+                    // Send a placeholder event. The completion runs inline with the state held,
+                    // so thread it in rather than re-acquiring it.
+                    upperHarness.invokeApplicationEvent(state: &state, .connectionIdle)
                 }
             }
 

@@ -31,23 +31,31 @@ internal import os
 #endif
 
 @available(Network 0.1.0, *)
-final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, BaseDatagramLinkageFamily.Upper> {
-
+final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, TestDatagramLinkageFamily.Upper> {
+    // Hands back a linkage that routes to this flow, so its upper protocol can reach it. The
+    // default implementation returns an empty linkage.
+    override func asLowerLinkage() -> TestOutboundDatagramLinkage {
+        TestOutboundDatagramLinkage(flow: self)
+    }
 }
 
 @available(Network 0.1.0, *)
-final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, BaseDatagramLinkageFamily.Lower> {
-
+final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, TestDatagramLinkageFamily.Lower> {
+    // Hands back a linkage that routes to this path, so its lower protocol can deliver events to
+    // it. The default implementation returns an empty linkage.
+    override func asUpperLinkage() -> TestInboundDatagramLinkage {
+        TestInboundDatagramLinkage(path: self)
+    }
 }
 
 @available(Network 0.1.0, *)
 final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     DatagramListenerHandler, HomogeneousManyToManyProtocolHandler
 {    
-    typealias UpperProtocol = BaseDatagramLinkageFamily.InboundFlow
+    typealias UpperProtocol = TestDatagramLinkageFamily.InboundFlow
 
     var inboundFlowLinkage = UpperProtocol()
-    var asListener: BaseDatagramLinkageFamily.Listener { .init() } // TODO: TFPDEBUG FIX
+    var asListener: TestDatagramLinkageFamily.Listener { .init(multiplexing: self) }
 
     var delayConnected = false
 
@@ -83,8 +91,10 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
             return
         }
         accessDatagramsToSend(flow: flow) { frames in
+            // `state` is already held here, so use the state-taking variants rather than the
+            // external entry points, which would re-derive it.
             try? enqueueOutboundDatagrams(path: path, datagrams: frames.drainArray())
-            try? sendEnqueuedOutboundDatagrams(path: path)
+            try? sendEnqueuedOutboundDatagrams(state: &state, path: path)
         }
     }
 

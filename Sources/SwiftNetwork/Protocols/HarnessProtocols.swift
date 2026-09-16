@@ -45,7 +45,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     // Completions: called once!
     public struct Completions {
-        public var connected: ((Bool) -> Void)?
+        public var connected: ((inout NetworkContext.State, Bool) -> Void)?
         public var disconnected: (() -> Void)?
 
         // true when inbound data is available, false when disconnected. The completion runs
@@ -127,8 +127,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
-            completion(true)
             self.completions.connected = nil
+            completion(&state, true)
         }
     }
 
@@ -136,8 +136,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         log.debug("Received disconnected event, error \(error.debugDescription)")
         receivedDisconnected = true
         if let completion = completions.connected {
-            completion(false)
             self.completions.connected = nil
+            completion(&state, false)
         }
         if let completion = completions.disconnected {
             completion()
@@ -189,8 +189,14 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         invokeConnect()
     }
 
-    public func start(_ completion: @escaping (Bool) -> Void) {
+    public func start(_ completion: @escaping (inout NetworkContext.State, Bool) -> Void) {
         self.completions.connected = completion
+        start()
+    }
+
+    /// Starts with a completion that does not need the context state.
+    public func start(_ completion: @escaping (Bool) -> Void) {
+        self.completions.connected = { _, connected in completion(connected) }
         start()
     }
 
@@ -310,8 +316,16 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
         fromExternal { state in
-            lower.invokeApplicationEvent(state: &state, reference, event: event)
+            invokeApplicationEvent(state: &state, event)
         }
+    }
+
+    /// Sends an application event using a context state the caller already holds.
+    ///
+    /// Completions such as `connected` run inline while the delivering event holds the state, so
+    /// they have to use this rather than `invokeApplicationEvent(_:)`.
+    public func invokeApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {
+        lower.invokeApplicationEvent(state: &state, reference, event: event)
     }
 }
 
@@ -784,7 +798,9 @@ where
 
     public struct Completions {
         var createNewFlowHandler: ((inout NetworkContext.State) -> (HarnessType, HarnessType.LinkageType))?
-        public var connected: ((Bool) -> Void)?
+        // Runs inline while the delivering event holds the context state, so it takes the
+        // state and must thread it into any call back into the stack.
+        public var connected: ((inout NetworkContext.State, Bool) -> Void)?
         public var disconnected: (() -> Void)?
         // Runs inline while the new-inbound-flow event holds the context state, so the
         // completion receives it and must thread it into any calls on the new flow.
@@ -811,8 +827,8 @@ where
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
-            completion(true)
             self.completions.connected = nil
+            completion(&state, true)
         }
     }
 
@@ -824,8 +840,8 @@ where
         log.debug("Received disconnected event, \(error?.description ?? "<no error>")")
         receivedDisconnected = true
         if let completion = completions.connected {
-            completion(false)
             self.completions.connected = nil
+            completion(&state, false)
         }
         if let completion = completions.disconnected {
             completion()
@@ -937,8 +953,14 @@ where
         }
     }
 
-    public func start(_ completion: @escaping (Bool) -> Void) {
+    public func start(_ completion: @escaping (inout NetworkContext.State, Bool) -> Void) {
         completions.connected = completion
+        start()
+    }
+
+    /// Starts with a completion that does not need the context state.
+    public func start(_ completion: @escaping (Bool) -> Void) {
+        completions.connected = { _, connected in completion(connected) }
         start()
     }
 
