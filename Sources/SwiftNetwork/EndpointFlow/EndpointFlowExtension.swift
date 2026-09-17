@@ -96,7 +96,7 @@ extension EndpointFlow {
                         bridged = false
                     }
 
-                    let transportLower: BaseOutboundStreamLinkage
+                    let transportLower: BaseOutboundStreamLinkage<BaseLinkageFamilyGroup>
                     if bridged {
                         let (tcpUpper, tcpLower) = self.storage.createTCPInstance()
                         transportLower = tcpLower

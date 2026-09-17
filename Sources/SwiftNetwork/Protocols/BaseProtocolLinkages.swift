@@ -25,28 +25,24 @@ internal import os
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct BaseDatagramLinkageFamily: DatagramLinkageFamily {
-    public typealias Upper = BaseInboundDatagramLinkage
-    public typealias Lower = BaseOutboundDatagramLinkage
-    public typealias Listener = BaseDatagramListenerLinkage
-    public typealias InboundFlow = BaseInboundDatagramFlowLinkage
+    public typealias Upper = BaseInboundDatagramLinkage<BaseLinkageFamilyGroup>
+    public typealias Lower = BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup>
+    public typealias Listener = BaseDatagramListenerLinkage<BaseLinkageFamilyGroup>
+    public typealias InboundFlow = BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup>
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct BaseStreamLinkageFamily: StreamLinkageFamily {
-    public typealias Upper = BaseInboundStreamLinkage
-    public typealias Lower = BaseOutboundStreamLinkage
-    public typealias Listener = BaseStreamListenerLinkage
-    public typealias InboundFlow = BaseInboundStreamFlowLinkage
+    public typealias Upper = BaseInboundStreamLinkage<BaseLinkageFamilyGroup>
+    public typealias Lower = BaseOutboundStreamLinkage<BaseLinkageFamilyGroup>
+    public typealias Listener = BaseStreamListenerLinkage<BaseLinkageFamilyGroup>
+    public typealias InboundFlow = BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup>
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseInboundDatagramLinkage = BaseInboundDatagramLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseInboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: InboundDatagramLinkage, @unchecked Sendable {
+public struct BaseInboundDatagramLinkage<Group: LinkageFamilyGroup>: InboundDatagramLinkage, @unchecked Sendable{
     enum ProtocolType: Hashable {
         case unknown
         case udp(NetworkStateIndex)
@@ -187,14 +183,14 @@ public struct BaseInboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: Inbo
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>?, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>?, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -208,11 +204,7 @@ public struct BaseInboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: Inbo
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseOutboundDatagramLinkage = BaseOutboundDatagramLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseOutboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: OutboundDatagramLinkage, @unchecked Sendable {
+public struct BaseOutboundDatagramLinkage<Group: LinkageFamilyGroup>: OutboundDatagramLinkage, @unchecked Sendable{
     enum ProtocolType: Hashable {
         case unknown
         case udp(NetworkStateIndex)
@@ -417,14 +409,14 @@ public struct BaseOutboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: Out
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>?, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>?, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -438,11 +430,7 @@ public struct BaseOutboundDatagramLinkageGeneric<Group: LinkageFamilyGroup>: Out
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseDatagramListenerLinkage = BaseDatagramListenerLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseDatagramListenerLinkageGeneric<Group: LinkageFamilyGroup>: DatagramListenerLinkage {
+public struct BaseDatagramListenerLinkage<Group: LinkageFamilyGroup>: DatagramListenerLinkage{
     enum ProtocolType: Hashable {
         case unknown
         case quic(NetworkStateIndex)
@@ -454,7 +442,7 @@ public struct BaseDatagramListenerLinkageGeneric<Group: LinkageFamilyGroup>: Dat
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
@@ -561,7 +549,7 @@ public struct BaseDatagramListenerLinkageGeneric<Group: LinkageFamilyGroup>: Dat
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -575,11 +563,7 @@ public struct BaseDatagramListenerLinkageGeneric<Group: LinkageFamilyGroup>: Dat
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseInboundDatagramFlowLinkage = BaseInboundDatagramFlowLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseInboundDatagramFlowLinkageGeneric<Group: LinkageFamilyGroup>: InboundDatagramFlowLinkage {
+public struct BaseInboundDatagramFlowLinkage<Group: LinkageFamilyGroup>: InboundDatagramFlowLinkage{
     enum ProtocolType: Hashable {
         case unknown
     }
@@ -590,7 +574,7 @@ public struct BaseInboundDatagramFlowLinkageGeneric<Group: LinkageFamilyGroup>: 
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
@@ -646,7 +630,7 @@ public struct BaseInboundDatagramFlowLinkageGeneric<Group: LinkageFamilyGroup>: 
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -660,11 +644,7 @@ public struct BaseInboundDatagramFlowLinkageGeneric<Group: LinkageFamilyGroup>: 
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseDatagramMultipathLinkage = BaseDatagramMultipathLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseDatagramMultipathLinkageGeneric<Group: LinkageFamilyGroup>: DatagramMultipathLinkage, @unchecked Sendable {
+public struct BaseDatagramMultipathLinkage<Group: LinkageFamilyGroup>: DatagramMultipathLinkage, @unchecked Sendable{
     enum ProtocolType: Hashable {
         case unknown
         case quic(NetworkStateIndex)
@@ -678,14 +658,14 @@ public struct BaseDatagramMultipathLinkageGeneric<Group: LinkageFamilyGroup>: Da
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>?, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>?, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -727,11 +707,7 @@ public struct BaseDatagramMultipathLinkageGeneric<Group: LinkageFamilyGroup>: Da
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseInboundStreamLinkage = BaseInboundStreamLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseInboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: InboundStreamLinkage {
+public struct BaseInboundStreamLinkage<Group: LinkageFamilyGroup>: InboundStreamLinkage{
     enum ProtocolType: Hashable {
         case unknown
         case streamEndpointFlow(ProtocolInstanceBox<StreamEndpointFlowProtocol<Group.StreamFamily>>)
@@ -841,14 +817,14 @@ public struct BaseInboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: Inboun
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>?, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>?, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -862,11 +838,7 @@ public struct BaseInboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: Inboun
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseOutboundStreamLinkage = BaseOutboundStreamLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseOutboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: OutboundStreamLinkage, @unchecked Sendable {
+public struct BaseOutboundStreamLinkage<Group: LinkageFamilyGroup>: OutboundStreamLinkage, @unchecked Sendable{
     enum ProtocolType: Hashable {
         case unknown
         case tcp(NetworkStateIndex)
@@ -1108,14 +1080,14 @@ public struct BaseOutboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: Outbo
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>?, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>?, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -1129,11 +1101,7 @@ public struct BaseOutboundStreamLinkageGeneric<Group: LinkageFamilyGroup>: Outbo
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseStreamListenerLinkage = BaseStreamListenerLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseStreamListenerLinkageGeneric<Group: LinkageFamilyGroup>: StreamListenerLinkage {
+public struct BaseStreamListenerLinkage<Group: LinkageFamilyGroup>: StreamListenerLinkage{
     enum ProtocolType: Hashable {
         case unknown
         case quic(NetworkStateIndex)
@@ -1147,7 +1115,7 @@ public struct BaseStreamListenerLinkageGeneric<Group: LinkageFamilyGroup>: Strea
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
@@ -1258,7 +1226,7 @@ public struct BaseStreamListenerLinkageGeneric<Group: LinkageFamilyGroup>: Strea
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -1272,11 +1240,7 @@ public struct BaseStreamListenerLinkageGeneric<Group: LinkageFamilyGroup>: Strea
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseInboundStreamFlowLinkage = BaseInboundStreamFlowLinkageGeneric<BaseLinkageFamilyGroup>
-
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public struct BaseInboundStreamFlowLinkageGeneric<Group: LinkageFamilyGroup>: InboundStreamFlowLinkage {
+public struct BaseInboundStreamFlowLinkage<Group: LinkageFamilyGroup>: InboundStreamFlowLinkage{
     enum ProtocolType: Hashable {
         case unknown
     }
@@ -1290,7 +1254,7 @@ public struct BaseInboundStreamFlowLinkageGeneric<Group: LinkageFamilyGroup>: In
         self.protocolType = .unknown
     }
 
-    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageGeneric<Group>, protocolType: ProtocolType) {
+    init(reference: ProtocolInstanceReference, storage: BaseNetworkProtocolStorageParent<Group>, protocolType: ProtocolType) {
         self.reference = reference
         self.storage = storage
         self.protocolType = protocolType
@@ -1349,7 +1313,7 @@ public struct BaseInboundStreamFlowLinkageGeneric<Group: LinkageFamilyGroup>: In
     }
 
     public let reference: ProtocolInstanceReference
-    public let storage: BaseNetworkProtocolStorageGeneric<Group>?
+    public let storage: BaseNetworkProtocolStorageParent<Group>?
     let protocolType: ProtocolType
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
@@ -1363,13 +1327,21 @@ public struct BaseInboundStreamFlowLinkageGeneric<Group: LinkageFamilyGroup>: In
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public typealias BaseNetworkProtocolStorage = BaseNetworkProtocolStorageGeneric<BaseLinkageFamilyGroup>
+public typealias BaseNetworkProtocolStorage = BaseNetworkProtocolStorageParent<BaseLinkageFamilyGroup>
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
+// The storage builds the framework's own linkages, so it is constrained to groups whose families
+// are exactly those linkages. That lets it hand back `Group.DatagramFamily.Upper` and friends while
+// constructing `BaseInboundDatagramLinkage<Group>` directly. Stating this on the storage rather than
+// on `LinkageFamilyGroup` keeps the protocol free of a circular requirement.
+open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
 
-    let context: NetworkContext
+    /// The context this storage's protocol instances run on.
+    ///
+    /// Readable by subclasses so a storage defined outside the framework can build its own
+    /// protocol instances on the same context.
+    public let context: NetworkContext
 
     public init(context: NetworkContext) {
         self.context = context
@@ -1382,42 +1354,42 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInstance<Group.DatagramFamily>>()
 
-    public func createUDPInstance() -> (BaseInboundDatagramLinkageGeneric<Group>, BaseOutboundDatagramLinkageGeneric<Group>) {
+    public func createUDPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
         let instance = UDPProtocol.UDPInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = udpInstances.insert(instance)
 
         let reference = udpInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
+        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
+        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
 
         return (inbound, outbound)
     }
 
     internal var demuxInstances = NetworkGappyArray<DemuxProtocol.DemuxInstance<Group.DatagramFamily>>()
 
-    public func createDemuxInstance() -> (BaseInboundDatagramLinkageGeneric<Group>, BaseOutboundDatagramLinkageGeneric<Group>) {
+    public func createDemuxInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
         let instance = DemuxProtocol.DemuxInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = demuxInstances.insert(instance)
 
         let reference = demuxInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
+        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
+        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
 
         return (inbound, outbound)
     }
 
     internal var ipInstances = NetworkGappyArray<IPProtocol.IPInstance<Group.DatagramFamily>>()
 
-    public func createIPInstance() -> (BaseInboundDatagramLinkageGeneric<Group>, BaseOutboundDatagramLinkageGeneric<Group>) {
+    public func createIPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
         let instance = IPProtocol.IPInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = ipInstances.insert(instance)
 
         let reference = ipInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
+        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
+        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
 
         return (inbound, outbound)
     }
@@ -1425,10 +1397,10 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var socketDatagramInstances = NetworkGappyArray<SocketDatagramProtocol<Group.DatagramFamily>>()
 
-    public func createSocketDatagramInstance() -> BaseOutboundDatagramLinkageGeneric<Group> {
+    public func createSocketDatagramInstance() -> BaseOutboundDatagramLinkage<Group> {
         let instance = SocketDatagramProtocol<Group.DatagramFamily>(context: context)
         let instanceIndex = socketDatagramInstances.insert(instance)
-        return BaseOutboundDatagramLinkageGeneric<Group>(
+        return BaseOutboundDatagramLinkage<Group>(
             reference: socketDatagramInstances[instanceIndex].reference,
             storage: self,
             protocolType: .socketDatagram(instanceIndex)
@@ -1437,11 +1409,11 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var bridgeDatagramInstances = NetworkGappyArray< BridgeDatagramProtocol.BridgeInstance<Group.DatagramFamily>>()
 
-    public func createBridgeDatagramInstance() -> BaseOutboundDatagramLinkageGeneric<Group> {
+    public func createBridgeDatagramInstance() -> BaseOutboundDatagramLinkage<Group> {
         let instance = BridgeDatagramProtocol.BridgeInstance<Group.DatagramFamily>(context: context)
         let instanceIndex = bridgeDatagramInstances.insert(instance)
 
-        return BaseOutboundDatagramLinkageGeneric<Group>(
+        return BaseOutboundDatagramLinkage<Group>(
             reference: instance.reference,
             storage: self,
             protocolType: .bridgeDatagram(instanceIndex)
@@ -1454,8 +1426,8 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
     // flow owns its own lifetime, so there is nothing for the storage to keep track of.
     internal static func linkage(
         for flow: DatagramEndpointFlowProtocol<Group.DatagramFamily>
-    ) -> BaseInboundDatagramLinkageGeneric<Group> {
-        BaseInboundDatagramLinkageGeneric<Group>(
+    ) -> BaseInboundDatagramLinkage<Group> {
+        BaseInboundDatagramLinkage<Group>(
             reference: flow.reference,
             storage: nil,
             protocolType: .datagramEndpointFlow(.init(flow))
@@ -1472,7 +1444,7 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
     // inbound linkage is therefore a *datagram* linkage, for lower protocols to attach
     // below TCP, while the outbound linkage is a *stream* linkage, for upper protocols
     // to attach above it.
-    public func createTCPInstance() -> (BaseInboundDatagramLinkageGeneric<Group>, BaseOutboundStreamLinkageGeneric<Group>) {
+    public func createTCPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundStreamLinkage<Group>) {
         let instance = TCPProtocol.TCPInstance<Group.StreamFamily, Group.DatagramFamily>(
             context: context
         )
@@ -1480,12 +1452,12 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
         let instanceIndex = tcpInstances.insert(instance)
 
         let reference = tcpInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkageGeneric<Group>(
+        let inbound = BaseInboundDatagramLinkage<Group>(
             reference: reference,
             storage: self,
             protocolType: .tcp(instanceIndex)
         )
-        let outbound = BaseOutboundStreamLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .tcp(instanceIndex))
+        let outbound = BaseOutboundStreamLinkage<Group>(reference: reference, storage: self, protocolType: .tcp(instanceIndex))
 
         return (inbound, outbound)
     }
@@ -1493,10 +1465,10 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var socketStreamInstances = NetworkGappyArray<SocketStreamProtocol<Group.StreamFamily>>()
 
-    public func createSocketStreamInstance() -> BaseOutboundStreamLinkageGeneric<Group> {
+    public func createSocketStreamInstance() -> BaseOutboundStreamLinkage<Group> {
         let instance = SocketStreamProtocol<Group.StreamFamily>(context: context)
         let instanceIndex = socketStreamInstances.insert(instance)
-        return BaseOutboundStreamLinkageGeneric<Group>(
+        return BaseOutboundStreamLinkage<Group>(
             reference: socketStreamInstances[instanceIndex].reference,
             storage: self,
             protocolType: .socketStream(instanceIndex)
@@ -1505,11 +1477,11 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var bridgeStreamInstances = NetworkGappyArray<BridgeStreamProtocol.BridgeInstance<Group.StreamFamily>>()
 
-    public func createBridgeStreamInstance() -> BaseOutboundStreamLinkageGeneric<Group> {
+    public func createBridgeStreamInstance() -> BaseOutboundStreamLinkage<Group> {
         let instance = BridgeStreamProtocol.BridgeInstance<Group.StreamFamily>(context: context)
         let instanceIndex = bridgeStreamInstances.insert(instance)
 
-        return BaseOutboundStreamLinkageGeneric<Group>(
+        return BaseOutboundStreamLinkage<Group>(
             reference: instance.reference,
             storage: self,
             protocolType: .bridgeStream(instanceIndex)
@@ -1523,8 +1495,8 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
     // flow owns its own lifetime, so there is nothing for the storage to keep track of.
     internal static func linkage(
         for flow: StreamEndpointFlowProtocol<Group.StreamFamily>
-    ) -> BaseInboundStreamLinkageGeneric<Group> {
-        BaseInboundStreamLinkageGeneric<Group>(
+    ) -> BaseInboundStreamLinkage<Group> {
+        BaseInboundStreamLinkage<Group>(
             reference: flow.reference,
             storage: nil,
             protocolType: .streamEndpointFlow(.init(flow))
@@ -1533,34 +1505,34 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
 
     internal var quicInstances = NetworkGappyArray<QUICConnection<Group>>()
 
-    public func createQUICInstance() -> (BaseStreamListenerLinkageGeneric<Group>, BaseDatagramListenerLinkageGeneric<Group>, BaseDatagramMultipathLinkageGeneric<Group>) {
+    public func createQUICInstance() -> (BaseStreamListenerLinkage<Group>, BaseDatagramListenerLinkage<Group>, BaseDatagramMultipathLinkage<Group>) {
         let instance = QUICConnection<Group>(context: context)
 
         let instanceIndex = quicInstances.insert(instance)
 
         let reference = instance.reference
-        let stream = BaseStreamListenerLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
-        let datagram = BaseDatagramListenerLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
-        let multipath = BaseDatagramMultipathLinkageGeneric<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
+        let stream = BaseStreamListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
+        let datagram = BaseDatagramListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
+        let multipath = BaseDatagramMultipathLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
 
         return (stream, datagram, multipath)
     }
 
-    public func quicInstance(for linkage: BaseStreamListenerLinkageGeneric<Group>) -> QUICConnection<Group>? {
+    public func quicInstance(for linkage: BaseStreamListenerLinkage<Group>) -> QUICConnection<Group>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil
         }
     }
 
-    public func quicInstance(for linkage: BaseDatagramListenerLinkageGeneric<Group>) -> QUICConnection<Group>? {
+    public func quicInstance(for linkage: BaseDatagramListenerLinkage<Group>) -> QUICConnection<Group>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil
         }
     }
 
-    public func quicInstance(for linkage: BaseDatagramMultipathLinkageGeneric<Group>) -> QUICConnection<Group>? {
+    public func quicInstance(for linkage: BaseDatagramMultipathLinkage<Group>) -> QUICConnection<Group>? {
         switch linkage.protocolType {
         case .quic(let index): return quicInstances[index]
         default: return nil
@@ -1568,35 +1540,62 @@ open class BaseNetworkProtocolStorageGeneric<Group: LinkageFamilyGroup> {
     }
 }
 
+// Builds the linkage that wraps a QUIC object, for any group that uses the framework's linkages.
+// A group defined outside this module cannot call the linkages' internal initializer, so these
+// free functions give it the same three constructions its `LinkageFamilyGroup` conformance owes.
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public func baseLinkage<Group: LinkageFamilyGroup>(
+    forQUICStream quicStream: QUICStreamInstance<Group>
+) -> BaseOutboundStreamLinkage<Group> {
+    .init(reference: quicStream.reference, storage: nil, protocolType: .quicStream(.init(quicStream)))
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public func baseLinkage<Group: LinkageFamilyGroup>(
+    forQUICDatagramFlow quicDatagramFlow: QUICDatagramFlow<Group>
+) -> BaseOutboundDatagramLinkage<Group> {
+    .init(
+        reference: quicDatagramFlow.reference,
+        storage: nil,
+        protocolType: .quicDatagramFlow(.init(quicDatagramFlow))
+    )
+}
+
+@_spi(ProtocolProvider)
+@available(Network 0.1.0, *)
+public func baseLinkage<Group: LinkageFamilyGroup>(
+    forQUICPath quicPath: QUICPath<Group>
+) -> BaseInboundDatagramLinkage<Group> {
+    .init(reference: quicPath.reference, storage: nil, protocolType: .quicPath(.init(quicPath)))
+}
+
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct BaseLinkageFamilyGroup: LinkageFamilyGroup {
     public typealias StreamFamily = BaseStreamLinkageFamily
     public typealias DatagramFamily = BaseDatagramLinkageFamily
-    public typealias MultipathLinkageType = BaseDatagramMultipathLinkage
+    public typealias MultipathLinkageType = BaseDatagramMultipathLinkage<BaseLinkageFamilyGroup>
 
     // A QUIC stream, datagram flow, or path carried directly in the linkage's protocol type. These
     // replace the old `QUIC*Linkage` conformances, whose `QUICFamilies == Self` requirement pointed
     // back at this group and could not be resolved.
     public static func linkage(
         for quicStream: QUICStreamInstance<BaseLinkageFamilyGroup>
-    ) -> BaseOutboundStreamLinkage {
-        .init(reference: quicStream.reference, storage: nil, protocolType: .quicStream(.init(quicStream)))
+    ) -> BaseOutboundStreamLinkage<BaseLinkageFamilyGroup> {
+        baseLinkage(forQUICStream: quicStream)
     }
 
     public static func linkage(
         for quicDatagramFlow: QUICDatagramFlow<BaseLinkageFamilyGroup>
-    ) -> BaseOutboundDatagramLinkage {
-        .init(
-            reference: quicDatagramFlow.reference,
-            storage: nil,
-            protocolType: .quicDatagramFlow(.init(quicDatagramFlow))
-        )
+    ) -> BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup> {
+        baseLinkage(forQUICDatagramFlow: quicDatagramFlow)
     }
 
     public static func linkage(
         for quicPath: QUICPath<BaseLinkageFamilyGroup>
-    ) -> BaseInboundDatagramLinkage {
-        .init(reference: quicPath.reference, storage: nil, protocolType: .quicPath(.init(quicPath)))
+    ) -> BaseInboundDatagramLinkage<BaseLinkageFamilyGroup> {
+        baseLinkage(forQUICPath: quicPath)
     }
 }

@@ -71,7 +71,7 @@ final class QUICStreamLoad {
         var streamRoundTripDurations = [NetworkDuration]()
 
         var clientInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
-        var clientQUICStreamListenerLinkage: TestStreamListenerLinkage? = nil
+        var clientQUICStreamListenerLinkage: BaseStreamListenerLinkage<TestLinkageFamilyGroup>? = nil
         var serverInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
 
         group.enter()
@@ -94,20 +94,20 @@ final class QUICStreamLoad {
             let handshakeStart = NetworkClock.Instant.now
 
             // Client
-            let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
+            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 3)
             clientIPOptions.setProtocolInstance(clientIPLower.reference)
             clientParameters.defaultStack.internet = .ip(clientIPOptions)
 
-            let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
+            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
             clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
             clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
-            var (clientQUICStreamListener, _, clientQUICMultipath) = storage.createTestQUICInstanceLinkages()
+            var (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
             var clientTLSOptions = SwiftTLSProtocol.Options()
             clientTLSOptions.applicationProtocols = ["network_test"]
             clientTLSOptions.serverName = "quic-test.local"
@@ -123,7 +123,7 @@ final class QUICStreamLoad {
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
-            let clientOutput = storage.createTestBridgeDatagramInstance()
+            let clientOutput = storage.createBridgeDatagramInstance()
             let bridgeOptions = BridgeDatagramProtocol.options()
             bridgeOptions.linkDelay = linkDelay
             bridgeOptions.setProtocolInstance(clientOutput.reference)
@@ -147,7 +147,7 @@ final class QUICStreamLoad {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try clientInputLinkage.invokeAttachLowerProtocol(
-                    clientQUICStreamListener,
+                    TestStreamListenerLinkage(base: clientQUICStreamListener),
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
@@ -155,21 +155,21 @@ final class QUICStreamLoad {
                 )
                 // QUIC -> UDP -> IP -> BridgeProtocol
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    clientUDPLower,
+                    TestOutboundDatagramLinkage(base: clientUDPLower),
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
                     path: path
                 )
                 try clientUDPUpper.invokeAttachLowerProtocol(
-                    clientIPLower,
+                    TestOutboundDatagramLinkage(base: clientIPLower),
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
                     path: path
                 )
                 try clientIPUpper.invokeAttachLowerProtocol(
-                    clientOutput,
+                    TestOutboundDatagramLinkage(base: clientOutput),
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
@@ -181,20 +181,20 @@ final class QUICStreamLoad {
                 return
             }
             // Server
-            let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
+            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 3)
             serverIPOptions.setProtocolInstance(serverIPLower.reference)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-            let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
+            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
             serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
-            var (serverQUICStreamListener, _, serverQUICMultipath) = storage.createTestQUICInstanceLinkages()
+            var (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
             var serverTLSOptions = SwiftTLSProtocol.Options()
             serverTLSOptions.applicationProtocols = ["network_test"]
             serverTLSOptions.serverName = "quic-test.local"
@@ -208,7 +208,7 @@ final class QUICStreamLoad {
             serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
-            let serverOutput = storage.createTestBridgeDatagramInstance()
+            let serverOutput = storage.createBridgeDatagramInstance()
             let serverBridgeOptions = BridgeDatagramProtocol.options()
             serverBridgeOptions.linkDelay = linkDelay
             serverBridgeOptions.setProtocolInstance(serverOutput.reference)
@@ -232,7 +232,7 @@ final class QUICStreamLoad {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverInputLinkage.invokeAttachLowerProtocol(
-                    serverQUICStreamListener,
+                    TestStreamListenerLinkage(base: serverQUICStreamListener),
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
@@ -240,21 +240,21 @@ final class QUICStreamLoad {
                 )
                 // QUIC -> UDP -> IP -> BridgeProtocol
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    serverUDPLower,
+                    TestOutboundDatagramLinkage(base: serverUDPLower),
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
                     path: serverPath
                 )
                 try serverUDPUpper.invokeAttachLowerProtocol(
-                    serverIPLower,
+                    TestOutboundDatagramLinkage(base: serverIPLower),
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
                     path: serverPath
                 )
                 try serverIPUpper.invokeAttachLowerProtocol(
-                    serverOutput,
+                    TestOutboundDatagramLinkage(base: serverOutput),
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,

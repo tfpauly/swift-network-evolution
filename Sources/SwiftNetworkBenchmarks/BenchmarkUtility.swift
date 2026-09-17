@@ -145,8 +145,8 @@ public final class QUICBenchmarkUtility {
     /// caller creates the instance first via `createQUICInstance()`.
     public func createClientEndpoint(
         storage: TestNetworkProtocolStorage,
-        streamListener: TestStreamListenerLinkage,
-        multipath: TestDatagramMultipathLinkage,
+        streamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>,
+        multipath: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -216,8 +216,8 @@ public final class QUICBenchmarkUtility {
     /// Builds the server half of a loopback QUIC stack. See `createClientEndpoint`.
     public func createServerEndpoint(
         storage: TestNetworkProtocolStorage,
-        streamListener: TestStreamListenerLinkage,
-        multipath: TestDatagramMultipathLinkage,
+        streamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>,
+        multipath: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -246,7 +246,9 @@ public final class QUICBenchmarkUtility {
         do {
             // Attach from the upper linkage so both directions are bound.
             try serverNewFlowHandlerLinkage.invokeAttachLowerProtocol(
-                streamListener,
+                // The inherited QUIC factory hands back the framework's listener; the harness's
+                // flow linkage pairs with the test family's wrapper around it.
+                TestStreamListenerLinkage(base: streamListener),
                 remote: remoteEndpoint,
                 local: localEndpoint,
                 parameters: serverParameters,

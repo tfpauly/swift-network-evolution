@@ -44,17 +44,11 @@ import Darwin
 
 // MARK: - Stream linkage family
 
-@_spi(TestHarness)
-@available(Network 0.1.0, *)
-public struct TestStreamLinkageFamily: StreamLinkageFamily {
-    public typealias Upper = TestInboundStreamLinkage
-    public typealias Lower = TestOutboundStreamLinkage
-    public typealias Listener = TestStreamListenerLinkage
-    public typealias InboundFlow = TestInboundStreamFlowLinkage
-}
+// MARK: - The test linkage family group
 
-// MARK: - QUIC linkage families
-
+// The test stack uses the framework's own linkages, specialized on this group. Nothing needs to be
+// wrapped: a `Base*Linkage<TestLinkageFamilyGroup>` already carries every framework protocol, and
+// the test-only protocols are reached through the same linkages.
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 public struct TestLinkageFamilyGroup: LinkageFamilyGroup {
@@ -62,25 +56,32 @@ public struct TestLinkageFamilyGroup: LinkageFamilyGroup {
     public typealias DatagramFamily = TestDatagramLinkageFamily
     public typealias MultipathLinkageType = TestDatagramMultipathLinkage
 
-    // The group says how to wrap each QUIC object in one of this family's linkages. These replace
-    // the old `QUIC*Linkage` conformances, which pointed back at the group.
     public static func linkage(
         for quicStream: QUICStreamInstance<TestLinkageFamilyGroup>
     ) -> TestOutboundStreamLinkage {
-        .init(quicStream)
+        .init(base: baseLinkage(forQUICStream: quicStream))
     }
 
     public static func linkage(
         for quicDatagramFlow: QUICDatagramFlow<TestLinkageFamilyGroup>
     ) -> TestOutboundDatagramLinkage {
-        .init(quicDatagramFlow)
+        .init(base: baseLinkage(forQUICDatagramFlow: quicDatagramFlow))
     }
 
     public static func linkage(
         for quicPath: QUICPath<TestLinkageFamilyGroup>
     ) -> TestInboundDatagramLinkage {
-        .init(quicPath)
+        .init(base: baseLinkage(forQUICPath: quicPath))
     }
+}
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestStreamLinkageFamily: StreamLinkageFamily {
+    public typealias Upper = TestInboundStreamLinkage
+    public typealias Lower = TestOutboundStreamLinkage
+    public typealias Listener = TestStreamListenerLinkage
+    public typealias InboundFlow = TestInboundStreamFlowLinkage
 }
 
 // MARK: - Inbound stream linkage
@@ -95,7 +96,7 @@ public struct TestInboundStreamLinkage: InboundStreamLinkage, @unchecked Sendabl
         case streamUpperHarness(StreamUpperHarness<TestStreamLinkageFamily>)
     }
 
-    public let base: BaseInboundStreamLinkageGeneric<TestLinkageFamilyGroup>
+    public let base: BaseInboundStreamLinkage<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -105,7 +106,7 @@ public struct TestInboundStreamLinkage: InboundStreamLinkage, @unchecked Sendabl
         self.harnessReference = nil
     }
 
-    public init(base: BaseInboundStreamLinkageGeneric<TestLinkageFamilyGroup>) {
+    public init(base: BaseInboundStreamLinkage<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -246,12 +247,9 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
     public enum ProtocolType {
         case base
         case streamLowerHarness(StreamLowerHarness<TestStreamLinkageFamily>)
-        // A QUIC stream in the test family. The base linkage cannot stand in for this: its own
-        // `quicStream` case carries a stream typed to the base family.
-        case quicStream(QUICStreamInstance<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseOutboundStreamLinkageGeneric<TestLinkageFamilyGroup>
+    public let base: BaseOutboundStreamLinkage<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let localReference: ProtocolInstanceReference?
 
@@ -261,7 +259,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         self.localReference = nil
     }
 
-    public init(base: BaseOutboundStreamLinkageGeneric<TestLinkageFamilyGroup>) {
+    public init(base: BaseOutboundStreamLinkage<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.localReference = nil
@@ -278,7 +276,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
 
     public func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
         switch protocolType {
-        case .streamLowerHarness, .quicStream: return reference.isConnected(state: &state)
+        case .streamLowerHarness: return reference.isConnected(state: &state)
         default: return base.protocolIsConnected(state: &state)
         }
     }
@@ -291,10 +289,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         path: PathProperties?
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream:
-            // `attachUpperProtocolToNewFlow` binds the upper when it creates the stream, so there
-            // is nothing more to do here.
-            break
         case .streamLowerHarness(let harness):
             var harness = harness
             try harness.attachUpperProtocol(
@@ -322,14 +316,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         maximumBytes: Int
     ) throws(NetworkError) -> FrameArray? {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            return try stream.receiveStreamData(
-                state: &state,
-                from,
-                minimumBytes: minimumBytes,
-                maximumBytes: maximumBytes
-            )
         case .streamLowerHarness(let harness):
             var harness = harness
             return try harness.receiveStreamData(
@@ -353,9 +339,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) -> Int {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            return try stream.getOutboundStreamDataRoomAvailable(state: &state, from)
         case .streamLowerHarness(let harness):
             var harness = harness
             return try harness.getOutboundStreamDataRoomAvailable(state: &state, from)
@@ -370,9 +353,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         streamData: consuming FrameArray
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            try stream.sendStreamData(state: &state, from, streamData: streamData)
         case .streamLowerHarness(let harness):
             var harness = harness
             try harness.sendStreamData(state: &state, from, streamData: streamData)
@@ -386,9 +366,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         streamData: consuming FrameArray
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            try stream.sendEarlyStreamData(state: &state, from, streamData: streamData)
         case .streamLowerHarness:
             // The harness has no early-data path, matching what the framework's own linkage
             // reported for every non-QUIC protocol.
@@ -403,9 +380,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         error: NetworkError?
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            try stream.abortInbound(state: &state, from, error: error)
         case .streamLowerHarness:
             // Not supported by the harness, matching the framework's own linkage.
             throw NetworkError.posix(ENOTSUP)
@@ -419,9 +393,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         error: NetworkError?
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            try stream.abortOutbound(state: &state, from, error: error)
         case .streamLowerHarness:
             // Not supported by the harness, matching the framework's own linkage.
             throw NetworkError.posix(ENOTSUP)
@@ -431,7 +402,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
 
     public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
-        case .quicStream(let stream): stream.connect(state: &state, from)
         case .streamLowerHarness(let harness): harness.connect(state: &state, from)
         default: base.connect(state: &state, from)
         }
@@ -443,7 +413,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         error: NetworkError?
     ) {
         switch protocolType {
-        case .quicStream(let stream): stream.disconnect(state: &state, from, error: error)
         case .streamLowerHarness(let harness):
             harness.disconnect(state: &state, from, error: error)
         default: base.disconnect(state: &state, from, error: error)
@@ -455,9 +424,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         switch protocolType {
-        case .quicStream(let stream):
-            var stream = stream
-            try stream.detach(state: &state, from)
         case .streamLowerHarness(let harness):
             var harness = harness
             try harness.detach(state: &state, from)
@@ -467,7 +433,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
 
     public func teardown(state: inout NetworkContext.State) {
         switch protocolType {
-        case .streamLowerHarness, .quicStream: break
+        case .streamLowerHarness: break
         default: base.teardown(state: &state)
         }
     }
@@ -478,8 +444,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         event: ApplicationEvent
     ) {
         switch protocolType {
-        case .quicStream(let stream):
-            stream.handleApplicationEvent(state: &state, from, event: event)
         case .streamLowerHarness(let harness):
             harness.handleApplicationEvent(state: &state, from, event: event)
         default: base.handleApplicationEvent(state: &state, from, event: event)
@@ -491,7 +455,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         _ from: ProtocolInstanceReference
     ) -> ProtocolMetadata<P>? {
         switch protocolType {
-        case .quicStream(let stream): return stream.getMetadata(state: &state, from)
         case .streamLowerHarness(let harness): return harness.getMetadata(state: &state, from)
         default: return base.getMetadata(state: &state, from)
         }
@@ -503,12 +466,6 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
         switch protocolType {
-        case .quicStream(let stream):
-            return stream.getMetrics(
-                state: &state,
-                from,
-                requestedNetworkMetric: requestedNetworkMetric
-            )
         case .streamLowerHarness:
             // Held here rather than in `base`, whose linkage is empty; see the datagram
             // equivalent. Falling through would force-unwrap a nil storage.
@@ -544,7 +501,7 @@ public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked
         case newStreamFlowHarness(NewStreamFlowHarness<TestStreamLinkageFamily>)
     }
 
-    public let base: BaseInboundStreamFlowLinkageGeneric<TestLinkageFamilyGroup>
+    public let base: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -554,7 +511,7 @@ public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked
         self.harnessReference = nil
     }
 
-    public init(base: BaseInboundStreamFlowLinkageGeneric<TestLinkageFamilyGroup>) {
+    public init(base: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -670,10 +627,9 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
 
     public enum ProtocolType {
         case base
-        case quic(QUICConnection<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseStreamListenerLinkageGeneric<TestLinkageFamilyGroup>
+    public let base: BaseStreamListenerLinkage<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let localReference: ProtocolInstanceReference?
 
@@ -683,16 +639,10 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         self.localReference = nil
     }
 
-    public init(base: BaseStreamListenerLinkageGeneric<TestLinkageFamilyGroup>) {
+    public init(base: BaseStreamListenerLinkage<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.localReference = nil
-    }
-
-    public init(quic instance: QUICConnection<TestLinkageFamilyGroup>) {
-        self.base = .init()
-        self.protocolType = .quic(instance)
-        self.localReference = instance.reference
     }
 
     public var reference: ProtocolInstanceReference { localReference ?? base.reference }
@@ -707,15 +657,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         path: PathProperties?
     ) throws(NetworkError) {
         switch protocolType {
-        case .quic(let instance):
-            var instance = instance
-            try instance.attachUpperProtocol(
-                upperProtocol,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
         default:
             try base.invokeAttachUpperProtocol(
                 upperProtocol,
@@ -752,15 +693,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
     ) throws(NetworkError) {
         let lowerProtocol: TestOutboundStreamLinkage
         switch protocolType {
-        case .quic(let instance):
-            var instance = instance
-            lowerProtocol = try instance.attachUpperProtocolToNewFlow(
-                upperProtocol,
-                remote: remote,
-                local: local,
-                parameters: parameters,
-                path: path
-            )
         default:
             try base.invokeAttachUpperProtocolToNewFlow(
                 upperProtocol,
@@ -785,12 +717,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         existingFlowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> TestOutboundStreamLinkage {
         switch protocolType {
-        case .quic(let instance):
-            var instance = instance
-            return try instance.attachUpperProtocolToExistingFlow(
-                upperProtocol,
-                existingFlowReference: existingFlowReference
-            )
         default:
             // The wrapped base linkage is specialized on this group, so it already hands back the
             // test family's own linkage -- no re-wrapping needed.
@@ -803,7 +729,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
 
     public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
-        case .quic(let instance): instance.connect(state: &state, from)
         default: base.connect(state: &state, from)
         }
     }
@@ -814,7 +739,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         error: NetworkError?
     ) {
         switch protocolType {
-        case .quic(let instance): instance.disconnect(state: &state, from, error: error)
         default: base.disconnect(state: &state, from, error: error)
         }
     }
@@ -824,16 +748,12 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         switch protocolType {
-        case .quic(let instance):
-            var instance = instance
-            try instance.detach(state: &state, from)
         default: try base.detach(state: &state, from)
         }
     }
 
     public func teardown(state: inout NetworkContext.State) {
         switch protocolType {
-        case .quic: break
         default: base.teardown(state: &state)
         }
     }
@@ -844,8 +764,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         event: ApplicationEvent
     ) {
         switch protocolType {
-        case .quic(let instance):
-            instance.handleApplicationEvent(state: &state, from, event: event)
         default: base.handleApplicationEvent(state: &state, from, event: event)
         }
     }
@@ -855,7 +773,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         _ from: ProtocolInstanceReference
     ) -> ProtocolMetadata<P>? {
         switch protocolType {
-        case .quic(let instance): return instance.getMetadata(state: &state, from)
         default: return base.getMetadata(state: &state, from)
         }
     }
@@ -866,12 +783,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
         switch protocolType {
-        case .quic(let instance):
-            return instance.getMetrics(
-                state: &state,
-                from,
-                requestedNetworkMetric: requestedNetworkMetric
-            )
         default:
             return base.getMetrics(
                 state: &state,
@@ -898,9 +809,4 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 extension TestOutboundStreamLinkage {
-    public init(_ quicStream: QUICStreamInstance<TestLinkageFamilyGroup>) {
-        self.base = .init()
-        self.protocolType = .quicStream(quicStream)
-        self.localReference = quicStream.reference
-    }
 }

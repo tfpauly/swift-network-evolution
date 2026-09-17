@@ -542,8 +542,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        // Not generic here, so this entry point builds the instance in the base family.
-        BridgeInstance<BaseStreamLinkageFamily>(context: context).reference
+        nil
     }
 
     static let identifier = ProtocolIdentifier(name: "bridge-stream", level: .link, mapping: .oneToOne)

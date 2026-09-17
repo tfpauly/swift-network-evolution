@@ -479,7 +479,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let path = PathProperties(parameters: parameters)
 
-            let (ipUpper, ipLower) = storage.createTestIPInstance()
+            let (ipUpper, ipLower) = storage.createIPInstance()
             let reference = ipUpper.reference
             let ipOptions = IPProtocol.options()
             ipOptions.dscpValue = dscpValue
@@ -507,7 +507,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 context: parameters.context)
 
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to upper harness")
             }
@@ -932,7 +932,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createTestIPInstance()
+            let (ipUpper, ipLower) = storage.createIPInstance()
             let ipOptions = IPProtocol.options()
             // Enable fragmentation through IPOptions
             ipOptions.flags = IPProtocol.IPOptions.Flags(rawValue: ipOptions.flags.rawValue)
@@ -958,7 +958,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1052,7 +1052,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createTestIPInstance()
+            let (ipUpper, ipLower) = storage.createIPInstance()
             let ipOptions = IPProtocol.options()
             ipOptions.flags = IPProtocol.IPOptions.Flags(rawValue: ipOptions.flags.rawValue)
                 .union(.fragmentationEnabledOverridden)
@@ -1077,7 +1077,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1163,7 +1163,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let path = PathProperties(parameters: parameters)
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createTestIPInstance()
+            let (ipUpper, ipLower) = storage.createIPInstance()
             let ipOptions = IPProtocol.options()
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: logIDNumber)
             ipOptions.setProtocolInstance(ipUpper.reference)
@@ -1185,7 +1185,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1227,7 +1227,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let storage = TestNetworkProtocolStorage(context: context)
             let clientPath = PathProperties(parameters: clientParameters)
 
-            let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
+            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientOptions = IPProtocol.options()
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
             clientOptions.setProtocolInstance(clientIPLower.reference)
@@ -1241,7 +1241,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: clientPath,
                 context: clientParameters.context)
             do {
-                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(clientIPLower, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: clientIPLower), remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to client upper harness")
             }
@@ -1258,7 +1258,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
+            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
 
             let serverOptions = IPProtocol.options()
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
@@ -1273,7 +1273,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: serverPath,
                 context: serverParameters.context)
             do {
-                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverIPLower, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: serverIPLower), remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to server upper harness")
             }

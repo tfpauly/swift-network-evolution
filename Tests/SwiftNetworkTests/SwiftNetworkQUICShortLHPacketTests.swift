@@ -160,7 +160,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
         let context = serverParameters.context
         let serverPath = PathProperties(parameters: serverParameters)
         let storage = TestNetworkProtocolStorage(context: context)
-        let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createTestQUICInstanceLinkages()
+        let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
 
         let serverQUICOptions = self.createQUICTestOptions(server: true)
         serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
@@ -184,7 +184,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverUpperHarnessLinkage.invokeAttachLowerProtocol(
-                    serverQUICStreamListener,
+                    TestStreamListenerLinkage(base: serverQUICStreamListener),
                     remote: clientEndpoint,
                     local: serverEndpoint,
                     parameters: serverParameters,

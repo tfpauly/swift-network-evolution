@@ -99,9 +99,9 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
             // TCP's inbound linkage is a datagram linkage, since TCP consumes datagrams
             // from below, while its outbound linkage is a stream linkage.
             let (tcpUpper, tcpLower): (
-                TestInboundDatagramLinkage,
-                TestOutboundStreamLinkage
-            ) = storage.createTestTCPInstance()
+                BaseInboundDatagramLinkage<TestLinkageFamilyGroup>,
+                BaseOutboundStreamLinkage<TestLinkageFamilyGroup>
+            ) = storage.createTCPInstance()
             XCTAssertFalse(tcpUpper.isDetached, "TCP upper linkage unexpectedly detached")
             XCTAssertFalse(tcpLower.isDetached, "TCP lower linkage unexpectedly detached")
 
@@ -113,7 +113,7 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
 
     // Attaches a datagram lower harness below TCP through TCP's datagram-side inbound
     // linkage. This exercises the attachLowerProtocol path that only resolves once TCP
-    // is registered in TestInboundDatagramLinkage rather than the stream one.
+    // is registered in BaseInboundDatagramLinkage<TestLinkageFamilyGroup> rather than the stream one.
     func testAttachDatagramHarnessBelowTCP() {
         let parameters = Parameters()
         let expectation = XCTestExpectation()
@@ -127,9 +127,9 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
             let remoteEndpoint = Endpoint(address: IPv4Address([0x0a, 0x00, 0x00, 0x75])!, port: 2345)
 
             let (tcpDatagramUpper, tcpStreamLower): (
-                TestInboundDatagramLinkage,
-                TestOutboundStreamLinkage
-            ) = storage.createTestTCPInstance()
+                BaseInboundDatagramLinkage<TestLinkageFamilyGroup>,
+                BaseOutboundStreamLinkage<TestLinkageFamilyGroup>
+            ) = storage.createTCPInstance()
 
             let (_, lowerHarnessLinkage) = storage.createDatagramLowerHarness(
                 identifier: "BelowTCP",

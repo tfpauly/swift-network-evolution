@@ -93,7 +93,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let path = PathProperties(parameters: parameters)
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createTestUDPInstance()
+            let (udpUpper, udpLower) = storage.createUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
@@ -108,7 +108,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: path,
                 context: context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: udpLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to upper harness")
             }
@@ -226,7 +226,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let path = PathProperties(parameters: parameters)
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createTestUDPInstance()
+            let (udpUpper, udpLower) = storage.createUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.fullChecksumOffload = fullChecksumOffload
             udpOptions.preferNoChecksum = preferNoChecksum
@@ -243,7 +243,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: path,
                 context: context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: udpLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach UDP to upper harness")
                 return
@@ -367,7 +367,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let storage = TestNetworkProtocolStorage(context: context)
 
             let clientPath = PathProperties(parameters: clientParameters)
-            let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
+            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
             let clientOptions = UDPProtocol.options()
             clientOptions.noMetadata = true
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
@@ -382,7 +382,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: clientPath,
                 context: clientParameters.context)
             do {
-                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(clientUDPLower, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: clientUDPLower), remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to client upper harness")
             }
@@ -399,7 +399,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
+            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             let serverOptions = UDPProtocol.options()
             serverOptions.noMetadata = true
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
@@ -414,7 +414,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: serverPath,
                 context: serverParameters.context)
             do {
-                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverUDPLower, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: serverUDPLower), remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to server upper harness")
             }

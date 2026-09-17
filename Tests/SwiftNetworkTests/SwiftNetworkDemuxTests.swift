@@ -129,7 +129,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             let path = PathProperties(parameters: parameters)
             let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createTestUDPInstance()
+            let (udpUpper, udpLower) = storage.createUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             // Accept the checksum=0 packets we inject on inbound so we don't need to compute one.
@@ -138,7 +138,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             udpOptions.setProtocolInstance(udpUpper.reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let (demuxUpper, demuxLower) = storage.createTestDemuxInstance()
+            let (demuxUpper, demuxLower) = storage.createDemuxInstance()
 
             // The default upper harness attaches first, so the demux treats it as the
             // catch-all for datagrams that match none of the patterns.
@@ -152,7 +152,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             )
             do {
                 try upperHarnessLinkage.invokeAttachLowerProtocol(
-                    demuxLower,
+                    TestOutboundDatagramLinkage(base: demuxLower),
                     remote: remoteEndpoint,
                     local: localEndpoint,
                     parameters: parameters,
@@ -166,7 +166,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             // Stack below the demux: demux -> UDP -> lower harness.
             do {
                 try demuxUpper.invokeAttachLowerProtocol(
-                    udpLower,
+                    TestOutboundDatagramLinkage(base: udpLower),
                     remote: remoteEndpoint,
                     local: localEndpoint,
                     parameters: parameters,
@@ -228,7 +228,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                 )
                 do {
                     try demuxUpperHarnessLinkage.invokeAttachLowerProtocol(
-                        demuxLower,
+                        TestOutboundDatagramLinkage(base: demuxLower),
                         remote: remoteEndpoint,
                         local: localEndpoint,
                         parameters: demuxParameters,

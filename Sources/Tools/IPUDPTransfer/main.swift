@@ -63,13 +63,13 @@ final class IPUDPTransfer {
             for _ in 0..<iterations {
                 // Client
                 let path = PathProperties(parameters: clientParameters)
-                let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
+                let (clientIPUpper, clientIPLower) = storage.createIPInstance()
                 let clientIPOptions = IPProtocol.options()
                 clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
                 clientIPOptions.setProtocolInstance(clientIPUpper.reference)
                 clientParameters.defaultStack.internet = .ip(clientIPOptions)
 
-                let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
+                let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
                 let clientUDPOptions = UDPProtocol.options()
                 clientUDPOptions.noMetadata = true
                 clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
@@ -90,14 +90,14 @@ final class IPUDPTransfer {
 
                 do {
                     try clientInputLinkage.invokeAttachLowerProtocol(
-                        clientUDPLower,
+                        TestOutboundDatagramLinkage(base: clientUDPLower),
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
                         path: path
                     )
                     try clientUDPUpper.invokeAttachLowerProtocol(
-                        clientIPLower,
+                        TestOutboundDatagramLinkage(base: clientIPLower),
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
@@ -119,13 +119,13 @@ final class IPUDPTransfer {
                 var serverParameters = Parameters()
                 serverParameters.context = context
                 let serverPath = PathProperties(parameters: serverParameters)
-                let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
+                let (serverIPUpper, serverIPLower) = storage.createIPInstance()
                 let serverIPOptions = IPProtocol.options()
                 serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
                 serverIPOptions.setProtocolInstance(serverIPUpper.reference)
                 serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-                let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
+                let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
                 let serverUDPOptions = UDPProtocol.options()
                 serverUDPOptions.noMetadata = true
                 serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
@@ -146,14 +146,14 @@ final class IPUDPTransfer {
 
                 do {
                     try serverInputLinkage.invokeAttachLowerProtocol(
-                        serverUDPLower,
+                        TestOutboundDatagramLinkage(base: serverUDPLower),
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
                         path: serverPath
                     )
                     try serverUDPUpper.invokeAttachLowerProtocol(
-                        serverIPLower,
+                        TestOutboundDatagramLinkage(base: serverIPLower),
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
