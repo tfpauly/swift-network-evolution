@@ -37,10 +37,10 @@ import Darwin
 // stream or datagram flow. QUIC hands its upper protocol a linkage built from
 // `Families.StreamFamily.Lower`, so that lower linkage needs both a harness case and
 // a `quicStream` case. Wrapping the base linkage is not enough on its own: the base linkage's
-// `quicStream` case carries a `QUICStreamInstance<BaseQUICLinkageFamilies>`, whose flows are
+// `quicStream` case carries a `QUICStreamInstance<BaseLinkageFamilyGroup>`, whose flows are
 // typed to the *base* family, so a harness in the test family could never be attached to it.
 // These families are the test-family equivalents, carrying QUIC instances parameterized on
-// `TestQUICLinkageFamilies` instead.
+// `TestLinkageFamilyGroup` instead.
 
 // MARK: - Stream linkage family
 
@@ -57,7 +57,7 @@ public struct TestStreamLinkageFamily: StreamLinkageFamily {
 
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
-public struct TestQUICLinkageFamilies: LinkageFamilyGroup {
+public struct TestLinkageFamilyGroup: LinkageFamilyGroup {
     public typealias StreamFamily = TestStreamLinkageFamily
     public typealias DatagramFamily = TestDatagramLinkageFamily
     public typealias MultipathLinkageType = TestDatagramMultipathLinkage
@@ -65,19 +65,19 @@ public struct TestQUICLinkageFamilies: LinkageFamilyGroup {
     // The group says how to wrap each QUIC object in one of this family's linkages. These replace
     // the old `QUIC*Linkage` conformances, which pointed back at the group.
     public static func linkage(
-        for quicStream: QUICStreamInstance<TestQUICLinkageFamilies>
+        for quicStream: QUICStreamInstance<TestLinkageFamilyGroup>
     ) -> TestOutboundStreamLinkage {
         .init(quicStream)
     }
 
     public static func linkage(
-        for quicDatagramFlow: QUICDatagramFlow<TestQUICLinkageFamilies>
+        for quicDatagramFlow: QUICDatagramFlow<TestLinkageFamilyGroup>
     ) -> TestOutboundDatagramLinkage {
         .init(quicDatagramFlow)
     }
 
     public static func linkage(
-        for quicPath: QUICPath<TestQUICLinkageFamilies>
+        for quicPath: QUICPath<TestLinkageFamilyGroup>
     ) -> TestInboundDatagramLinkage {
         .init(quicPath)
     }
@@ -95,7 +95,7 @@ public struct TestInboundStreamLinkage: InboundStreamLinkage, @unchecked Sendabl
         case streamUpperHarness(StreamUpperHarness<TestStreamLinkageFamily>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseInboundStreamLinkage
+    public let base: BaseInboundStreamLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -105,7 +105,7 @@ public struct TestInboundStreamLinkage: InboundStreamLinkage, @unchecked Sendabl
         self.harnessReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseInboundStreamLinkage) {
+    public init(base: BaseInboundStreamLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -248,10 +248,10 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         case streamLowerHarness(StreamLowerHarness<TestStreamLinkageFamily>)
         // A QUIC stream in the test family. The base linkage cannot stand in for this: its own
         // `quicStream` case carries a stream typed to the base family.
-        case quicStream(QUICStreamInstance<TestQUICLinkageFamilies>)
+        case quicStream(QUICStreamInstance<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseOutboundStreamLinkage
+    public let base: BaseOutboundStreamLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let localReference: ProtocolInstanceReference?
 
@@ -261,7 +261,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
         self.localReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseOutboundStreamLinkage) {
+    public init(base: BaseOutboundStreamLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.localReference = nil
@@ -306,7 +306,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
             )
         default:
             try base.invokeAttachUpperProtocol(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -544,7 +544,7 @@ public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked
         case newStreamFlowHarness(NewStreamFlowHarness<TestStreamLinkageFamily>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseInboundStreamFlowLinkage
+    public let base: BaseInboundStreamFlowLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -554,7 +554,7 @@ public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked
         self.harnessReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseInboundStreamFlowLinkage) {
+    public init(base: BaseInboundStreamFlowLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -670,10 +670,10 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
 
     public enum ProtocolType {
         case base
-        case quic(QUICConnection<TestQUICLinkageFamilies>)
+        case quic(QUICConnection<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseStreamListenerLinkage
+    public let base: BaseStreamListenerLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let localReference: ProtocolInstanceReference?
 
@@ -683,13 +683,13 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         self.localReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseStreamListenerLinkage) {
+    public init(base: BaseStreamListenerLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.localReference = nil
     }
 
-    public init(quic instance: QUICConnection<TestQUICLinkageFamilies>) {
+    public init(quic instance: QUICConnection<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quic(instance)
         self.localReference = instance.reference
@@ -718,7 +718,7 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
             )
         default:
             try base.invokeAttachUpperProtocol(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -763,7 +763,7 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
             )
         default:
             try base.invokeAttachUpperProtocolToNewFlow(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -792,11 +792,11 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
                 existingFlowReference: existingFlowReference
             )
         default:
-            return TestOutboundStreamLinkage(
-                base: try base.invokeAttachUpperProtocolToExistingFlow(
-                    upperProtocol.base,
-                    existingFlowReference: existingFlowReference
-                )
+            // The wrapped base linkage is specialized on this group, so it already hands back the
+            // test family's own linkage -- no re-wrapping needed.
+            return try base.invokeAttachUpperProtocolToExistingFlow(
+                upperProtocol,
+                existingFlowReference: existingFlowReference
             )
         }
     }
@@ -898,7 +898,7 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 extension TestOutboundStreamLinkage {
-    public init(_ quicStream: QUICStreamInstance<TestQUICLinkageFamilies>) {
+    public init(_ quicStream: QUICStreamInstance<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quicStream(quicStream)
         self.localReference = quicStream.reference

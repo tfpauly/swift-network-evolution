@@ -62,10 +62,10 @@ extension FrameDatagram {
 class QUICFrameTests: XCTestCase {
 
     var stats: Statistics!
-    var connection: QUICConnection<TestQUICLinkageFamilies>!
+    var connection: QUICConnection<TestLinkageFamilyGroup>!
 
     override func setUp() {
-        connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -3514,7 +3514,7 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testDatagramBadLengthParsing() throws {
-        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
 
         let bytes: [UInt8] = [
             0x31,  // type: DATAGRAM with length

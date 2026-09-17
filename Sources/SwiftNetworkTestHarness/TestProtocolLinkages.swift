@@ -26,7 +26,7 @@
 // for the protocols only this module knows about. Anything the enum doesn't name falls through
 // to the wrapped base linkage, so all the protocols the framework provides keep working.
 //
-// The storage subclasses `BaseNetworkProtocolStorage`, so it owns the framework's protocol
+// The storage subclasses `BaseNetworkProtocolStorageGeneric<TestLinkageFamilyGroup>`, so it owns the framework's protocol
 // instances as well as the test-only ones.
 
 @_spi(TestHarness)
@@ -36,13 +36,13 @@ public final class TestNetworkProtocolStorage {
     // The framework's storage, held rather than subclassed. The test storage owns the test-only
     // protocols; everything the framework provides is created and owned here, and the test
     // linkages reach it only through the `Base*` linkages it hands back.
-    public let base: BaseNetworkProtocolStorage
+    public let base: BaseNetworkProtocolStorageGeneric<TestLinkageFamilyGroup>
 
     public let context: NetworkContext
 
     public init(context: NetworkContext) {
         self.context = context
-        self.base = BaseNetworkProtocolStorage(context: context)
+        self.base = BaseNetworkProtocolStorageGeneric<TestLinkageFamilyGroup>(context: context)
     }
 
 
@@ -245,16 +245,16 @@ public final class TestNetworkProtocolStorage {
     // MARK: - QUIC instances
 
     // QUIC connections in the test family. The base storage's QUIC instances are parameterized on
-    // `BaseQUICLinkageFamilies`, so a harness in the test family could not attach to them.
-    private var quicInstancesForTest = [ObjectIdentifier: QUICConnection<TestQUICLinkageFamilies>]()
+    // `BaseLinkageFamilyGroup`, so a harness in the test family could not attach to them.
+    private var quicInstancesForTest = [ObjectIdentifier: QUICConnection<TestLinkageFamilyGroup>]()
 
     public func createTestQUICInstance() -> (
         streamListener: TestStreamListenerLinkage,
         datagramListener: TestDatagramListenerLinkage,
         multipath: TestDatagramMultipathLinkage,
-        instance: QUICConnection<TestQUICLinkageFamilies>
+        instance: QUICConnection<TestLinkageFamilyGroup>
     ) {
-        let instance = QUICConnection<TestQUICLinkageFamilies>(context: context)
+        let instance = QUICConnection<TestLinkageFamilyGroup>(context: context)
         quicInstancesForTest[ObjectIdentifier(instance)] = instance
         return (
             streamListener: TestStreamListenerLinkage(quic: instance),
@@ -292,12 +292,12 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
         // `asUpperLinkage()` so its lower protocol can deliver events to it.
         case multiplexingPath(TestDatagramPath)
         // A QUIC path in the test family, for the same reason as `quicDatagramFlow` above.
-        case quicPath(QUICPath<TestQUICLinkageFamilies>)
+        case quicPath(QUICPath<TestLinkageFamilyGroup>)
         // Framework protocols, held by the test storage and typed to the test families so a
         // harness can be their upper. Reached by index, like the base storage does.
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage
+    public let base: BaseInboundDatagramLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -307,7 +307,7 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
         self.harnessReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage) {
+    public init(base: BaseInboundDatagramLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -356,7 +356,7 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
             // Not a test protocol, so hand the whole call to the wrapped base linkage. Both sides
             // are base linkages here, so it completes the pairing itself.
             try base.invokeAttachLowerProtocol(
-                lowerProtocol.base,
+                lowerProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -470,10 +470,10 @@ public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked S
         case multiplexedFlow(TestDatagramFlow)
         // A QUIC datagram flow in the test family. The base linkage cannot stand in for this: its
         // own `quicDatagramFlow` case carries a flow typed to the base family.
-        case quicDatagramFlow(QUICDatagramFlow<TestQUICLinkageFamilies>)
+        case quicDatagramFlow(QUICDatagramFlow<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage
+    public let base: BaseOutboundDatagramLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -483,7 +483,7 @@ public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked S
         self.harnessReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage) {
+    public init(base: BaseOutboundDatagramLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -540,7 +540,7 @@ public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked S
             )
         default:
             try base.invokeAttachUpperProtocol(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -762,7 +762,7 @@ public struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unche
         case newDatagramFlowHarness(NewDatagramFlowHarness<TestDatagramLinkageFamily>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage
+    public let base: BaseInboundDatagramFlowLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
@@ -772,7 +772,7 @@ public struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unche
         self.harnessReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage) {
+    public init(base: BaseInboundDatagramFlowLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
@@ -890,10 +890,10 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
         case base
         case multiplexing(TestMultiplexingProtocol)
         // A QUIC connection in the test family, listening for inbound datagram flows.
-        case quic(QUICConnection<TestQUICLinkageFamilies>)
+        case quic(QUICConnection<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage
+    public let base: BaseDatagramListenerLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let multiplexingReference: ProtocolInstanceReference?
 
@@ -903,7 +903,7 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
         self.multiplexingReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage) {
+    public init(base: BaseDatagramListenerLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.multiplexingReference = nil
@@ -915,7 +915,7 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
         self.multiplexingReference = instance.reference
     }
 
-    public init(quic instance: QUICConnection<TestQUICLinkageFamilies>) {
+    public init(quic instance: QUICConnection<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quic(instance)
         self.multiplexingReference = instance.reference
@@ -955,7 +955,7 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
             )
         default:
             try base.invokeAttachUpperProtocol(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -1030,7 +1030,7 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
             )
         default:
             try base.invokeAttachUpperProtocolToNewFlow(
-                upperProtocol.base,
+                upperProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -1057,11 +1057,11 @@ public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked S
                 existingFlowReference: existingFlowReference
             )
         default:
-            return TestOutboundDatagramLinkage(
-                base: try base.invokeAttachUpperProtocolToExistingFlow(
-                    upperProtocol.base,
-                    existingFlowReference: existingFlowReference
-                )
+            // The wrapped base linkage is specialized on this group, so it already hands back the
+            // test family's own linkage -- no re-wrapping needed.
+            return try base.invokeAttachUpperProtocolToExistingFlow(
+                upperProtocol,
+                existingFlowReference: existingFlowReference
             )
         }
     }
@@ -1171,10 +1171,10 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
         case base
         case multiplexing(TestMultiplexingProtocol)
         // A QUIC connection in the test family, owning the paths beneath it.
-        case quic(QUICConnection<TestQUICLinkageFamilies>)
+        case quic(QUICConnection<TestLinkageFamilyGroup>)
     }
 
-    public let base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage
+    public let base: BaseDatagramMultipathLinkageGeneric<TestLinkageFamilyGroup>
     public let protocolType: ProtocolType
     private let multiplexingReference: ProtocolInstanceReference?
 
@@ -1184,7 +1184,7 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
         self.multiplexingReference = nil
     }
 
-    public init(base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage) {
+    public init(base: BaseDatagramMultipathLinkageGeneric<TestLinkageFamilyGroup>) {
         self.base = base
         self.protocolType = .base
         self.multiplexingReference = nil
@@ -1196,7 +1196,7 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
         self.multiplexingReference = instance.reference
     }
 
-    public init(quic instance: QUICConnection<TestQUICLinkageFamilies>) {
+    public init(quic instance: QUICConnection<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quic(instance)
         self.multiplexingReference = instance.reference
@@ -1260,7 +1260,7 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
         default:
             var base = base
             try base.invokeAttachLowerProtocolForNewPath(
-                lowerProtocol.base,
+                lowerProtocol,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -1288,7 +1288,7 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 extension TestOutboundDatagramLinkage {
-    public init(_ quicDatagramFlow: QUICDatagramFlow<TestQUICLinkageFamilies>) {
+    public init(_ quicDatagramFlow: QUICDatagramFlow<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quicDatagramFlow(quicDatagramFlow)
         self.harnessReference = quicDatagramFlow.reference
@@ -1298,7 +1298,7 @@ extension TestOutboundDatagramLinkage {
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 extension TestInboundDatagramLinkage {
-    public init(_ quicPath: QUICPath<TestQUICLinkageFamilies>) {
+    public init(_ quicPath: QUICPath<TestLinkageFamilyGroup>) {
         self.base = .init()
         self.protocolType = .quicPath(quicPath)
         self.harnessReference = quicPath.reference
@@ -1471,7 +1471,7 @@ extension TestNetworkProtocolStorage {
     }
 
     // QUIC in the test family is a genuinely different connection object: its streams and flows are
-    // typed to `TestQUICLinkageFamilies`, so harnesses in the test family can attach to them.
+    // typed to `TestLinkageFamilyGroup`, so harnesses in the test family can attach to them.
     public func createTestQUICInstanceLinkages() -> (
         TestStreamListenerLinkage,
         TestDatagramListenerLinkage,
@@ -1484,21 +1484,21 @@ extension TestNetworkProtocolStorage {
     // Looks up the QUIC connection a listener or multipath linkage refers to.
     public func quicInstance(
         for linkage: TestStreamListenerLinkage
-    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+    ) -> QUICConnection<TestLinkageFamilyGroup>? {
         if case .quic(let instance) = linkage.protocolType { return instance }
         return nil
     }
 
     public func quicInstance(
         for linkage: TestDatagramListenerLinkage
-    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+    ) -> QUICConnection<TestLinkageFamilyGroup>? {
         if case .quic(let instance) = linkage.protocolType { return instance }
         return nil
     }
 
     public func quicInstance(
         for linkage: TestDatagramMultipathLinkage
-    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+    ) -> QUICConnection<TestLinkageFamilyGroup>? {
         if case .quic(let instance) = linkage.protocolType { return instance }
         return nil
     }

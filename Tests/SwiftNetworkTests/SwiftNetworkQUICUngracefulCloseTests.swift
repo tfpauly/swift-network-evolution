@@ -153,7 +153,7 @@ final class SwiftNetworkQUICUngracefulCloseTests: NetTestCase {
                         triggeringPacketLength: 35
                     )
                     XCTAssertTrue(statelessResetPacket.count < 35, "The stateless reset is too large")
-                    BridgeDatagramProtocol.Instance.injectDatagram(
+                    BridgeDatagramProtocol.BridgeInstance<TestDatagramLinkageFamily>.injectDatagram(
                         .init(copyBuffer: statelessResetPacket),
                         to: harness.clientPort
                     )
@@ -187,7 +187,7 @@ final class SwiftNetworkQUICUngracefulCloseTests: NetTestCase {
                         triggeringPacketLength: 35
                     )
                     XCTAssertTrue(statelessResetPacket.count < 35, "The stateless reset is too large")
-                    BridgeDatagramProtocol.Instance.injectDatagram(
+                    BridgeDatagramProtocol.BridgeInstance<TestDatagramLinkageFamily>.injectDatagram(
                         .init(copyBuffer: statelessResetPacket),
                         to: harness.clientPort
                     )

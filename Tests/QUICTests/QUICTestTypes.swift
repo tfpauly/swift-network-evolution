@@ -26,18 +26,18 @@
 // only for the tests: production code names its linkage families explicitly.
 
 @available(Network 0.1.0, *)
-typealias QUICTestPath = QUICPath<TestQUICLinkageFamilies>
+typealias QUICTestPath = QUICPath<TestLinkageFamilyGroup>
 
 @available(Network 0.1.0, *)
-typealias QUICTestStream = QUICStreamInstance<TestQUICLinkageFamilies>
+typealias QUICTestStream = QUICStreamInstance<TestLinkageFamilyGroup>
 
 @available(Network 0.1.0, *)
-typealias QUICTestAck = Ack<TestQUICLinkageFamilies>
+typealias QUICTestAck = Ack<TestLinkageFamilyGroup>
 
 @available(Network 0.1.0, *)
-typealias QUICTestRecovery = Recovery<TestQUICLinkageFamilies>
+typealias QUICTestRecovery = Recovery<TestLinkageFamilyGroup>
 
 @available(Network 0.1.0, *)
-typealias QUICTestStreamIDState = QUICStreamIDState<TestQUICLinkageFamilies>
+typealias QUICTestStreamIDState = QUICStreamIDState<TestLinkageFamilyGroup>
 
 #endif

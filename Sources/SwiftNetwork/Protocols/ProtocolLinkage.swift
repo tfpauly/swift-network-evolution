@@ -42,11 +42,11 @@ public protocol DataLinkageFamily: LinkageFamily where Upper: InboundDataLinkage
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol DatagramLinkageFamily: DataLinkageFamily where Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage, Listener: DatagramListenerLinkage, InboundFlow: InboundDatagramFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage.DataLinkage == Lower { }
+public protocol DatagramLinkageFamily: DataLinkageFamily where Upper: InboundDatagramLinkage, Lower: OutboundDatagramLinkage, Listener: DatagramListenerLinkage, InboundFlow: InboundDatagramFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage == InboundFlow { }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol StreamLinkageFamily: DataLinkageFamily where Upper: InboundStreamLinkage, Lower: OutboundStreamLinkage, Listener: StreamListenerLinkage, InboundFlow: InboundStreamFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage.DataLinkage == Lower { }
+public protocol StreamLinkageFamily: DataLinkageFamily where Upper: InboundStreamLinkage, Lower: OutboundStreamLinkage, Listener: StreamListenerLinkage, InboundFlow: InboundStreamFlowLinkage, InboundFlow.DataLinkage == Lower, Listener.PairedUpperLinkage == InboundFlow { }
 
 /// A strongly typed structure that holds a reference to another protocol and dispatches functions to it.
 ///

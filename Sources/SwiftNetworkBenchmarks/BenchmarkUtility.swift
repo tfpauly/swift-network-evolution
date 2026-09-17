@@ -44,20 +44,20 @@ internal import os
 public struct QUICLoopbackState {
     public let context: NetworkContext
     public var clientApplicationLayers: [StreamUpperHarness<TestStreamLinkageFamily>]
-    public let clientInstance: QUICConnection<TestQUICLinkageFamilies>
+    public let clientInstance: QUICConnection<TestLinkageFamilyGroup>
     public let clientNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>
     public let serverApplicationLayer: NewStreamFlowHarness<TestStreamLinkageFamily>
     public let serverNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>
-    public let serverInstance: QUICConnection<TestQUICLinkageFamilies>
+    public let serverInstance: QUICConnection<TestLinkageFamilyGroup>
     public let clientNewFlowHandler: NewStreamFlowHarness<TestStreamLinkageFamily>?
     public init(
         context: NetworkContext,
         clientApplicationLayers: [StreamUpperHarness<TestStreamLinkageFamily>],
-        clientInstance: QUICConnection<TestQUICLinkageFamilies>,
+        clientInstance: QUICConnection<TestLinkageFamilyGroup>,
         clientNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>,
         serverApplicationLayer: NewStreamFlowHarness<TestStreamLinkageFamily>,
         serverNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>,
-        serverInstance: QUICConnection<TestQUICLinkageFamilies>,
+        serverInstance: QUICConnection<TestLinkageFamilyGroup>,
         clientNewFlowHandler: NewStreamFlowHarness<TestStreamLinkageFamily>?
     ) {
         self.context = context
@@ -74,7 +74,7 @@ public struct QUICLoopbackState {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICClientEndpointResult {
-    public var instance: QUICConnection<TestQUICLinkageFamilies>
+    public var instance: QUICConnection<TestLinkageFamilyGroup>
     public var parameters: Parameters
     public var upperHandler: StreamUpperHarness<TestStreamLinkageFamily>
     public var lowerHandler: DatagramLowerHarness<TestDatagramLinkageFamily>
@@ -84,7 +84,7 @@ public struct QUICClientEndpointResult {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICServerEndpointResult {
-    public var instance: QUICConnection<TestQUICLinkageFamilies>
+    public var instance: QUICConnection<TestLinkageFamilyGroup>
     public var parameters: Parameters
     public var upperHandler: NewStreamFlowHarness<TestStreamLinkageFamily>
     public var lowerHandler: DatagramLowerHarness<TestDatagramLinkageFamily>

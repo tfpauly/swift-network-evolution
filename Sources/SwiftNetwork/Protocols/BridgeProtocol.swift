@@ -68,6 +68,21 @@ public struct DatagramDrops: Equatable {
 
 public typealias BridgeObserveFirstByteHandler = ((UInt8) -> Void)?
 
+// Bridge instances find their peer through a port-keyed registry. `BridgeInstance` is generic over
+// its linkage family, and Swift does not allow static stored properties in a generic type, so these
+// live at file scope. Entries are held as `AnyObject` and cast back on lookup: both ends of a
+// bridged pair are always created from the same family, so the cast succeeds.
+@available(Network 0.1.0, *)
+internal enum BridgeDatagramRegistry {
+    static nonisolated(unsafe) var instances = [UInt16: AnyObject]()
+    static let generatedPort = NetworkMutex<UInt16>(1024)  // Run 1024 through UInt16.max
+}
+
+@available(Network 0.1.0, *)
+internal enum BridgeStreamRegistry {
+    static nonisolated(unsafe) var instances = [UInt16: AnyObject]()
+}
+
 @_spi(Essentials)
 @available(Network 0.1.0, *)
 public struct BridgeDatagramProtocol: NetworkProtocol {
@@ -117,12 +132,14 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance: BottomDatagramProtocol, TimerSchedulable {
-        public typealias LinkageType = BaseDatagramLinkageFamily.Lower
-        public typealias UpperProtocol = BaseDatagramLinkageFamily.Upper
+    public final class BridgeInstance<
+        LinkageFamily: DatagramLinkageFamily
+    >: BottomDatagramProtocol, TimerSchedulable {
+        public typealias LinkageType = LinkageFamily.Lower
+        public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = BaseDatagramLinkageFamily.Upper()
+        public var upper = LinkageFamily.Upper()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -137,12 +154,10 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         var localEndpoint: Endpoint?
         var remoteEndpoint: Endpoint?
         private var incomingFrames = FrameArray()
-        static nonisolated(unsafe) private var instances = [UInt16: BridgeInstance]()
 
-        static private let generatedPort = NetworkMutex<UInt16>(1024)  // Run 1024 through UInt16.max
         public static var nextGeneratedPort: UInt16 {
             var port: UInt16 = 0
-            generatedPort.withLock {
+            BridgeDatagramRegistry.generatedPort.withLock {
                 port = $0
                 if $0 == UInt16.max {
                     $0 = 1024
@@ -213,12 +228,12 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             }
             #endif
 
-            BridgeInstance.instances[local.port] = self
+            BridgeDatagramRegistry.instances[local.port] = self
         }
 
         public func teardown() {
             if let localPort = localEndpoint?.port {
-                BridgeInstance.instances[localPort] = nil
+                BridgeDatagramRegistry.instances[localPort] = nil
             }
             incomingFrames.finalizeAllFramesAsFailed()
         }
@@ -287,7 +302,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             _ datagrams: consuming FrameArray
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
-            guard let remoteInstance = BridgeInstance.instances[remotePort] else {
+            guard let remoteInstance = BridgeDatagramRegistry.instances[remotePort]
+                as? BridgeInstance<LinkageFamily>
+            else {
                 log.error("Unable to find instance for port: \(remotePort)")
                 datagrams.finalizeAllFramesAsFailed()
                 return
@@ -320,7 +337,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
 
         public static func injectDatagram(_ datagram: consuming Frame, to remotePort: UInt16) {
-            guard let remoteInstance = BridgeInstance.instances[remotePort] else {
+            guard let remoteInstance = BridgeDatagramRegistry.instances[remotePort]
+                as? BridgeInstance<LinkageFamily>
+            else {
                 return
             }
             remoteInstance.incomingFrames.add(frames: .init(frame: datagram))
@@ -340,7 +359,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        BridgeInstance(context: context).reference
+        nil
     }
 
     static let identifier = ProtocolIdentifier(name: "bridge-datagram", level: .link, mapping: .oneToOne)
@@ -421,9 +440,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance: BottomStreamProtocol {
-        public typealias LinkageType = BaseStreamLinkageFamily.Lower
-        public typealias UpperProtocol = BaseStreamLinkageFamily.Upper
+    public final class BridgeInstance<LinkageFamily: StreamLinkageFamily>: BottomStreamProtocol {
+        public typealias LinkageType = LinkageFamily.Lower
+        public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
         public var upper = UpperProtocol()
@@ -439,7 +458,6 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         var localEndpoint: Endpoint?
         var remoteEndpoint: Endpoint?
         private var incomingFrames = FrameArray()
-        static nonisolated(unsafe) private var instances: [UInt16: BridgeInstance] = [:]
 
         public func setup(
             remote: Endpoint?,
@@ -458,12 +476,12 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             self.localEndpoint = local
             self.remoteEndpoint = remote
 
-            BridgeInstance.instances[local.port] = self
+            BridgeStreamRegistry.instances[local.port] = self
         }
 
         public func teardown() {
             if let localPort = localEndpoint?.port {
-                BridgeInstance.instances[localPort] = nil
+                BridgeStreamRegistry.instances[localPort] = nil
             }
             incomingFrames.finalizeAllFramesAsFailed()
         }
@@ -495,7 +513,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             _ streamData: consuming FrameArray
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
-            guard let remoteInstance = BridgeInstance.instances[remotePort] else {
+            guard let remoteInstance = BridgeStreamRegistry.instances[remotePort]
+                as? BridgeInstance<LinkageFamily>
+            else {
                 log.error("Unable to find instance for port: \(remotePort)")
                 streamData.finalizeAllFramesAsFailed()
                 return
@@ -522,7 +542,8 @@ public struct BridgeStreamProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
     public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
-        BridgeInstance(context: context).reference
+        // Not generic here, so this entry point builds the instance in the base family.
+        BridgeInstance<BaseStreamLinkageFamily>(context: context).reference
     }
 
     static let identifier = ProtocolIdentifier(name: "bridge-stream", level: .link, mapping: .oneToOne)

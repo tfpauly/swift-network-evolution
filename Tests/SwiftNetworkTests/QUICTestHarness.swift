@@ -76,8 +76,8 @@ class QUICTestHarness {
         let clientReference: ProtocolInstanceReference
         let serverReference: ProtocolInstanceReference
 
-        let clientInstance: QUICConnection<TestQUICLinkageFamilies>
-        let serverInstance: QUICConnection<TestQUICLinkageFamilies>
+        let clientInstance: QUICConnection<TestLinkageFamilyGroup>
+        let serverInstance: QUICConnection<TestLinkageFamilyGroup>
 
         // The QUIC listener linkages, kept so later calls (new streams, new datagram flows) can
         // attach more upper protocols to the same connections.
@@ -95,8 +95,8 @@ class QUICTestHarness {
         self.context = context
         self.context.activate()
 
-        clientPort = BridgeDatagramProtocol.Instance.nextGeneratedPort
-        serverPort = BridgeDatagramProtocol.Instance.nextGeneratedPort
+        clientPort = BridgeDatagramProtocol.BridgeInstance<TestDatagramLinkageFamily>.nextGeneratedPort
+        serverPort = BridgeDatagramProtocol.BridgeInstance<TestDatagramLinkageFamily>.nextGeneratedPort
         clientEndpoint = Endpoint(address: IPv4Address(QUICTestHarness.clientIPv4Address)!, port: clientPort)
         serverEndpoint = Endpoint(address: IPv4Address(QUICTestHarness.serverIPv4Address)!, port: serverPort)
     }
@@ -434,7 +434,7 @@ class QUICTestHarness {
         quicOptions: ProtocolOptions<QUICProtocol> = QUICProtocol.options(),
         serverInitiated: Bool = false
     ) -> StreamUpperHarness<TestStreamLinkageFamily>? {
-        var handlerInstance: QUICConnection<TestQUICLinkageFamilies>?
+        var handlerInstance: QUICConnection<TestLinkageFamilyGroup>?
         var handlerListener: TestStreamListenerLinkage?
         if serverInitiated {
             handlerInstance = state?.serverInstance

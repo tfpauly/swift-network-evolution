@@ -61,7 +61,7 @@ final class SendItemsTests: XCTestCase {
         var frame = Frame(count: 1200)
         defer { frame.finalize(success: true) }
         let context = NetworkContext(identifier: "SendItemsTests")
-        let connection = QUICConnection<TestQUICLinkageFamilies>(context: context)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: context)
         var shorthandFrames: [QUICShorthandFrame]? = nil
         XCTAssertNoThrow(
             try pendingItems.write(

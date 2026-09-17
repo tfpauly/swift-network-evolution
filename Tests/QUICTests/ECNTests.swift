@@ -30,14 +30,14 @@ final class ECNTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
     var stats: Statistics!
-    var conn: QUICConnection<TestQUICLinkageFamilies>!
+    var conn: QUICConnection<TestLinkageFamilyGroup>!
     let logPrefixer = LogPrefixer("[ECNTests]")
     // These tests reset ECN state without a path attached.
     let noPath: QUICTestPath? = nil
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -408,13 +408,13 @@ extension ECNTestStepAck {
 final class ECNValidateTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
-    var conn: QUICConnection<TestQUICLinkageFamilies>!
+    var conn: QUICConnection<TestLinkageFamilyGroup>!
     var stats: Statistics!
     let logPrefixer = LogPrefixer("[ECNValidateTests]")
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -842,7 +842,7 @@ final class ECNValidateTests: XCTestCase {
     }
 
     func testValidateAckReturnsCorrectCECount() async throws {
-        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,
@@ -883,7 +883,7 @@ final class ECNValidateTests: XCTestCase {
         let context = NetworkContext(identifier: #function)
         context.activate()
 
-        let connection = QUICConnection<TestQUICLinkageFamilies>(context: context)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: context)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,

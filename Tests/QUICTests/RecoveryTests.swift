@@ -34,7 +34,7 @@ let recoveryTestsLogPrefixer: LogPrefixer = LogPrefixer("[RecoveryTests]")
 
 @available(Network 0.1.0, *)
 final class RecoveryTests: XCTestCase {
-    var connection = QUICConnection<TestQUICLinkageFamilies>(context: .implicitContext)
+    var connection = QUICConnection<TestLinkageFamilyGroup>(context: .implicitContext)
     var path: QUICTestPath! = nil
     // The base linkages are storage-backed, so lower harnesses have to come from storage
     // rather than being wrapped in a bare linkage.
@@ -80,7 +80,7 @@ final class RecoveryTests: XCTestCase {
         self.connection.currentPath = nil
     }
 
-    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<TestQUICLinkageFamilies>) {
+    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<TestLinkageFamilyGroup>) {
         var packets = NetworkUniqueDeque<SentPacketRecord>()
         packets.append(sentPacket)
         // Driven straight from the test body rather than from the context queue, so

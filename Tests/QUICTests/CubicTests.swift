@@ -436,7 +436,7 @@ final class CubicTests: XCTestCase {
 
     func testCubicExercisingPacer() {
         // Path holds both Pacer and Cubic, thats why its setup this way.
-        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         let path = connection.context.onQueue {
             QUICTestPath.makeFromExternal(parent: connection)
         }
