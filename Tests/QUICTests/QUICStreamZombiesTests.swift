@@ -22,13 +22,15 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class QUICStreamZombieListTests: XCTestCase {
     var zombieList = QUICStreamZombieList()
 
     func testAppend() {
         NetworkContext.implicitContext.async {
-            let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+            let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
             connection.fromExternal { state in
                 let streamID: QUICStreamID = QUICStreamID(0)
                 self.zombieList.append(

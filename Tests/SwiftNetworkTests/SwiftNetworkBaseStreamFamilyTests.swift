@@ -20,6 +20,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
 
@@ -32,7 +34,7 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
             let localEndpoint = Endpoint(address: IPv4Address([0x0a, 0x00, 0x00, 0x14])!, port: 1234)
             let remoteEndpoint = Endpoint(address: IPv4Address([0x0a, 0x00, 0x00, 0x75])!, port: 2345)
@@ -92,14 +94,14 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
         let context = parameters.context
         context.async {
             defer { expectation.fulfill() }
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
             // TCP's inbound linkage is a datagram linkage, since TCP consumes datagrams
             // from below, while its outbound linkage is a stream linkage.
             let (tcpUpper, tcpLower): (
-                BaseNetworkProtocolStorage.BaseInboundDatagramLinkage,
-                BaseNetworkProtocolStorage.BaseOutboundStreamLinkage
-            ) = storage.createTCPInstance()
+                TestInboundDatagramLinkage,
+                TestOutboundStreamLinkage
+            ) = storage.createTestTCPInstance()
             XCTAssertFalse(tcpUpper.isDetached, "TCP upper linkage unexpectedly detached")
             XCTAssertFalse(tcpLower.isDetached, "TCP lower linkage unexpectedly detached")
 
@@ -111,7 +113,7 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
 
     // Attaches a datagram lower harness below TCP through TCP's datagram-side inbound
     // linkage. This exercises the attachLowerProtocol path that only resolves once TCP
-    // is registered in BaseInboundDatagramLinkage rather than the stream one.
+    // is registered in TestInboundDatagramLinkage rather than the stream one.
     func testAttachDatagramHarnessBelowTCP() {
         let parameters = Parameters()
         let expectation = XCTestExpectation()
@@ -119,15 +121,15 @@ final class SwiftNetworkBaseStreamFamilyTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
             let localEndpoint = Endpoint(address: IPv4Address([0x0a, 0x00, 0x00, 0x14])!, port: 1234)
             let remoteEndpoint = Endpoint(address: IPv4Address([0x0a, 0x00, 0x00, 0x75])!, port: 2345)
 
             let (tcpDatagramUpper, tcpStreamLower): (
-                BaseNetworkProtocolStorage.BaseInboundDatagramLinkage,
-                BaseNetworkProtocolStorage.BaseOutboundStreamLinkage
-            ) = storage.createTCPInstance()
+                TestInboundDatagramLinkage,
+                TestOutboundStreamLinkage
+            ) = storage.createTestTCPInstance()
 
             let (_, lowerHarnessLinkage) = storage.createDatagramLowerHarness(
                 identifier: "BelowTCP",

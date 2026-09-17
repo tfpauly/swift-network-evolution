@@ -22,12 +22,14 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class PacerTests: XCTestCase {
 
-    var connection: QUICConnection<BaseQUICLinkageFamilies>!
+    var connection: QUICConnection<TestQUICLinkageFamilies>!
     override func setUp() {
-        connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     }
 
     func testGetSendTime() {

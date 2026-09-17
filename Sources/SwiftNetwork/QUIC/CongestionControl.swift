@@ -87,7 +87,7 @@ enum CongestionControl {
         }
     }
 
-    mutating func ackEnd<Families: QUICLinkageFamilies>(
+    mutating func ackEnd<Families: LinkageFamilyGroup>(
         rtt: borrowing RTT,
         path: QUICPath<Families>?,
         mss: Int,
@@ -141,7 +141,7 @@ enum CongestionControl {
         }
     }
 
-    mutating func packetsLost<Families: QUICLinkageFamilies>(
+    mutating func packetsLost<Families: LinkageFamilyGroup>(
         path: QUICPath<Families>?,
         bytesLost: Int,
         largestLostSentTime: NetworkClock.Instant,
@@ -328,7 +328,7 @@ protocol CongestionControlProtocol: PrefixedLoggable {
         qlog: QLog?
     )
     mutating func reset(mss: Int, qlog: QLog?)
-    mutating func ackEnd<Families: QUICLinkageFamilies>(
+    mutating func ackEnd<Families: LinkageFamilyGroup>(
         rtt: borrowing RTT,
         path: QUICPath<Families>?,
         mss: Int,
@@ -338,7 +338,7 @@ protocol CongestionControlProtocol: PrefixedLoggable {
     mutating func spuriousRetransmit(qlog: QLog?)
     mutating func idleTimeout(mss: Int, qlog: QLog?)
     mutating func enterRecovery(mss: Int, qlog: QLog?)
-    mutating func processECN<Families: QUICLinkageFamilies>(
+    mutating func processECN<Families: LinkageFamilyGroup>(
         path: QUICPath<Families>?,
         ceCount: Int,
         packetsAcked: Int,
@@ -349,7 +349,7 @@ protocol CongestionControlProtocol: PrefixedLoggable {
         smoothedRTT: NetworkDuration,
         qlog: QLog?
     )
-    mutating func packetLost<Families: QUICLinkageFamilies>(
+    mutating func packetLost<Families: LinkageFamilyGroup>(
         path: QUICPath<Families>?,
         bytesLost: Int,
         largestLostSentTime: NetworkClock.Instant,

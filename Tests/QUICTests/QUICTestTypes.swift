@@ -20,22 +20,24 @@
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 // Shorthand spellings of the generic QUIC types bound to the base linkage families. These exist
 // only for the tests: production code names its linkage families explicitly.
 
 @available(Network 0.1.0, *)
-typealias QUICTestPath = QUICPath<BaseQUICLinkageFamilies>
+typealias QUICTestPath = QUICPath<TestQUICLinkageFamilies>
 
 @available(Network 0.1.0, *)
-typealias QUICTestStream = QUICStreamInstance<BaseQUICLinkageFamilies>
+typealias QUICTestStream = QUICStreamInstance<TestQUICLinkageFamilies>
 
 @available(Network 0.1.0, *)
-typealias QUICTestAck = Ack<BaseQUICLinkageFamilies>
+typealias QUICTestAck = Ack<TestQUICLinkageFamilies>
 
 @available(Network 0.1.0, *)
-typealias QUICTestRecovery = Recovery<BaseQUICLinkageFamilies>
+typealias QUICTestRecovery = Recovery<TestQUICLinkageFamilies>
 
 @available(Network 0.1.0, *)
-typealias QUICTestStreamIDState = QUICStreamIDState<BaseQUICLinkageFamilies>
+typealias QUICTestStreamIDState = QUICStreamIDState<TestQUICLinkageFamilies>
 
 #endif

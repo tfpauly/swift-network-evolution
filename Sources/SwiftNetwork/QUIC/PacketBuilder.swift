@@ -49,7 +49,7 @@ enum PacketBuilderError: Int, Error {
 
 @available(Network 0.1.0, *)
 extension Packet {
-    static func build<Families: QUICLinkageFamilies>(
+    static func build<Families: LinkageFamilyGroup>(
         into outboundFrame: inout Frame,
         number: PacketNumber,
         lastAcked: PacketNumber,

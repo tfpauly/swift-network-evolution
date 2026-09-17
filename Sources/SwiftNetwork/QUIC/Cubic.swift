@@ -222,7 +222,7 @@ struct Cubic: CongestionControlProtocol, CubicLikeProtocol {
         }
     }
 
-    private mutating func updatePacerState<Families: QUICLinkageFamilies>(path: QUICPath<Families>?, smoothedRTT: NetworkDuration) {
+    private mutating func updatePacerState<Families: LinkageFamilyGroup>(path: QUICPath<Families>?, smoothedRTT: NetworkDuration) {
         guard let path, path.pacer.enabled else {
             return
         }
@@ -239,7 +239,7 @@ struct Cubic: CongestionControlProtocol, CubicLikeProtocol {
     }
 
     @discardableResult
-    mutating func packetLost<Families: QUICLinkageFamilies>(
+    mutating func packetLost<Families: LinkageFamilyGroup>(
         path: QUICPath<Families>?,
         bytesLost: Int,
         largestLostSentTime: NetworkClock.Instant,
@@ -295,7 +295,7 @@ struct Cubic: CongestionControlProtocol, CubicLikeProtocol {
         logState(qlog: qlog, state: .recovery, trigger: nil)
     }
 
-    mutating func ackEnd<Families: QUICLinkageFamilies>(
+    mutating func ackEnd<Families: LinkageFamilyGroup>(
         rtt: borrowing RTT,
         path: QUICPath<Families>?,
         mss: Int,
@@ -336,7 +336,7 @@ struct Cubic: CongestionControlProtocol, CubicLikeProtocol {
         logUpdate(qlog: qlog)
     }
 
-    mutating func processECN<Families: QUICLinkageFamilies>(
+    mutating func processECN<Families: LinkageFamilyGroup>(
         path: QUICPath<Families>?,
         ceCount: Int,
         packetsAcked: Int,

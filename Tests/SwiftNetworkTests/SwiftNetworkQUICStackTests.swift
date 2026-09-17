@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 #if IMPORT_SWIFTTLS
 #if EXPORT_SWIFTTLS
 @_spi(SwiftTLSOptions) @_spi(SwiftTLSProtocol) import SwiftTLS
@@ -100,8 +102,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
     }
 
     func transferPackets(
-        sender: DatagramLowerHarness<BaseDatagramLinkageFamily>,
-        receiver: DatagramLowerHarness<BaseDatagramLinkageFamily>,
+        sender: DatagramLowerHarness<TestDatagramLinkageFamily>,
+        receiver: DatagramLowerHarness<TestDatagramLinkageFamily>,
         maximumBurst: Int
     ) -> Int {
         var packetsSent: Int = 0
@@ -117,21 +119,21 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
     }
 
     struct PairedUDPIPPaths {
-        var client: DatagramLowerHarness<BaseDatagramLinkageFamily>
-        var server: DatagramLowerHarness<BaseDatagramLinkageFamily>
+        var client: DatagramLowerHarness<TestDatagramLinkageFamily>
+        var server: DatagramLowerHarness<TestDatagramLinkageFamily>
 
-        var clientTop: BaseDatagramLinkageFamily.Lower
-        var serverTop: BaseDatagramLinkageFamily.Lower
+        var clientTop: TestDatagramLinkageFamily.Lower
+        var serverTop: TestDatagramLinkageFamily.Lower
 
         init(
             context: NetworkContext,
-            storage: BaseNetworkProtocolStorage,
+            storage: TestNetworkProtocolStorage,
             identifier: String,
             clientEndpoint: Endpoint,
             serverEndpoint: Endpoint,
             maximumDatagramSize: Int = 1500
         ) {
-            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
+            let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
             clientTop = clientUDPLower
 
             let clientUDPOptions = UDPProtocol.options()
@@ -139,13 +141,13 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             clientUDPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 2)
             clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
 
-            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
+            let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
 
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 3)
             clientIPOptions.setProtocolInstance(clientIPLower.reference)
 
-            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
+            let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
 
             serverTop = serverUDPLower
             let serverUDPOptions = UDPProtocol.options()
@@ -153,7 +155,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             serverUDPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 2)
             serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
 
-            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
+            let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
 
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 3)
@@ -174,8 +176,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-            client = DatagramLowerHarness<BaseDatagramLinkageFamily>(identifier: "Client" + identifier, context: context)
-            server = DatagramLowerHarness<BaseDatagramLinkageFamily>(identifier: "Server" + identifier, context: context)
+            client = DatagramLowerHarness<TestDatagramLinkageFamily>(identifier: "Client" + identifier, context: context)
+            server = DatagramLowerHarness<TestDatagramLinkageFamily>(identifier: "Server" + identifier, context: context)
 
             let (clientLowerHarness, clientLowerHarnessLinkage) = storage.createDatagramLowerHarness(
                 identifier: "Client" + identifier,
@@ -217,8 +219,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
         }
 
         private func transferPackets(
-            sender: DatagramLowerHarness<BaseDatagramLinkageFamily>,
-            receiver: DatagramLowerHarness<BaseDatagramLinkageFamily>,
+            sender: DatagramLowerHarness<TestDatagramLinkageFamily>,
+            receiver: DatagramLowerHarness<TestDatagramLinkageFamily>,
             maximumBurst: Int
         ) -> Int {
             var packetsSent: Int = 0
@@ -252,14 +254,14 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
         let expectation = XCTestExpectation()
         let context = clientParameters.context
 
-        let storage = BaseNetworkProtocolStorage(context: context)
+        let storage = TestNetworkProtocolStorage(context: context)
 
         var clientConnected = false
         var serverConnected = false
-        var clientUpperHarness: StreamUpperHarness<BaseStreamLinkageFamily>?
-        var serverUpperHarness: NewStreamFlowHarness<BaseStreamLinkageFamily>?
-        var clientQUICMultipathLinkage: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage?
-        var serverQUICMultipathLinkage: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage?
+        var clientUpperHarness: StreamUpperHarness<TestStreamLinkageFamily>?
+        var serverUpperHarness: NewStreamFlowHarness<TestStreamLinkageFamily>?
+        var clientQUICMultipathLinkage: TestDatagramMultipathLinkage?
+        var serverQUICMultipathLinkage: TestDatagramMultipathLinkage?
 
         var pairedPathsArray = [PairedUDPIPPaths]()
 
@@ -276,7 +278,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             pairedPathsArray.append(pairedPaths)
 
             let clientPath = PathProperties(parameters: clientParameters)
-            let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
+            let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createTestQUICInstanceLinkages()
             clientQUICMultipathLinkage = clientQUICMultipath
 
             let clientQUICOptions: ProtocolOptions<QUICProtocol>
@@ -311,6 +313,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
+                var clientQUICMultipath = clientQUICMultipath
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.clientTop, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach client stack")
@@ -319,7 +322,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             var serverParameters = Parameters()
             serverParameters.isServer = true
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
+            let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createTestQUICInstanceLinkages()
             serverQUICMultipathLinkage = serverQUICMultipath
 
             let serverQUICOptions = self.createQUICTestOptions(
@@ -347,6 +350,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
+                var serverQUICMultipath = serverQUICMultipath
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.serverTop, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach server stack")
@@ -426,6 +430,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                     let serverParameters = Parameters()
                     let severPath = PathProperties(parameters: Parameters())
 
+                    var clientQUICMultipathLinkage = clientQUICMultipathLinkage
                     try clientQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.clientTop,
                         remote: serverEndpoint,
@@ -433,6 +438,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                         parameters: clientParameters,
                         path: clientPath
                     )
+                    var serverQUICMultipathLinkage = serverQUICMultipathLinkage
                     try serverQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.serverTop,
                         remote: clientEndpoint,

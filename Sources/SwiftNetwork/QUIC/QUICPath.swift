@@ -159,9 +159,9 @@ struct QUICPathFlags: OptionSet {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagramPath<
+public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramPath<
     QUICConnection<Families>,
-    Families.PathLinkageFamily.Lower
+    Families.DatagramFamily.Lower
 >, Equatable, PrefixedLoggable {
     private(set) var state: QUICPathState = QUICPathState()
     var priority: Int = 0  // Relative priority to other paths, used to gate migration decisions
@@ -253,7 +253,7 @@ public final class QUICPath<Families: QUICLinkageFamilies>: MultiplexingDatagram
     }
 
     override public func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
-        .init(self)
+        Families.linkage(for: self)
     }
 
     public static func == (lhs: QUICPath<Families>, rhs: QUICPath<Families>) -> Bool {

@@ -26,13 +26,13 @@ internal import os
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICDatagramFlow<Families: QUICLinkageFamilies>: MultiplexedDatagramFlow<QUICConnection<Families>, Families.DatagramFlowLinkageFamily.Upper> {
+public final class QUICDatagramFlow<Families: LinkageFamilyGroup>: MultiplexedDatagramFlow<QUICConnection<Families>, Families.DatagramFamily.Upper> {
     private(set) var flowID: UInt64?
     private(set) var contextID: UInt64?
     var applicationMarkedIdle: Bool = false
 
     override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
-        Families.DatagramFlowLinkageFamily.Lower.init(self)
+        Families.linkage(for: self)
     }
 
     var usableDatagramSize: Int {

@@ -508,7 +508,7 @@ enum AckConstants {
 }
 
 @available(Network 0.1.0, *)
-final class Ack<Families: QUICLinkageFamilies>: PrefixedLoggable, TimerUser {
+final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     var log: LogPrefixer
 
     private var initialAckSpace: AckSpace

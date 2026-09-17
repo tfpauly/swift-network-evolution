@@ -142,7 +142,7 @@ enum QUICFrame: ~Copyable {
         }
     }
 
-    static func parse<Families: QUICLinkageFamilies>(
+    static func parse<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         type: FrameType,
         frame: inout Frame,
@@ -1091,7 +1091,7 @@ struct FrameResetStream: ~Copyable, QUICFrameProtocol {
         stats.increment(.txStreamResetFrames)
     }
 
-    func process<Families: QUICLinkageFamilies>(
+    func process<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>
     ) -> Bool {
@@ -1281,7 +1281,7 @@ struct FrameStopSending: ~Copyable, QUICFrameProtocol {
         stats.increment(.txStreamStopSendingFrames)
     }
 
-    func process<Families: QUICLinkageFamilies>(
+    func process<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>
     ) -> Bool {
@@ -1497,7 +1497,7 @@ struct FrameCrypto: ~Copyable, QUICFrameProtocol {
         }
     }
 
-    static func write<Families: QUICLinkageFamilies>(
+    static func write<Families: LinkageFamilyGroup>(
         frame: inout Frame,
         stats: inout Statistics,
         packetNumberSpace: PacketNumberSpace,
@@ -1714,7 +1714,7 @@ struct FrameStreamSendMetadata: QUICFrameProtocol {
     // the STREAM frame.
     // Returns the stream data length actually written
     // Only marks FIN if the entire length is written
-    static func write<Families: QUICLinkageFamilies>(
+    static func write<Families: LinkageFamilyGroup>(
         into frame: inout Frame,
         stats: inout Statistics,
         stream: QUICStreamInstance<Families>,
@@ -2944,7 +2944,7 @@ struct FrameHandshakeDone: ~Copyable, QUICFrameProtocol {
         try validateSerializationResult(result)
     }
 
-    func process<Families: QUICLinkageFamilies>(
+    func process<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>
     ) -> Bool {
@@ -2989,7 +2989,7 @@ struct FrameDatagram: ~Copyable, QUICFrameProtocol {
         type == .datagram(hasLength: true)
     }
 
-    static func parse<Families: QUICLinkageFamilies>(
+    static func parse<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         frame: inout Frame,
         useFlowID: Bool,
@@ -3029,7 +3029,7 @@ struct FrameDatagram: ~Copyable, QUICFrameProtocol {
         }
     }
 
-    init<Families: QUICLinkageFamilies>(
+    init<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         frame: inout Frame,
         useFlowID: Bool,

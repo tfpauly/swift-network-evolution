@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class SwiftNetworkIPTests: NetTestCase {
 
@@ -473,11 +475,11 @@ final class SwiftNetworkIPTests: NetTestCase {
 
         context.async {
             defer { expectation.fulfill() }
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
             let path = PathProperties(parameters: parameters)
 
-            let (ipUpper, ipLower) = storage.createIPInstance()
+            let (ipUpper, ipLower) = storage.createTestIPInstance()
             let reference = ipUpper.reference
             let ipOptions = IPProtocol.options()
             ipOptions.dscpValue = dscpValue
@@ -928,9 +930,9 @@ final class SwiftNetworkIPTests: NetTestCase {
             )
             path.effectiveMTU = UInt32(mtu)
 
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createIPInstance()
+            let (ipUpper, ipLower) = storage.createTestIPInstance()
             let ipOptions = IPProtocol.options()
             // Enable fragmentation through IPOptions
             ipOptions.flags = IPProtocol.IPOptions.Flags(rawValue: ipOptions.flags.rawValue)
@@ -1048,9 +1050,9 @@ final class SwiftNetworkIPTests: NetTestCase {
             )
             path.effectiveMTU = UInt32(mtu)
 
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createIPInstance()
+            let (ipUpper, ipLower) = storage.createTestIPInstance()
             let ipOptions = IPProtocol.options()
             ipOptions.flags = IPProtocol.IPOptions.Flags(rawValue: ipOptions.flags.rawValue)
                 .union(.fragmentationEnabledOverridden)
@@ -1159,9 +1161,9 @@ final class SwiftNetworkIPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (ipUpper, ipLower) = storage.createIPInstance()
+            let (ipUpper, ipLower) = storage.createTestIPInstance()
             let ipOptions = IPProtocol.options()
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: logIDNumber)
             ipOptions.setProtocolInstance(ipUpper.reference)
@@ -1222,10 +1224,10 @@ final class SwiftNetworkIPTests: NetTestCase {
         let context = clientParameters.context
         context.async {
             defer { expectation.fulfill() }
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
             let clientPath = PathProperties(parameters: clientParameters)
 
-            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
+            let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
             let clientOptions = IPProtocol.options()
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
             clientOptions.setProtocolInstance(clientIPLower.reference)
@@ -1256,7 +1258,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
+            let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
 
             let serverOptions = IPProtocol.options()
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)

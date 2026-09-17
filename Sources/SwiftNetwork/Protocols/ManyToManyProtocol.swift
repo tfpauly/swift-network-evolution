@@ -1424,7 +1424,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
     }
 
     /// To be overridden by subclasses
-    public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+    open func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
         .init()
     }
 }
@@ -1698,7 +1698,7 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
     }
 
     /// To be overridden by subclasses
-    public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
+    open func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
         .init()
     }
 }
@@ -2173,7 +2173,7 @@ open class MultiplexingDatagramPath<ParentProtocol: ManyToManyOutboundDatagramPr
     }
 
     /// To be overridden by subclasses
-    public func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
+    open func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
         .init()
     }
 }

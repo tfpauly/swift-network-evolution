@@ -158,7 +158,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         access(&outstandingPackets[index])
     }
 
-    mutating func reset<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>?) {
+    mutating func reset<Families: LinkageFamilyGroup>(connection: QUICConnection<Families>?) {
         iterateSentPacketEntries { entry in
             guard entry.packet.isInFlightEligible, entry.lostTime == .zero else {
                 return true
@@ -200,7 +200,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         timeThreshold = Constants.timeReorderThreshold
     }
 
-    func notifyLossToPath<Families: QUICLinkageFamilies>(
+    func notifyLossToPath<Families: LinkageFamilyGroup>(
         packetNumber: PacketNumber,
         pathID: MultiplexingPathIdentifier,
         bytesLost: Int,
@@ -227,7 +227,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         return reducedCongestionWindow
     }
 
-    mutating func updateCongestionOnPath<Families: QUICLinkageFamilies>(
+    mutating func updateCongestionOnPath<Families: LinkageFamilyGroup>(
         _ pathID: MultiplexingPathIdentifier,
         connection: QUICConnection<Families>
     ) {
@@ -281,7 +281,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    mutating func declarePacketLost<Families: QUICLinkageFamilies>(
+    mutating func declarePacketLost<Families: LinkageFamilyGroup>(
         _ lostPackets: [PacketIdentifier],
         connection: QUICConnection<Families>
     ) {
@@ -357,7 +357,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    mutating func packetAcked<Families: QUICLinkageFamilies>(
+    mutating func packetAcked<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         sentPath: QUICPath<Families>,
         sentEntry: borrowing PacketContainerEntry,
@@ -400,7 +400,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         )
     }
 
-    mutating func spuriousLoss<Families: QUICLinkageFamilies>(
+    mutating func spuriousLoss<Families: LinkageFamilyGroup>(
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
         packetSentTime: NetworkClock.Instant,
@@ -441,7 +441,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    private mutating func findNewlyAckedPackets<Families: QUICLinkageFamilies>(
+    private mutating func findNewlyAckedPackets<Families: LinkageFamilyGroup>(
         ackFrame: FrameAck,
         path: QUICPath<Families>
     ) -> AckBitstringSequence {
@@ -475,7 +475,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
     }
 
     @inline(__always)
-    mutating func findNewlyAckedPackets<Families: QUICLinkageFamilies>(
+    mutating func findNewlyAckedPackets<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         ackFrame: FrameAck,
         path: QUICPath<Families>,
@@ -579,7 +579,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
     }
 
     @_optimize(speed)
-    mutating func sentPacket<Families: QUICLinkageFamilies>(
+    mutating func sentPacket<Families: LinkageFamilyGroup>(
         _ sentPacket: consuming SentPacketRecord,
         time: NetworkClock.Instant,
         connection: QUICConnection<Families>
@@ -652,7 +652,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    func removeStalePackets<Families: QUICLinkageFamilies>(
+    func removeStalePackets<Families: LinkageFamilyGroup>(
         packetNumberSpace: PacketNumberSpace,
         path: QUICPath<Families>?,
         time: NetworkClock.Instant
@@ -661,7 +661,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
     }
 
     @discardableResult
-    mutating func recordSentPackets<Families: QUICLinkageFamilies>(
+    mutating func recordSentPackets<Families: LinkageFamilyGroup>(
         _ packets: consuming NetworkUniqueDeque<SentPacketRecord>,
         connection: QUICConnection<Families>
     ) -> Bool {
@@ -761,7 +761,7 @@ enum RecoveryConstants {
 }
 
 @available(Network 0.1.0, *)
-struct Recovery<Families: QUICLinkageFamilies>: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
+struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     var log: LogPrefixer
     var connection: QUICConnection<Families>?
     private var initialInnerState: RecoveryInnerState

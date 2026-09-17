@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 extension Frame {
     var allBytesCopy: [UInt8]? {
@@ -60,10 +62,10 @@ extension FrameDatagram {
 class QUICFrameTests: XCTestCase {
 
     var stats: Statistics!
-    var connection: QUICConnection<BaseQUICLinkageFamilies>!
+    var connection: QUICConnection<TestQUICLinkageFamilies>!
 
     override func setUp() {
-        connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -3512,7 +3514,7 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testDatagramBadLengthParsing() throws {
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
 
         let bytes: [UInt8] = [
             0x31,  // type: DATAGRAM with length

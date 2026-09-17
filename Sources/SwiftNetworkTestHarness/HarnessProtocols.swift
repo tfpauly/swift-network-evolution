@@ -27,7 +27,30 @@ internal import Logging
 internal import os
 #endif
 
+#if canImport(SwiftNetwork)
+@_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
+#elseif canImport(Network)
+@_spi(Essentials) @_spi(ProtocolProvider) import Network
+#endif
+
 #if !NETWORK_NO_TESTING_HARNESS
+
+// A local copy of the framework's internal convenience. This is deliberately not made public on
+// the framework side: it extends the standard library's `Array`, so widening it would add an
+// initializer to the namespace of every SwiftNetwork client, unlike the other API this target
+// needs, which is all on SwiftNetwork's own types.
+@available(anyAppleOS 26, *)
+extension Array {
+    fileprivate init(copyingSpan span: Span<Element>, maxCount: Int) {
+        let copyCount = Swift.min(span.count, maxCount)
+        self.init(unsafeUninitializedCapacity: copyCount) { (buffer, count) in
+            for i in 0..<copyCount {
+                buffer.initializeElement(at: i, to: span[i])
+            }
+            count = copyCount
+        }
+    }
+}
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
@@ -487,7 +510,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
                 try write.span(bytes.span.bytes)
             }
             guard result.isValid else {
-                Logger.proto.error("Serializing to frame failed")
+                log.error("Serializing to frame failed")
                 return false
             }
             if sendFIN {
@@ -628,7 +651,8 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
 
     public var eventManager = ProtocolEventManager()
 
-    var pendingOutboundPackets = FrameArray()
+    // Tests inspect the queued outbound frames directly, so this is part of the harness's surface.
+    public var pendingOutboundPackets = FrameArray()
     var pendingInboundPackets = FrameArray()
 
     public init(
@@ -660,7 +684,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
         guard let bytes = extractLastOutboundBytes() else {
             return nil
         }
-        return [UInt8](copying: bytes.span, maxCount: bytes.count)
+        return [UInt8](copyingSpan: bytes.span, maxCount: bytes.count)
     }
 
     public var hasOutboundPackets: Bool {

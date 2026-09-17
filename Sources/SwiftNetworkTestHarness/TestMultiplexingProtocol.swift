@@ -15,7 +15,7 @@
 import XCTest
 
 #if canImport(SwiftNetwork)
-@_spi(Essentials) @_spi(ProtocolProvider) @testable import SwiftNetwork
+@_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
 #elseif canImport(Network)
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
@@ -30,39 +30,42 @@ internal import Logging
 internal import os
 #endif
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, TestDatagramLinkageFamily.Upper> {
+public final class TestDatagramFlow: MultiplexedDatagramFlow<TestMultiplexingProtocol, TestDatagramLinkageFamily.Upper> {
     // Hands back a linkage that routes to this flow, so its upper protocol can reach it. The
     // default implementation returns an empty linkage.
-    override func asLowerLinkage() -> TestOutboundDatagramLinkage {
+    public override func asLowerLinkage() -> TestOutboundDatagramLinkage {
         TestOutboundDatagramLinkage(flow: self)
     }
 }
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, TestDatagramLinkageFamily.Lower> {
+public final class TestDatagramPath: MultiplexingDatagramPath<TestMultiplexingProtocol, TestDatagramLinkageFamily.Lower> {
     // Hands back a linkage that routes to this path, so its lower protocol can deliver events to
     // it. The default implementation returns an empty linkage.
-    override func asUpperLinkage() -> TestInboundDatagramLinkage {
+    public override func asUpperLinkage() -> TestInboundDatagramLinkage {
         TestInboundDatagramLinkage(path: self)
     }
 }
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
+public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     DatagramListenerHandler, HomogeneousManyToManyProtocolHandler
 {    
-    typealias UpperProtocol = TestDatagramLinkageFamily.InboundFlow
+    public typealias UpperProtocol = TestDatagramLinkageFamily.InboundFlow
 
-    var inboundFlowLinkage = UpperProtocol()
-    var asListener: TestDatagramLinkageFamily.Listener { .init(multiplexing: self) }
+    public var inboundFlowLinkage = UpperProtocol()
+    public var asListener: TestDatagramLinkageFamily.Listener { .init(multiplexing: self) }
 
-    var delayConnected = false
+    public var delayConnected = false
 
-    typealias Flow = TestDatagramFlow
-    typealias Path = TestDatagramPath
+    public typealias Flow = TestDatagramFlow
+    public typealias Path = TestDatagramPath
 
-    func setup(
+    public func setup(
         flow: MultiplexedFlowIdentifier,
         remote: Endpoint?,
         local: Endpoint?,
@@ -73,19 +76,19 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     }
 
     public private(set) var context: NetworkContext
-    init(context: NetworkContext) {
+    public init(context: NetworkContext) {
         self.context = context
         self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
     }
 
-    var reference: ProtocolInstanceReference
-    var log = NetworkLoggerState()
-    var eventManager = ProtocolEventManager()
+    public var reference: ProtocolInstanceReference
+    public var log = NetworkLoggerState()
+    public var eventManager = ProtocolEventManager()
 
-    var multiplexedFlows = [MultiplexedFlowIdentifier: TestDatagramFlow]()
-    var multiplexingPaths = [MultiplexingPathIdentifier: TestDatagramPath]()
+    public var multiplexedFlows = [MultiplexedFlowIdentifier: TestDatagramFlow]()
+    public var multiplexingPaths = [MultiplexingPathIdentifier: TestDatagramPath]()
 
-    func serviceDatagramsToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func serviceDatagramsToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol asked to service datagrams to send from flow \(flow.debugDescription)")
         guard let path = somePathIdentifier else {
             return
@@ -98,7 +101,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         }
     }
 
-    func serviceReceivedDatagrams(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func serviceReceivedDatagrams(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol asked to service received datagrams on path \(path.description)")
         guard let flow = someFlowIdentifier else {
             return
@@ -112,16 +115,16 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         }
     }
 
-    func handleInboundDataAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol inbound data available for path \(path.description)")
     }
 
-    func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol outbound room available for path \(path.description)")
     }
 
     // FROM LISTENER
-    func connect(state: inout NetworkContext.State) {
+    public func connect(state: inout NetworkContext.State) {
         log.debug("Multiplexing protocol connect for listener")
         if !delayConnected {
             deliverConnectedEvent(state: &state, flow: .allFlows)
@@ -129,13 +132,13 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     }
 
     // FROM LISTENER
-    func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
+    public func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
         log.debug("Multiplexing protocol disconnect for listener")
 
     }
 
     // FROM FLOW
-    func connect(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func connect(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol connect for flow \(flow.debugDescription)")
 
         if !delayConnected {
@@ -144,27 +147,27 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
     }
 
     // FROM FLOW
-    func disconnect(flow: MultiplexedFlowIdentifier) {
+    public func disconnect(flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol disconnect for flow \(flow.debugDescription)")
     }
 
-    func teardown(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func teardown(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
         log.debug("Multiplexing protocol teardown for flow \(flow.debugDescription)")
     }
 
-    func getMetadata<P>(flow: MultiplexedFlowIdentifier) -> ProtocolMetadata<P>? where P: NetworkProtocol {
+    public func getMetadata<P>(flow: MultiplexedFlowIdentifier) -> ProtocolMetadata<P>? where P: NetworkProtocol {
         nil
     }
 
-    func handleConnectedEvent(path: MultiplexingPathIdentifier) {
+    public func handleConnectedEvent(path: MultiplexingPathIdentifier) {
         log.debug("Multiplexing protocol connected for path \(path.description)")
     }
 
-    func handleDisconnectedEvent(path: MultiplexingPathIdentifier, error: NetworkError?) {
+    public func handleDisconnectedEvent(path: MultiplexingPathIdentifier, error: NetworkError?) {
         log.debug("Multiplexing protocol disconnected connected for path \(path.description)")
     }
 
-    func triggerNewFlowCreation() {
+    public func triggerNewFlowCreation() {
         log.debug("Multiplexing protocol creating a new inbound flow")
         fromExternal { state in
             let newFlow = Flow(parent: self, inbound: true, state: &state)
@@ -173,7 +176,7 @@ final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtocol, Man
         }
     }
 
-    func triggerConnected() {
+    public func triggerConnected() {
         log.debug("Multiplexing protocol triggering connected event")
         fromExternal { state in
             delayConnected = false

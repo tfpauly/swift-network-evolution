@@ -32,7 +32,7 @@ internal import os
 // MARK: QUIC StreamID state
 // Keeps track of the QUICStreamID state for local and remote uni/bidi streams
 @available(Network 0.1.0, *)
-struct QUICStreamIDState<Families: QUICLinkageFamilies>: ~Copyable {
+struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
     let logContext: String
     let streamType: QUICStreamType
     var remoteMaxStreams: Int = 0
@@ -389,7 +389,7 @@ struct QUICStreamList: ~Copyable {
         list.count
     }
 
-    mutating func append<Families: QUICLinkageFamilies>(_ stream: QUICStreamInstance<Families>) {
+    mutating func append<Families: LinkageFamilyGroup>(_ stream: QUICStreamInstance<Families>) {
         guard !stream.listMembership.contains(listType) else {
             return
         }
@@ -397,7 +397,7 @@ struct QUICStreamList: ~Copyable {
         stream.listMembership.insert(listType)
     }
 
-    mutating func removeFirst<Families: QUICLinkageFamilies>(
+    mutating func removeFirst<Families: LinkageFamilyGroup>(
         connection: QUICConnection<Families>
     ) -> QUICStreamInstance<Families>? {
         guard !list.isEmpty else {
@@ -411,7 +411,7 @@ struct QUICStreamList: ~Copyable {
         return stream
     }
 
-    mutating func remove<Families: QUICLinkageFamilies>(_ stream: QUICStreamInstance<Families>) {
+    mutating func remove<Families: LinkageFamilyGroup>(_ stream: QUICStreamInstance<Families>) {
         let name = self.name
         guard stream.listMembership.contains(listType) else {
             stream.log.error(
@@ -430,7 +430,7 @@ struct QUICStreamList: ~Copyable {
         stream.log.debug("Removed from \(name)")
     }
 
-    mutating func removeAll<Families: QUICLinkageFamilies>(connection: QUICConnection<Families>) {
+    mutating func removeAll<Families: LinkageFamilyGroup>(connection: QUICConnection<Families>) {
         while !list.isEmpty {
             guard let identifier = list.popLast() else {
                 break
@@ -449,7 +449,7 @@ struct QUICStreamList: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICStreamInstance<Families: QUICLinkageFamilies>: MultiplexedStreamFlow<QUICConnection<Families>, Families.StreamFlowLinkageFamily.Upper>,
+public final class QUICStreamInstance<Families: LinkageFamilyGroup>: MultiplexedStreamFlow<QUICConnection<Families>, Families.StreamFamily.Upper>,
     UnidirectionalAbortingStreamFlow, EarlyDataStreamFlow
 {
     private(set) var streamID: QUICStreamID?
@@ -473,7 +473,7 @@ public final class QUICStreamInstance<Families: QUICLinkageFamilies>: Multiplexe
     private var flags = QUICStreamFlags()
 
     override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
-        Families.StreamFlowLinkageFamily.Lower.init(self)
+        Families.linkage(for: self)
     }
 
     // Have sent DATA_BLOCKED for the stream without an increase

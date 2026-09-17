@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class SwiftNetworkUDPTests: NetTestCase {
 
@@ -89,9 +91,9 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createUDPInstance()
+            let (udpUpper, udpLower) = storage.createTestUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
@@ -214,7 +216,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
         remoteEndpoint: Endpoint,
         fullChecksumOffload: Bool,
         preferNoChecksum: Bool = false,
-        validateOutbound: @escaping (DatagramLowerHarness<BaseDatagramLinkageFamily>) -> Void
+        validateOutbound: @escaping (DatagramLowerHarness<TestDatagramLinkageFamily>) -> Void
     ) {
         let parameters = Parameters()
         let expectation = XCTestExpectation()
@@ -222,9 +224,9 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createUDPInstance()
+            let (udpUpper, udpLower) = storage.createTestUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.fullChecksumOffload = fullChecksumOffload
             udpOptions.preferNoChecksum = preferNoChecksum
@@ -362,10 +364,10 @@ final class SwiftNetworkUDPTests: NetTestCase {
         context.async {
             defer { expectation.fulfill() }
 
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
             let clientPath = PathProperties(parameters: clientParameters)
-            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
+            let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
             let clientOptions = UDPProtocol.options()
             clientOptions.noMetadata = true
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
@@ -397,7 +399,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
 
             let serverParameters = Parameters()
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
+            let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
             let serverOptions = UDPProtocol.options()
             serverOptions.noMetadata = true
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)

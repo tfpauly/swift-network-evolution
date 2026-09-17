@@ -51,7 +51,7 @@ public enum SerializationResult: CustomStringConvertible, Equatable, Sendable {
         }
     }
 
-    var isValid: Bool {
+    public var isValid: Bool {
         if case .error = self { return false }
         return true
     }

@@ -22,14 +22,16 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 class QUICPathValidationMessageTests: XCTestCase {
     let logString = "PathValidationTests"
-    var connection: QUICConnection<BaseQUICLinkageFamilies>!
+    var connection: QUICConnection<TestQUICLinkageFamilies>!
     var path: QUICTestPath!  // NOTE: This path immediately transitions to cid assigned due to setup()
 
     override func setUp() {
-        connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         path = connection.context.onQueue {
             QUICTestPath.makeFromExternal(parent: self.connection)
         }

@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
 @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkBenchmarks
 import Dispatch
 
@@ -42,8 +43,6 @@ final class QUICTransfer {
     // 169.254.225.163
     let remoteIPv4Address: [UInt8] = [0xa9, 0xfe, 0xe1, 0xa3]
 
-    let dataBenchmarkUtility = DataBenchmarkUtility()
-    let quicBenchmakrUtility = QUICBenchmarkUtility()
     let NSEC_PER_MSEC = UInt64(Duration.milliseconds(1) / Duration.nanoseconds(1))
     var serverSigningKey = P256.Signing.PrivateKey()
 
@@ -57,9 +56,9 @@ final class QUICTransfer {
     ) -> Double {
         let ipv4Client = Endpoint(address: IPv4Address(localIPv4Address)!, port: 1234)
         let ipv4Server = Endpoint(address: IPv4Address(remoteIPv4Address)!, port: 2345)
-        var clientStream: StreamUpperHarness<BaseStreamLinkageFamily>? = nil
-        var clientInput: NewStreamFlowHarness<BaseStreamLinkageFamily>? = nil
-        var serverInput: NewStreamFlowHarness<BaseStreamLinkageFamily>? = nil
+        var clientStream: StreamUpperHarness<TestStreamLinkageFamily>? = nil
+        var clientInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
+        var serverInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
         // Create a random payload to send back and forth
         var payload = [UInt8](repeating: 0, count: sendSize)
         payload = (0..<sendSize).map { _ in UInt8.random(in: 0...255) }
@@ -79,10 +78,10 @@ final class QUICTransfer {
         context.activate()
         // The storage owns the protocol instances and hands back the linkages used to wire the
         // stack together.
-        let storage = BaseNetworkProtocolStorage(context: context)
+        let storage = TestNetworkProtocolStorage(context: context)
         context.async {
             // Client
-            let (clientIPUpper, clientIPLower) = storage.createIPInstance()
+            let (clientIPUpper, clientIPLower) = storage.createTestIPInstance()
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 3)
             clientIPOptions.setProtocolInstance(clientIPLower.reference)
@@ -90,7 +89,7 @@ final class QUICTransfer {
                 clientParameters.defaultStack.internet = .ip(clientIPOptions)
             }
 
-            let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
+            let (clientUDPUpper, clientUDPLower) = storage.createTestUDPInstance()
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
@@ -99,7 +98,7 @@ final class QUICTransfer {
                 clientParameters.defaultStack.transport = .udp(clientUDPOptions)
             }
 
-            let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
+            var (clientQUICStreamListener, _, clientQUICMultipath) = storage.createTestQUICInstanceLinkages()
             var clientTLSOptions = SwiftTLSProtocol.Options()
             clientTLSOptions.applicationProtocols = ["network_test"]
             clientTLSOptions.serverName = "quic-test.local"
@@ -116,7 +115,7 @@ final class QUICTransfer {
                 clientParameters.defaultStack.transport = .quic(clientQUICOptions)
             }
 
-            let clientOutput = storage.createBridgeDatagramInstance()
+            let clientOutput = storage.createTestBridgeDatagramInstance()
             let bridgeOptions = BridgeDatagramProtocol.options()
             bridgeOptions.linkDelay = linkDelay
             bridgeOptions.setProtocolInstance(clientOutput.reference)
@@ -203,7 +202,7 @@ final class QUICTransfer {
             }
             // Server
             let serverPath = PathProperties(parameters: serverParameters)
-            let (serverIPUpper, serverIPLower) = storage.createIPInstance()
+            let (serverIPUpper, serverIPLower) = storage.createTestIPInstance()
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 3)
             serverIPOptions.setProtocolInstance(serverIPLower.reference)
@@ -211,7 +210,7 @@ final class QUICTransfer {
                 serverParameters.defaultStack.internet = .ip(serverIPOptions)
             }
 
-            let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
+            let (serverUDPUpper, serverUDPLower) = storage.createTestUDPInstance()
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
@@ -220,7 +219,7 @@ final class QUICTransfer {
                 serverParameters.defaultStack.transport = .udp(serverUDPOptions)
             }
 
-            let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
+            var (serverQUICStreamListener, _, serverQUICMultipath) = storage.createTestQUICInstanceLinkages()
             var serverTLSOptions = SwiftTLSProtocol.Options()
             serverTLSOptions.applicationProtocols = ["network_test"]
             serverTLSOptions.serverName = "quic-test.local"
@@ -236,7 +235,7 @@ final class QUICTransfer {
                 serverParameters.defaultStack.transport = .quic(serverQUICOptions)
             }
 
-            let serverOutput = storage.createBridgeDatagramInstance()
+            let serverOutput = storage.createTestBridgeDatagramInstance()
             let serverBridgeOptions = BridgeDatagramProtocol.options()
             serverBridgeOptions.linkDelay = linkDelay
             serverBridgeOptions.setProtocolInstance(serverOutput.reference)
@@ -315,7 +314,7 @@ final class QUICTransfer {
         guard let serverInput, let clientInput, let clientStream else {
             return 0
         }
-        var serverStream: StreamUpperHarness<BaseStreamLinkageFamily>?
+        var serverStream: StreamUpperHarness<TestStreamLinkageFamily>?
 
         var writeIndex = 0
         var writeSucceeded = true
@@ -339,7 +338,7 @@ final class QUICTransfer {
 
         // Server read loop: keeps draining inbound data as it arrives.
         // Readloop used for multiple iterations
-        func readLoop(stream: StreamUpperHarness<BaseStreamLinkageFamily>) {
+        func readLoop(stream: StreamUpperHarness<TestStreamLinkageFamily>) {
             stream.waitForInboundDataAvailable { state, available in
                 guard available else { return }
                 totalReadSize += stream.readAndDrop(state: &state)

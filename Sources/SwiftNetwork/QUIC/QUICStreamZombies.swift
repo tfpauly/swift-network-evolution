@@ -55,7 +55,7 @@ struct QUICStreamZombie {
         )
     }
 
-    func updateLastOffset<Families: QUICLinkageFamilies>(
+    func updateLastOffset<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         newLastOffset: UInt64,
@@ -139,7 +139,7 @@ struct QUICStreamZombieList {
      * the final size and account that in the connection level flow
      * control.
      */
-    mutating func finalSizeReceived<Families: QUICLinkageFamilies>(
+    mutating func finalSizeReceived<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         logIDString: String,
         streamID: QUICStreamID,

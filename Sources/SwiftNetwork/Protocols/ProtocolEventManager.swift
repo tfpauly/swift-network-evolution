@@ -880,8 +880,12 @@ extension ProtocolInstance where Self: ~Copyable {
         reference.canCallDisconnect(state: &state)
     }
 
+    /// Whether this protocol instance is connected.
+    ///
+    /// Mirrors `ProtocolInstanceReference.isConnected`, so a linkage outside the framework can ask
+    /// the question of an instance it holds directly rather than of its reference.
     @inline(always)
-    func isConnected(state: inout NetworkContext.State) -> Bool {
+    public func isConnected(state: inout NetworkContext.State) -> Bool {
         reference.isConnected(state: &state)
     }
 }
@@ -903,8 +907,12 @@ extension ProtocolInstanceReference {
         return state.canCallDisconnect(index: eventStateIndex)
     }
 
+    /// Whether the instance this reference names is connected.
+    ///
+    /// Linkages defined outside the framework need this to answer `protocolIsConnected` for their
+    /// own protocols, so it is part of the surface a linkage author writes against.
     @inline(__always)
-    func isConnected(state: inout NetworkContext.State) -> Bool {
+    public func isConnected(state: inout NetworkContext.State) -> Bool {
         guard let eventStateIndex else { return false }
         return state.isConnected(index: eventStateIndex)
     }

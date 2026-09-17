@@ -299,6 +299,23 @@ public struct NetworkLoggerState: ~Copyable {
 
 // MARK: Protocol Instance As Linkage
 
+@available(Network 0.1.0, *)
+internal struct ProtocolInstanceBox<Instance: AnyObject>: Hashable {
+    let instance: Instance
+
+    init(_ instance: Instance) {
+        self.instance = instance
+    }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.instance === rhs.instance
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(ObjectIdentifier(instance))
+    }
+}
+
 /// Mark on protocols to allow them to be represented as their own linkage types
 
 @_spi(ProtocolProvider)

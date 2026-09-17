@@ -22,20 +22,22 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 // MARK: ECN Initialization Tests
 @available(Network 0.1.0, *)
 final class ECNTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
     var stats: Statistics!
-    var conn: QUICConnection<BaseQUICLinkageFamilies>!
+    var conn: QUICConnection<TestQUICLinkageFamilies>!
     let logPrefixer = LogPrefixer("[ECNTests]")
     // These tests reset ECN state without a path attached.
     let noPath: QUICTestPath? = nil
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -406,13 +408,13 @@ extension ECNTestStepAck {
 final class ECNValidateTests: XCTestCase {
     var ecn: ECN!
     var ecnPath: ECNPathState!
-    var conn: QUICConnection<BaseQUICLinkageFamilies>!
+    var conn: QUICConnection<TestQUICLinkageFamilies>!
     var stats: Statistics!
     let logPrefixer = LogPrefixer("[ECNValidateTests]")
 
     override func setUp() {
         super.setUp()
-        conn = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        conn = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         stats = Statistics()
     }
 
@@ -840,7 +842,7 @@ final class ECNValidateTests: XCTestCase {
     }
 
     func testValidateAckReturnsCorrectCECount() async throws {
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,
@@ -881,7 +883,7 @@ final class ECNValidateTests: XCTestCase {
         let context = NetworkContext(identifier: #function)
         context.activate()
 
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: context)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: context)
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,

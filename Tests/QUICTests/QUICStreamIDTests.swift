@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class QUICStreamIDTests: XCTestCase {
     func testMinMaxValues() {
@@ -377,7 +379,7 @@ final class QUICStreamIDTests: XCTestCase {
 
     func testQUICStreamIDPendingBidirectionalStreams() {
         var streamsState = QUICTestStreamIDState(.bidirectional)
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         let logPrefixer = LogPrefixer("[testQUICStreamIDPendingStreams]")
         try connection.context.onQueue {
 

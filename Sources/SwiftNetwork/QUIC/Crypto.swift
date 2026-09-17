@@ -57,7 +57,7 @@ enum QUICCryptoConstants {
 }
 
 @available(Network 0.1.0, *)
-final class QUICCrypto<Families: QUICLinkageFamilies> {
+final class QUICCrypto<Families: LinkageFamilyGroup> {
     var eventManager = ProtocolEventManager()
 
     var reference: ProtocolInstanceReference

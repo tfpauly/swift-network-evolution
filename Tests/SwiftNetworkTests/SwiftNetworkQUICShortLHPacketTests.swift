@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 #if IMPORT_SWIFTTLS
 #if EXPORT_SWIFTTLS
 @_spi(SwiftTLSOptions) @_spi(SwiftTLSProtocol) import SwiftTLS
@@ -157,8 +159,8 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
         serverParameters.isServer = true
         let context = serverParameters.context
         let serverPath = PathProperties(parameters: serverParameters)
-        let storage = BaseNetworkProtocolStorage(context: context)
-        let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
+        let storage = TestNetworkProtocolStorage(context: context)
+        let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createTestQUICInstanceLinkages()
 
         let serverQUICOptions = self.createQUICTestOptions(server: true)
         serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
@@ -200,6 +202,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
             serverLowerHarness.maximumOutputSize = 9000
 
             do {
+                var serverQUICMultipath = serverQUICMultipath
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
                     serverLowerHarnessLinkage,
                     remote: clientEndpoint,

@@ -22,13 +22,15 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 let quicStreamTestsLogPrefixer = LogPrefixer("[QUICStreamTests]")
 
 @available(Network 0.1.0, *)
 final class QUICStreamTests: XCTestCase {
     var stream: QUICTestStream!
-    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+    var connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
 
     override func setUp() {
         stream = QUICTestStream(parent: connection, inbound: false)
@@ -68,7 +70,7 @@ final class QUICStreamTests: XCTestCase {
 @available(Network 0.1.0, *)
 final class QUICStreamIDStateTests: XCTestCase {
     var streamsState = QUICTestStreamIDState(.unidirectional)
-    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+    var connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     var stream: QUICTestStream!
     var logPrefix = LogPrefixer("[QUICStreamTests]")
 
@@ -103,7 +105,7 @@ final class QUICStreamIDStateTests: XCTestCase {
 
 @available(Network 0.1.0, *)
 final class QUICStreamListTests: XCTestCase {
-    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+    var connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
     var logPrefix = LogPrefixer("[QUICStreamListTests]")
 
     func testQUICStreamList() {

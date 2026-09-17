@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class SendItemsTests: XCTestCase {
 
@@ -59,7 +61,7 @@ final class SendItemsTests: XCTestCase {
         var frame = Frame(count: 1200)
         defer { frame.finalize(success: true) }
         let context = NetworkContext(identifier: "SendItemsTests")
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: context)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: context)
         var shorthandFrames: [QUICShorthandFrame]? = nil
         XCTAssertNoThrow(
             try pendingItems.write(

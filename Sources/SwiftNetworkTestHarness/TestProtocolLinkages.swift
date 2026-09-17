@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(SwiftNetwork)
-@_spi(Essentials) @_spi(ProtocolProvider) @testable import SwiftNetwork
+@_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
 #elseif canImport(Network)
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
@@ -29,12 +29,27 @@
 // The storage subclasses `BaseNetworkProtocolStorage`, so it owns the framework's protocol
 // instances as well as the test-only ones.
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
+public final class TestNetworkProtocolStorage {
+
+    // The framework's storage, held rather than subclassed. The test storage owns the test-only
+    // protocols; everything the framework provides is created and owned here, and the test
+    // linkages reach it only through the `Base*` linkages it hands back.
+    public let base: BaseNetworkProtocolStorage
+
+    public let context: NetworkContext
+
+    public init(context: NetworkContext) {
+        self.context = context
+        self.base = BaseNetworkProtocolStorage(context: context)
+    }
+
 
     // Test-only protocol instances. These are held by the storage the same way the base storage
     // holds the framework's instances.
     private var multiplexingInstances = [ObjectIdentifier: TestMultiplexingProtocol]()
+
 
     // Harnesses for the test family. The base storage's factories are hard-coded to the base
     // family, so these build the same harnesses against `TestDatagramLinkageFamily`. The
@@ -43,7 +58,7 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
     private var datagramLowerHarnessesForTest = [DatagramLowerHarness<TestDatagramLinkageFamily>]()
     private var newDatagramFlowHarnessesForTest = [NewDatagramFlowHarness<TestDatagramLinkageFamily>]()
 
-    func createTestDatagramUpperHarness(
+    public func createTestDatagramUpperHarness(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -64,7 +79,7 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
 
     /// Creates an upper harness using a context state the caller already holds. The new-inbound-
     /// flow event runs inline with the state held, so registering there has to use this.
-    func createTestDatagramUpperHarness(
+    public func createTestDatagramUpperHarness(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -85,7 +100,7 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
         return instance
     }
 
-    func createTestDatagramLowerHarness(
+    public func createTestDatagramLowerHarness(
         identifier: String = ""
     ) -> DatagramLowerHarness<TestDatagramLinkageFamily> {
         let instance = DatagramLowerHarness<TestDatagramLinkageFamily>(
@@ -96,7 +111,7 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
         return instance
     }
 
-    func createTestNewDatagramFlowHarness(
+    public func createTestNewDatagramFlowHarness(
         identifier: String = "",
         local: Endpoint,
         remote: Endpoint,
@@ -125,7 +140,7 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
         return instance
     }
 
-    func createTestMultiplexingInstance() -> (
+    public func createTestMultiplexingInstance() -> (
         listener: TestDatagramListenerLinkage,
         multipath: TestDatagramMultipathLinkage,
         instance: TestMultiplexingProtocol
@@ -138,65 +153,182 @@ final class TestNetworkProtocolStorage: BaseNetworkProtocolStorage {
             instance: instance
         )
     }
+
+    // MARK: - Stream harnesses
+
+    private var streamUpperHarnessesForTest = [StreamUpperHarness<TestStreamLinkageFamily>]()
+    private var streamLowerHarnessesForTest = [StreamLowerHarness<TestStreamLinkageFamily>]()
+    private var newStreamFlowHarnessesForTest = [NewStreamFlowHarness<TestStreamLinkageFamily>]()
+
+    public func createTestStreamUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties
+    ) -> StreamUpperHarness<TestStreamLinkageFamily> {
+        let instance = StreamUpperHarness<TestStreamLinkageFamily>(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            context: context
+        )
+        streamUpperHarnessesForTest.append(instance)
+        return instance
+    }
+
+    /// Creates an upper harness using a context state the caller already holds. The new-inbound-
+    /// flow event runs inline with the state held, so registering there has to use this.
+    public func createTestStreamUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        state: inout NetworkContext.State
+    ) -> StreamUpperHarness<TestStreamLinkageFamily> {
+        let instance = StreamUpperHarness<TestStreamLinkageFamily>(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            context: context,
+            state: &state
+        )
+        streamUpperHarnessesForTest.append(instance)
+        return instance
+    }
+
+    public func createTestStreamLowerHarness(
+        identifier: String = ""
+    ) -> StreamLowerHarness<TestStreamLinkageFamily> {
+        let instance = StreamLowerHarness<TestStreamLinkageFamily>(
+            identifier: identifier,
+            context: context
+        )
+        streamLowerHarnessesForTest.append(instance)
+        return instance
+    }
+
+    public func createTestNewStreamFlowHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties
+    ) -> NewStreamFlowHarness<TestStreamLinkageFamily> {
+        let instance = NewStreamFlowHarness<TestStreamLinkageFamily>(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            context: context
+        ) { [self] state in
+            let inbound = createTestStreamUpperHarness(
+                identifier: "Inbound",
+                local: local,
+                remote: remote,
+                parameters: parameters,
+                path: path,
+                state: &state
+            )
+            return (inbound, TestInboundStreamLinkage(harness: inbound))
+        }
+        newStreamFlowHarnessesForTest.append(instance)
+        return instance
+    }
+
+    // MARK: - QUIC instances
+
+    // QUIC connections in the test family. The base storage's QUIC instances are parameterized on
+    // `BaseQUICLinkageFamilies`, so a harness in the test family could not attach to them.
+    private var quicInstancesForTest = [ObjectIdentifier: QUICConnection<TestQUICLinkageFamilies>]()
+
+    public func createTestQUICInstance() -> (
+        streamListener: TestStreamListenerLinkage,
+        datagramListener: TestDatagramListenerLinkage,
+        multipath: TestDatagramMultipathLinkage,
+        instance: QUICConnection<TestQUICLinkageFamilies>
+    ) {
+        let instance = QUICConnection<TestQUICLinkageFamilies>(context: context)
+        quicInstancesForTest[ObjectIdentifier(instance)] = instance
+        return (
+            streamListener: TestStreamListenerLinkage(quic: instance),
+            datagramListener: TestDatagramListenerLinkage(quic: instance),
+            multipath: TestDatagramMultipathLinkage(quic: instance),
+            instance: instance
+        )
+    }
 }
 
 // MARK: - Datagram linkage families
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestDatagramLinkageFamily: DatagramLinkageFamily {
-    typealias Upper = TestInboundDatagramLinkage
-    typealias Lower = TestOutboundDatagramLinkage
-    typealias Listener = TestDatagramListenerLinkage
-    typealias InboundFlow = TestInboundDatagramFlowLinkage
+public struct TestDatagramLinkageFamily: DatagramLinkageFamily {
+    public typealias Upper = TestInboundDatagramLinkage
+    public typealias Lower = TestOutboundDatagramLinkage
+    public typealias Listener = TestDatagramListenerLinkage
+    public typealias InboundFlow = TestInboundDatagramFlowLinkage
 }
 
 // MARK: - Inbound datagram linkage
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
-    typealias PairedLowerLinkage = TestOutboundDatagramLinkage
+public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
+    public typealias PairedLowerLinkage = TestOutboundDatagramLinkage
 
     // Protocols this module knows about. `base` is the fall-through for everything the
     // framework provides.
-    enum ProtocolType {
+    public enum ProtocolType {
         case base
         case datagramUpperHarness(DatagramUpperHarness<TestDatagramLinkageFamily>)
         // A path on the multiplexing protocol: this is what the path hands back from
         // `asUpperLinkage()` so its lower protocol can deliver events to it.
         case multiplexingPath(TestDatagramPath)
+        // A QUIC path in the test family, for the same reason as `quicDatagramFlow` above.
+        case quicPath(QUICPath<TestQUICLinkageFamilies>)
+        // Framework protocols, held by the test storage and typed to the test families so a
+        // harness can be their upper. Reached by index, like the base storage does.
     }
 
-    let base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage
-    let protocolType: ProtocolType
+    public let base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage
+    public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
-    init() {
+    public init() {
         self.base = .init()
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage) {
+    public init(base: BaseNetworkProtocolStorage.BaseInboundDatagramLinkage) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(harness: DatagramUpperHarness<TestDatagramLinkageFamily>) {
+    public init(harness: DatagramUpperHarness<TestDatagramLinkageFamily>) {
         self.base = .init()
         self.protocolType = .datagramUpperHarness(harness)
         self.harnessReference = harness.reference
     }
 
-    init(path: TestDatagramPath) {
+    public init(path: TestDatagramPath) {
         self.base = .init()
         self.protocolType = .multiplexingPath(path)
         self.harnessReference = path.reference
     }
 
-    var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
 
-    func invokeAttachLowerProtocol(
+    public var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
+
+    public func invokeAttachLowerProtocol(
         _ lowerProtocol: TestOutboundDatagramLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -206,6 +338,9 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         switch protocolType {
         case .multiplexingPath(let path):
             // The path's lower is bound when the path is created, so there is nothing more to do.
+            _ = path
+        case .quicPath(let path):
+            // Same as above: QUIC binds the path's lower side when it creates the path.
             _ = path
         case .datagramUpperHarness(let harness):
             var harness = harness
@@ -218,10 +353,10 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
                 path: path
             )
         default:
-            // The base linkage binds its own upper side, so the test linkage has to complete the
-            // pairing itself: it attaches the lower protocol, then hands this linkage back up.
-            try lowerProtocol.invokeAttachUpperProtocol(
-                self,
+            // Not a test protocol, so hand the whole call to the wrapped base linkage. Both sides
+            // are base linkages here, so it completes the pairing itself.
+            try base.invokeAttachLowerProtocol(
+                lowerProtocol.base,
                 remote: remote,
                 local: local,
                 parameters: parameters,
@@ -230,9 +365,12 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         }
     }
 
-    func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
         case .multiplexingPath(let path):
+            var path = path
+            path.handleConnectedEvent(state: &state, from)
+        case .quicPath(let path):
             var path = path
             path.handleConnectedEvent(state: &state, from)
         case .datagramUpperHarness(let harness): harness.handleConnectedEvent(state: &state, from)
@@ -240,7 +378,7 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         }
     }
 
-    func handleDisconnectedEvent(
+    public func handleDisconnectedEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         error: NetworkError?
@@ -249,13 +387,16 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         case .multiplexingPath(let path):
             var path = path
             path.handleDisconnectedEvent(state: &state, from, error: error)
+        case .quicPath(let path):
+            var path = path
+            path.handleDisconnectedEvent(state: &state, from, error: error)
         case .datagramUpperHarness(let harness):
             harness.handleDisconnectedEvent(state: &state, from, error: error)
         default: base.handleDisconnectedEvent(state: &state, from, error: error)
         }
     }
 
-    func handleNetworkProtocolEvent(
+    public func handleNetworkProtocolEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         event: NetworkProtocolEvent
@@ -264,13 +405,16 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         case .multiplexingPath(let path):
             var path = path
             path.handleNetworkProtocolEvent(state: &state, from, event: event)
+        case .quicPath(let path):
+            var path = path
+            path.handleNetworkProtocolEvent(state: &state, from, event: event)
         case .datagramUpperHarness(let harness):
             _ = harness.handleNetworkProtocolEvent(state: &state, from, event: event)
         default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
         }
     }
 
-    func handleInboundDataAvailableEvent(
+    public func handleInboundDataAvailableEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) {
@@ -278,12 +422,15 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         case .multiplexingPath(let path):
             var path = path
             path.handleInboundDataAvailableEvent(state: &state, from)
+        case .quicPath(let path):
+            var path = path
+            path.handleInboundDataAvailableEvent(state: &state, from)
         case .datagramUpperHarness(let harness): harness.handleInboundDataAvailableEvent(state: &state, from)
         default: base.handleInboundDataAvailableEvent(state: &state, from)
         }
     }
 
-    func handleOutboundRoomAvailableEvent(
+    public func handleOutboundRoomAvailableEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) {
@@ -291,74 +438,83 @@ struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sendable {
         case .multiplexingPath(let path):
             var path = path
             path.handleOutboundRoomAvailableEvent(state: &state, from)
+        case .quicPath(let path):
+            var path = path
+            path.handleOutboundRoomAvailableEvent(state: &state, from)
         case .datagramUpperHarness(let harness): harness.handleOutboundRoomAvailableEvent(state: &state, from)
         default: base.handleOutboundRoomAvailableEvent(state: &state, from)
         }
     }
 
-    static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
         lhs.reference == rhs.reference
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
 }
 
 // MARK: - Outbound datagram linkage
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable {
-    typealias PairedUpperLinkage = TestInboundDatagramLinkage
+public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable {
+    public typealias PairedUpperLinkage = TestInboundDatagramLinkage
 
-    enum ProtocolType {
+    public enum ProtocolType {
         case base
         case datagramLowerHarness(DatagramLowerHarness<TestDatagramLinkageFamily>)
         // A flow on the multiplexing protocol: this is what the flow hands back from
         // `asLowerLinkage()` so its upper protocol can talk to it.
         case multiplexedFlow(TestDatagramFlow)
+        // A QUIC datagram flow in the test family. The base linkage cannot stand in for this: its
+        // own `quicDatagramFlow` case carries a flow typed to the base family.
+        case quicDatagramFlow(QUICDatagramFlow<TestQUICLinkageFamilies>)
     }
 
-    let base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage
-    let protocolType: ProtocolType
+    public let base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage
+    public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
-    init() {
+    public init() {
         self.base = .init()
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage) {
+    public init(base: BaseNetworkProtocolStorage.BaseOutboundDatagramLinkage) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(harness: DatagramLowerHarness<TestDatagramLinkageFamily>) {
+    public init(harness: DatagramLowerHarness<TestDatagramLinkageFamily>) {
         self.base = .init()
         self.protocolType = .datagramLowerHarness(harness)
         self.harnessReference = harness.reference
     }
 
-    init(flow: TestDatagramFlow) {
+    public init(flow: TestDatagramFlow) {
         self.base = .init()
         self.protocolType = .multiplexedFlow(flow)
         self.harnessReference = flow.reference
     }
 
-    var reference: ProtocolInstanceReference {
+
+    public var reference: ProtocolInstanceReference {
         harnessReference ?? base.reference
     }
 
-    func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
+    public func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
         switch protocolType {
-        case .datagramLowerHarness, .multiplexedFlow: return reference.isConnected(state: &state)
+        case .datagramLowerHarness, .multiplexedFlow, .quicDatagramFlow:
+            return reference.isConnected(state: &state)
         default: return base.protocolIsConnected(state: &state)
         }
     }
 
-    func invokeAttachUpperProtocol(
+    public func invokeAttachUpperProtocol(
         _ upperProtocol: TestInboundDatagramLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -369,6 +525,9 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         case .multiplexedFlow:
             // `attachUpperProtocolToNewFlow` binds the upper when it creates the flow, so there
             // is nothing more to do here.
+            break
+        case .quicDatagramFlow:
+            // Same as above: QUIC binds the upper when it creates the datagram flow.
             break
         case .datagramLowerHarness(let harness):
             var harness = harness
@@ -390,13 +549,20 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    func receiveDatagrams(
+    public func receiveDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int
     ) throws(NetworkError) -> FrameArray? {
         switch protocolType {
         case .multiplexedFlow(let flow):
+            var flow = flow
+            return try flow.receiveDatagrams(
+                state: &state,
+                from,
+                maximumDatagramCount: maximumDatagramCount
+            )
+        case .quicDatagramFlow(let flow):
             var flow = flow
             return try flow.receiveDatagrams(
                 state: &state,
@@ -419,7 +585,7 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    func getDatagramsToSend(
+    public func getDatagramsToSend(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int,
@@ -427,6 +593,14 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
     ) throws(NetworkError) -> FrameArray? {
         switch protocolType {
         case .multiplexedFlow(let flow):
+            var flow = flow
+            return try flow.getDatagramsToSend(
+                state: &state,
+                from,
+                maximumDatagramCount: maximumDatagramCount,
+                minimumDatagramSize: minimumDatagramSize
+            )
+        case .quicDatagramFlow(let flow):
             var flow = flow
             return try flow.getDatagramsToSend(
                 state: &state,
@@ -452,13 +626,16 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    func sendDatagrams(
+    public func sendDatagrams(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         datagrams: consuming FrameArray
     ) throws(NetworkError) {
         switch protocolType {
         case .multiplexedFlow(let flow):
+            var flow = flow
+            try flow.sendDatagrams(state: &state, from, datagrams: datagrams)
+        case .quicDatagramFlow(let flow):
             var flow = flow
             try flow.sendDatagrams(state: &state, from, datagrams: datagrams)
         case .datagramLowerHarness(let harness):
@@ -468,33 +645,38 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
         case .multiplexedFlow(let flow): flow.connect(state: &state, from)
+        case .quicDatagramFlow(let flow): flow.connect(state: &state, from)
         case .datagramLowerHarness(let harness): harness.connect(state: &state, from)
         default: base.connect(state: &state, from)
         }
     }
 
-    func disconnect(
+    public func disconnect(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         error: NetworkError?
     ) {
         switch protocolType {
         case .multiplexedFlow(let flow): flow.disconnect(state: &state, from, error: error)
+        case .quicDatagramFlow(let flow): flow.disconnect(state: &state, from, error: error)
         case .datagramLowerHarness(let harness):
             harness.disconnect(state: &state, from, error: error)
         default: base.disconnect(state: &state, from, error: error)
         }
     }
 
-    func detach(
+    public func detach(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
         switch protocolType {
         case .multiplexedFlow(let flow):
+            var flow = flow
+            try flow.detach(state: &state, from)
+        case .quicDatagramFlow(let flow):
             var flow = flow
             try flow.detach(state: &state, from)
         case .datagramLowerHarness(let harness):
@@ -504,14 +686,14 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    func teardown(state: inout NetworkContext.State) {
+    public func teardown(state: inout NetworkContext.State) {
         switch protocolType {
-        case .datagramLowerHarness, .multiplexedFlow: break
+        case .datagramLowerHarness, .multiplexedFlow, .quicDatagramFlow: break
         default: base.teardown(state: &state)
         }
     }
 
-    func handleApplicationEvent(
+    public func handleApplicationEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         event: ApplicationEvent
@@ -519,29 +701,36 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         switch protocolType {
         case .multiplexedFlow(let flow):
             flow.handleApplicationEvent(state: &state, from, event: event)
+        case .quicDatagramFlow(let flow):
+            flow.handleApplicationEvent(state: &state, from, event: event)
         case .datagramLowerHarness(let harness):
             harness.handleApplicationEvent(state: &state, from, event: event)
         default: base.handleApplicationEvent(state: &state, from, event: event)
         }
     }
 
-    func getMetadata<P: NetworkProtocol>(
+    public func getMetadata<P: NetworkProtocol>(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) -> ProtocolMetadata<P>? {
         switch protocolType {
         case .multiplexedFlow(let flow): return flow.getMetadata(state: &state, from)
+        case .quicDatagramFlow(let flow): return flow.getMetadata(state: &state, from)
         case .datagramLowerHarness(let harness): return harness.getMetadata(state: &state, from)
         default: return base.getMetadata(state: &state, from)
         }
     }
 
-    func getMetrics(
+    public func getMetrics(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
         switch protocolType {
+        case .datagramLowerHarness, .multiplexedFlow, .quicDatagramFlow:
+            // These hold their instance here rather than in `base`, whose linkage is empty, so
+            // they must not fall through: the base implementation force-unwraps its storage.
+            return nil
         default:
             return base.getMetrics(
                 state: &state,
@@ -551,52 +740,53 @@ struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked Sendable
         }
     }
 
-    static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
         lhs.reference == rhs.reference
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
 }
 
 // MARK: - Inbound datagram flow linkage
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Sendable {
-    typealias PairedLowerLinkage = TestDatagramListenerLinkage
-    typealias DataLinkage = TestOutboundDatagramLinkage
+public struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Sendable {
+    public typealias PairedLowerLinkage = TestDatagramListenerLinkage
+    public typealias DataLinkage = TestOutboundDatagramLinkage
 
-    enum ProtocolType {
+    public enum ProtocolType {
         case base
         case newDatagramFlowHarness(NewDatagramFlowHarness<TestDatagramLinkageFamily>)
     }
 
-    let base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage
-    let protocolType: ProtocolType
+    public let base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage
+    public let protocolType: ProtocolType
     private let harnessReference: ProtocolInstanceReference?
 
-    init() {
+    public init() {
         self.base = .init()
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage) {
+    public init(base: BaseNetworkProtocolStorage.BaseInboundDatagramFlowLinkage) {
         self.base = base
         self.protocolType = .base
         self.harnessReference = nil
     }
 
-    init(harness: NewDatagramFlowHarness<TestDatagramLinkageFamily>) {
+    public init(harness: NewDatagramFlowHarness<TestDatagramLinkageFamily>) {
         self.base = .init()
         self.protocolType = .newDatagramFlowHarness(harness)
         self.harnessReference = harness.reference
     }
 
-    var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
+    public var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
 
-    func invokeAttachLowerProtocol(
+    public func invokeAttachLowerProtocol(
         _ lowerProtocol: TestDatagramListenerLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -625,14 +815,14 @@ struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Se
         }
     }
 
-    func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
         case .newDatagramFlowHarness(let harness): harness.handleConnectedEvent(state: &state, from)
         default: base.handleConnectedEvent(state: &state, from)
         }
     }
 
-    func handleDisconnectedEvent(
+    public func handleDisconnectedEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         error: NetworkError?
@@ -644,7 +834,7 @@ struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Se
         }
     }
 
-    func handleNetworkProtocolEvent(
+    public func handleNetworkProtocolEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         event: NetworkProtocolEvent
@@ -656,7 +846,7 @@ struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Se
         }
     }
 
-    func handleNewInboundFlowEvent(
+    public func handleNewInboundFlowEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         flowReference: ProtocolInstanceReference,
@@ -680,55 +870,64 @@ struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unchecked Se
         }
     }
 
-    static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
         lhs.reference == rhs.reference
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
 }
 
 // MARK: - Datagram listener linkage
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable {
-    typealias PairedUpperLinkage = TestInboundDatagramFlowLinkage
+public struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable {
+    public typealias PairedUpperLinkage = TestInboundDatagramFlowLinkage
 
-    enum ProtocolType {
+    public enum ProtocolType {
         case base
         case multiplexing(TestMultiplexingProtocol)
+        // A QUIC connection in the test family, listening for inbound datagram flows.
+        case quic(QUICConnection<TestQUICLinkageFamilies>)
     }
 
-    let base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage
-    let protocolType: ProtocolType
+    public let base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage
+    public let protocolType: ProtocolType
     private let multiplexingReference: ProtocolInstanceReference?
 
-    init() {
+    public init() {
         self.base = .init()
         self.protocolType = .base
         self.multiplexingReference = nil
     }
 
-    init(base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage) {
+    public init(base: BaseNetworkProtocolStorage.BaseDatagramListenerLinkage) {
         self.base = base
         self.protocolType = .base
         self.multiplexingReference = nil
     }
 
-    init(multiplexing instance: TestMultiplexingProtocol) {
+    public init(multiplexing instance: TestMultiplexingProtocol) {
         self.base = .init()
         self.protocolType = .multiplexing(instance)
         self.multiplexingReference = instance.reference
     }
 
-    var reference: ProtocolInstanceReference {
+    public init(quic instance: QUICConnection<TestQUICLinkageFamilies>) {
+        self.base = .init()
+        self.protocolType = .quic(instance)
+        self.multiplexingReference = instance.reference
+    }
+
+    public var reference: ProtocolInstanceReference {
         multiplexingReference ?? base.reference
     }
 
     // Binds an inbound-flow observer to the listener. Called from the upper linkage so both
     // directions end up bound.
-    func attachInboundFlow(
+    public func attachInboundFlow(
         _ upperProtocol: TestInboundDatagramFlowLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -737,6 +936,15 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
     ) throws(NetworkError) {
         switch protocolType {
         case .multiplexing(let instance):
+            var instance = instance
+            try instance.attachUpperProtocol(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        case .quic(let instance):
             var instance = instance
             try instance.attachUpperProtocol(
                 upperProtocol,
@@ -756,14 +964,15 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         }
     }
 
-    func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
+    public func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
         switch protocolType {
         case .multiplexing(let instance): return instance.isConnected(state: &state)
+        case .quic(let instance): return instance.isConnected(state: &state)
         default: return base.protocolIsConnected(state: &state)
         }
     }
 
-    func invokeAttachUpperProtocol(
+    public func invokeAttachUpperProtocol(
         _ upperProtocol: TestInboundDatagramFlowLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -779,7 +988,7 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         )
     }
 
-    func invokeAttachUpperProtocolToNewFlow(
+    public func invokeAttachUpperProtocolToNewFlow(
         _ upperProtocol: TestInboundDatagramLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -788,6 +997,22 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
     ) throws(NetworkError) {
         switch protocolType {
         case .multiplexing(let instance):
+            var instance = instance
+            let flowLower = try instance.attachUpperProtocolToNewFlow(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+            try upperProtocol.invokeAttachLowerProtocol(
+                flowLower,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        case .quic(let instance):
             var instance = instance
             let flowLower = try instance.attachUpperProtocolToNewFlow(
                 upperProtocol,
@@ -814,12 +1039,18 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         }
     }
 
-    func invokeAttachUpperProtocolToExistingFlow(
+    public func invokeAttachUpperProtocolToExistingFlow(
         _ upperProtocol: TestInboundDatagramLinkage,
         existingFlowReference: ProtocolInstanceReference
     ) throws(NetworkError) -> TestOutboundDatagramLinkage {
         switch protocolType {
         case .multiplexing(let instance):
+            var instance = instance
+            return try instance.attachUpperProtocolToExistingFlow(
+                upperProtocol,
+                existingFlowReference: existingFlowReference
+            )
+        case .quic(let instance):
             var instance = instance
             return try instance.attachUpperProtocolToExistingFlow(
                 upperProtocol,
@@ -835,25 +1066,27 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         }
     }
 
-    func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
         case .multiplexing(let instance): instance.connect(state: &state, from)
+        case .quic(let instance): instance.connect(state: &state, from)
         default: base.connect(state: &state, from)
         }
     }
 
-    func disconnect(
+    public func disconnect(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         error: NetworkError?
     ) {
         switch protocolType {
         case .multiplexing(let instance): instance.disconnect(state: &state, from, error: error)
+        case .quic(let instance): instance.disconnect(state: &state, from, error: error)
         default: base.disconnect(state: &state, from, error: error)
         }
     }
 
-    func detach(
+    public func detach(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) throws(NetworkError) {
@@ -861,18 +1094,22 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         case .multiplexing(let instance):
             var instance = instance
             try instance.detach(state: &state, from)
+        case .quic(let instance):
+            var instance = instance
+            try instance.detach(state: &state, from)
         default: try base.detach(state: &state, from)
         }
     }
 
-    func teardown(state: inout NetworkContext.State) {
+    public func teardown(state: inout NetworkContext.State) {
         switch protocolType {
         case .multiplexing: break
+        case .quic: break
         default: base.teardown(state: &state)
         }
     }
 
-    func handleApplicationEvent(
+    public func handleApplicationEvent(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         event: ApplicationEvent
@@ -880,27 +1117,31 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         switch protocolType {
         case .multiplexing(let instance):
             instance.handleApplicationEvent(state: &state, from, event: event)
+        case .quic(let instance):
+            instance.handleApplicationEvent(state: &state, from, event: event)
         default: base.handleApplicationEvent(state: &state, from, event: event)
         }
     }
 
-    func getMetadata<P: NetworkProtocol>(
+    public func getMetadata<P: NetworkProtocol>(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference
     ) -> ProtocolMetadata<P>? {
         switch protocolType {
         case .multiplexing(let instance): return instance.getMetadata(state: &state, from)
+        case .quic(let instance): return instance.getMetadata(state: &state, from)
         default: return base.getMetadata(state: &state, from)
         }
     }
 
-    func getMetrics(
+    public func getMetrics(
         state: inout NetworkContext.State,
         _ from: ProtocolInstanceReference,
         requestedNetworkMetric: RequestedNetworkMetrics
     ) -> NetworkMetrics? {
         switch protocolType {
         case .multiplexing: return nil
+        case .quic: return nil
         default:
             return base.getMetrics(
                 state: &state,
@@ -910,53 +1151,62 @@ struct TestDatagramListenerLinkage: DatagramListenerLinkage, @unchecked Sendable
         }
     }
 
-    static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
         lhs.reference == rhs.reference
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
 }
 
 // MARK: - Datagram multipath linkage
 
+@_spi(TestHarness)
 @available(Network 0.1.0, *)
-struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked Sendable {
-    typealias MultipathLowerProtocol = TestOutboundDatagramLinkage
+public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked Sendable {
+    public typealias MultipathLowerProtocol = TestOutboundDatagramLinkage
 
-    enum ProtocolType {
+    public enum ProtocolType {
         case base
         case multiplexing(TestMultiplexingProtocol)
+        // A QUIC connection in the test family, owning the paths beneath it.
+        case quic(QUICConnection<TestQUICLinkageFamilies>)
     }
 
-    let base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage
-    let protocolType: ProtocolType
+    public let base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage
+    public let protocolType: ProtocolType
     private let multiplexingReference: ProtocolInstanceReference?
 
-    init() {
+    public init() {
         self.base = .init()
         self.protocolType = .base
         self.multiplexingReference = nil
     }
 
-    init(base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage) {
+    public init(base: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage) {
         self.base = base
         self.protocolType = .base
         self.multiplexingReference = nil
     }
 
-    init(multiplexing instance: TestMultiplexingProtocol) {
+    public init(multiplexing instance: TestMultiplexingProtocol) {
         self.base = .init()
         self.protocolType = .multiplexing(instance)
         self.multiplexingReference = instance.reference
     }
 
-    var reference: ProtocolInstanceReference {
+    public init(quic instance: QUICConnection<TestQUICLinkageFamilies>) {
+        self.base = .init()
+        self.protocolType = .quic(instance)
+        self.multiplexingReference = instance.reference
+    }
+
+    public var reference: ProtocolInstanceReference {
         multiplexingReference ?? base.reference
     }
 
-    mutating func invokeAttachLowerProtocolForNewPath(
+    public mutating func invokeAttachLowerProtocolForNewPath(
         _ lowerProtocol: TestOutboundDatagramLinkage,
         remote: Endpoint?,
         local: Endpoint?,
@@ -967,6 +1217,28 @@ struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked Sendab
         case .multiplexing(let instance):
             // The handler creates the path and returns the linkage representing it, which is then
             // bound as the lower protocol's upper side so both directions are connected.
+            var instance = instance
+            let pathUpper = try instance.fromExternal { state throws(NetworkError) in
+                try instance.attachLowerProtocolForNewPath(
+                    state: &state,
+                    lowerProtocol,
+                    remote: remote,
+                    local: local,
+                    parameters: parameters,
+                    path: path
+                )
+            }
+            try lowerProtocol.invokeAttachUpperProtocol(
+                pathUpper,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        case .quic(let instance):
+            // Same shape as the multiplexing case above. This must not fall through to `base`:
+            // a QUIC linkage in the test family holds the connection here, and its wrapped base
+            // linkage is empty, so the base path would force-unwrap a nil storage.
             var instance = instance
             let pathUpper = try instance.fromExternal { state throws(NetworkError) in
                 try instance.attachLowerProtocolForNewPath(
@@ -997,11 +1269,237 @@ struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked Sendab
         }
     }
 
-    static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
         lhs.reference == rhs.reference
     }
 
-    func hash(into hasher: inout Hasher) {
+    public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
+    }
+}
+
+// MARK: - QUIC linkage construction
+
+// QUIC needs to be able to wrap a datagram flow or a path in a linkage knowing only the linkage
+// family, so each of these carries the instance directly in its protocol type. These live here
+// rather than alongside the stream linkages because they set stored properties that are private
+// to this file.
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+extension TestOutboundDatagramLinkage {
+    public init(_ quicDatagramFlow: QUICDatagramFlow<TestQUICLinkageFamilies>) {
+        self.base = .init()
+        self.protocolType = .quicDatagramFlow(quicDatagramFlow)
+        self.harnessReference = quicDatagramFlow.reference
+    }
+}
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+extension TestInboundDatagramLinkage {
+    public init(_ quicPath: QUICPath<TestQUICLinkageFamilies>) {
+        self.base = .init()
+        self.protocolType = .quicPath(quicPath)
+        self.harnessReference = quicPath.reference
+    }
+}
+
+// MARK: - Harness factories
+
+// These mirror the factories the framework's storage used to provide, so call sites read the same
+// as before the harnesses moved out of the package. Each returns the instance together with the
+// linkage that reaches it, and takes `context:` for source compatibility even though the storage
+// already holds the context it was built with.
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+extension TestNetworkProtocolStorage {
+
+    public func createDatagramUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext
+    ) -> (DatagramUpperHarness<TestDatagramLinkageFamily>, TestInboundDatagramLinkage) {
+        let instance = createTestDatagramUpperHarness(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path
+        )
+        return (instance, TestInboundDatagramLinkage(harness: instance))
+    }
+
+    public func createDatagramUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext,
+        state: inout NetworkContext.State
+    ) -> (DatagramUpperHarness<TestDatagramLinkageFamily>, TestInboundDatagramLinkage) {
+        let instance = createTestDatagramUpperHarness(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path,
+            state: &state
+        )
+        return (instance, TestInboundDatagramLinkage(harness: instance))
+    }
+
+    public func createDatagramLowerHarness(
+        identifier: String = "",
+        context: NetworkContext
+    ) -> (DatagramLowerHarness<TestDatagramLinkageFamily>, TestOutboundDatagramLinkage) {
+        let instance = createTestDatagramLowerHarness(identifier: identifier)
+        return (instance, TestOutboundDatagramLinkage(harness: instance))
+    }
+
+    public func createNewDatagramFlowHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext
+    ) -> (NewDatagramFlowHarness<TestDatagramLinkageFamily>, TestInboundDatagramFlowLinkage) {
+        let instance = createTestNewDatagramFlowHarness(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path
+        )
+        return (instance, TestInboundDatagramFlowLinkage(harness: instance))
+    }
+
+    public func createStreamUpperHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext
+    ) -> (StreamUpperHarness<TestStreamLinkageFamily>, TestInboundStreamLinkage) {
+        let instance = createTestStreamUpperHarness(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path
+        )
+        return (instance, TestInboundStreamLinkage(harness: instance))
+    }
+
+    public func createStreamLowerHarness(
+        identifier: String = "",
+        context: NetworkContext
+    ) -> (StreamLowerHarness<TestStreamLinkageFamily>, TestOutboundStreamLinkage) {
+        let instance = createTestStreamLowerHarness(identifier: identifier)
+        return (instance, TestOutboundStreamLinkage(harness: instance))
+    }
+
+    public func createNewStreamFlowHarness(
+        identifier: String = "",
+        local: Endpoint,
+        remote: Endpoint,
+        parameters: Parameters,
+        path: PathProperties,
+        context: NetworkContext
+    ) -> (NewStreamFlowHarness<TestStreamLinkageFamily>, TestInboundStreamFlowLinkage) {
+        let instance = createTestNewStreamFlowHarness(
+            identifier: identifier,
+            local: local,
+            remote: remote,
+            parameters: parameters,
+            path: path
+        )
+        return (instance, TestInboundStreamFlowLinkage(harness: instance))
+    }
+}
+
+// MARK: - Framework protocols in the test family
+
+// The framework's own factories hand back `Base*` linkages. These delegate to the held base
+// storage and wrap the result, so the test linkages never need to know what framework protocol is
+// underneath or how it is stored -- the wrapped base linkage handles all of that.
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+extension TestNetworkProtocolStorage {
+
+    public func createTestUDPInstance() -> (TestInboundDatagramLinkage, TestOutboundDatagramLinkage) {
+        let (inbound, outbound) = base.createUDPInstance()
+        return (.init(base: inbound), .init(base: outbound))
+    }
+
+    public func createTestIPInstance() -> (TestInboundDatagramLinkage, TestOutboundDatagramLinkage) {
+        let (inbound, outbound) = base.createIPInstance()
+        return (.init(base: inbound), .init(base: outbound))
+    }
+
+    public func createTestDemuxInstance() -> (TestInboundDatagramLinkage, TestOutboundDatagramLinkage) {
+        let (inbound, outbound) = base.createDemuxInstance()
+        return (.init(base: inbound), .init(base: outbound))
+    }
+
+    // TCP straddles the families: datagrams below, stream data above.
+    public func createTestTCPInstance() -> (TestInboundDatagramLinkage, TestOutboundStreamLinkage) {
+        let (inbound, outbound) = base.createTCPInstance()
+        return (.init(base: inbound), .init(base: outbound))
+    }
+
+    public func createTestSocketDatagramInstance() -> TestOutboundDatagramLinkage {
+        .init(base: base.createSocketDatagramInstance())
+    }
+
+    public func createTestBridgeDatagramInstance() -> TestOutboundDatagramLinkage {
+        .init(base: base.createBridgeDatagramInstance())
+    }
+
+    public func createTestSocketStreamInstance() -> TestOutboundStreamLinkage {
+        .init(base: base.createSocketStreamInstance())
+    }
+
+    public func createTestBridgeStreamInstance() -> TestOutboundStreamLinkage {
+        .init(base: base.createBridgeStreamInstance())
+    }
+
+    // QUIC in the test family is a genuinely different connection object: its streams and flows are
+    // typed to `TestQUICLinkageFamilies`, so harnesses in the test family can attach to them.
+    public func createTestQUICInstanceLinkages() -> (
+        TestStreamListenerLinkage,
+        TestDatagramListenerLinkage,
+        TestDatagramMultipathLinkage
+    ) {
+        let created = createTestQUICInstance()
+        return (created.streamListener, created.datagramListener, created.multipath)
+    }
+
+    // Looks up the QUIC connection a listener or multipath linkage refers to.
+    public func quicInstance(
+        for linkage: TestStreamListenerLinkage
+    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+        if case .quic(let instance) = linkage.protocolType { return instance }
+        return nil
+    }
+
+    public func quicInstance(
+        for linkage: TestDatagramListenerLinkage
+    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+        if case .quic(let instance) = linkage.protocolType { return instance }
+        return nil
+    }
+
+    public func quicInstance(
+        for linkage: TestDatagramMultipathLinkage
+    ) -> QUICConnection<TestQUICLinkageFamilies>? {
+        if case .quic(let instance) = linkage.protocolType { return instance }
+        return nil
     }
 }

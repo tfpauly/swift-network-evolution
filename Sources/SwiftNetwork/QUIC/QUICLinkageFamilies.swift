@@ -14,64 +14,43 @@
 
 #if !NETWORK_NO_SWIFT_QUIC
 
-/// Bundles the linkage families a QUIC connection is generic over.
+/// Bundles the linkage families a whole protocol stack is built from.
 ///
-/// A QUIC connection presents stream flows and datagram flows to the protocols above it, and
-/// runs over datagram paths beneath it. Each of those three attachment points can use a
-/// different linkage family. Grouping them into a single type lets every type inside the
-/// connection take one generic parameter instead of three.
+/// A stack's datagram and stream linkages reference each other -- TCP takes datagrams below and
+/// presents a stream above, and a QUIC connection presents both -- so a type generic over one
+/// family almost always needs the other. Carrying them as separate generic parameters makes every
+/// such type generic over the cross product, and the associated-type expansion does not terminate.
+/// Grouping them means the storage and every linkage take exactly one generic parameter.
+///
+/// The group also says how to wrap a QUIC stream, datagram flow, or path in one of its own
+/// linkages. That used to be expressed as conformances on the linkages themselves, pointing back at
+/// the group (`QUICFamilies == Self`); requiring it here instead keeps the requirements pointing one
+/// way, which the compiler can actually resolve. A client that supplies its own group therefore has
+/// to keep supporting these QUIC attachment points.
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public protocol QUICLinkageFamilies: Sendable {
-    /// The linkage family used by stream flows handed to upper protocols.
-    ///
-    /// Its lower linkage must be constructible from a QUIC stream, so that the stack can hand
-    /// a newly created stream to the protocol above it.
-    associatedtype StreamFlowLinkageFamily: StreamLinkageFamily
-    where StreamFlowLinkageFamily.Lower: QUICStreamLowerLinkage,
-          StreamFlowLinkageFamily.Lower.QUICFamilies == Self
+public protocol LinkageFamilyGroup: Sendable {
+    /// The family used by datagram protocols in this stack, including the paths beneath a QUIC
+    /// connection and the datagram flows it presents.
+    associatedtype DatagramFamily: DatagramLinkageFamily
 
-    /// The linkage family used by datagram flows handed to upper protocols.
-    ///
-    /// Its lower linkage must be constructible from a QUIC datagram flow.
-    associatedtype DatagramFlowLinkageFamily: DatagramLinkageFamily
-    where DatagramFlowLinkageFamily.Lower: QUICDatagramFlowLowerLinkage,
-          DatagramFlowLinkageFamily.Lower.QUICFamilies == Self
+    /// The family used by stream protocols in this stack, including the stream flows a QUIC
+    /// connection presents.
+    associatedtype StreamFamily: StreamLinkageFamily
 
-    /// The linkage family used by the datagram paths beneath the connection.
-    ///
-    /// Its upper linkage must be constructible from a QUIC path, so that the stack can attach
-    /// a newly created path to the datagram protocol below it.
-    associatedtype PathLinkageFamily: DatagramLinkageFamily
-    where PathLinkageFamily.Upper: QUICPathUpperLinkage,
-          PathLinkageFamily.Upper.QUICFamilies == Self
-
+    /// The multipath linkage a protocol spanning several paths hands out. QUIC is the only such
+    /// protocol today.
     associatedtype MultipathLinkageType: DatagramMultipathLinkage
-    where MultipathLinkageType.MultipathLowerProtocol == PathLinkageFamily.Lower
-}
+    where MultipathLinkageType.MultipathLowerProtocol == DatagramFamily.Lower
 
-/// Require that QUICStreamInstances can be wrapped in linkages
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol QUICStreamLowerLinkage: Sendable {
-    associatedtype QUICFamilies: QUICLinkageFamilies
-    init(_ quicStream: QUICStreamInstance<QUICFamilies>)
-}
+    /// Wraps a QUIC stream in the lower linkage its upper protocol talks to.
+    static func linkage(for quicStream: QUICStreamInstance<Self>) -> StreamFamily.Lower
 
-/// Require that QUICDatagramFlows can be wrapped in linkages
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol QUICDatagramFlowLowerLinkage: Sendable {
-    associatedtype QUICFamilies: QUICLinkageFamilies
-    init(_ quicStream: QUICDatagramFlow<QUICFamilies>)
-}
+    /// Wraps a QUIC datagram flow in the lower linkage its upper protocol talks to.
+    static func linkage(for quicDatagramFlow: QUICDatagramFlow<Self>) -> DatagramFamily.Lower
 
-/// Require that QUICPaths can be wrapped in linkages
-@_spi(ProtocolProvider)
-@available(Network 0.1.0, *)
-public protocol QUICPathUpperLinkage: Sendable {
-    associatedtype QUICFamilies: QUICLinkageFamilies
-    init(_ quicStream: QUICPath<QUICFamilies>)
+    /// Wraps a QUIC path in the upper linkage the datagram protocol below it reports to.
+    static func linkage(for quicPath: QUICPath<Self>) -> DatagramFamily.Upper
 }
 
 #endif

@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 #if canImport(BasicContainers)
 import BasicContainers
 internal import DequeModule
@@ -32,11 +34,11 @@ let recoveryTestsLogPrefixer: LogPrefixer = LogPrefixer("[RecoveryTests]")
 
 @available(Network 0.1.0, *)
 final class RecoveryTests: XCTestCase {
-    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: .implicitContext)
+    var connection = QUICConnection<TestQUICLinkageFamilies>(context: .implicitContext)
     var path: QUICTestPath! = nil
     // The base linkages are storage-backed, so lower harnesses have to come from storage
     // rather than being wrapped in a bare linkage.
-    let storage = BaseNetworkProtocolStorage(context: .implicitContext)
+    let storage = TestNetworkProtocolStorage(context: .implicitContext)
 
     override func setUp() {
         let expectation = XCTestExpectation()
@@ -78,7 +80,7 @@ final class RecoveryTests: XCTestCase {
         self.connection.currentPath = nil
     }
 
-    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<BaseQUICLinkageFamilies>) {
+    func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<TestQUICLinkageFamilies>) {
         var packets = NetworkUniqueDeque<SentPacketRecord>()
         packets.append(sentPacket)
         // Driven straight from the test body rather than from the context queue, so

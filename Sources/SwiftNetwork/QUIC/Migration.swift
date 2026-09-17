@@ -28,7 +28,7 @@ struct Migration: ~Copyable {
         activeMigrationDisabled = true
     }
 
-    private func sendPendingChallenges<Families: QUICLinkageFamilies>(
+    private func sendPendingChallenges<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         now: NetworkClock.Instant = NetworkClock.Instant.now
@@ -40,7 +40,7 @@ struct Migration: ~Copyable {
         }
     }
 
-    func resetTimer<Families: QUICLinkageFamilies>(
+    func resetTimer<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>
     ) {
@@ -95,7 +95,7 @@ struct Migration: ~Copyable {
         )
     }
 
-    func timerFired<Families: QUICLinkageFamilies>(
+    func timerFired<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>
     ) {
@@ -104,7 +104,7 @@ struct Migration: ~Copyable {
         sendPendingChallenges(state: &contextState, connection: connection)
     }
 
-    func migrate<Families: QUICLinkageFamilies>(
+    func migrate<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         to path: QUICPath<Families>,
         connection: QUICConnection<Families>
@@ -148,7 +148,7 @@ struct Migration: ~Copyable {
         }
     }
 
-    func probingPathCount<Families: QUICLinkageFamilies>(_ connection: QUICConnection<Families>) -> Int {
+    func probingPathCount<Families: LinkageFamilyGroup>(_ connection: QUICConnection<Families>) -> Int {
         var probingPaths = 0
         connection.applyToAllPaths { path in
             if path.state.isProbing {
@@ -158,7 +158,7 @@ struct Migration: ~Copyable {
         return probingPaths
     }
 
-    func handshakeConfirmed<Families: QUICLinkageFamilies>(_ connection: QUICConnection<Families>) {
+    func handshakeConfirmed<Families: LinkageFamilyGroup>(_ connection: QUICConnection<Families>) {
         // TODO: pending migration feature completion
     }
 

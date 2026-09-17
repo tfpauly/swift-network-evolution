@@ -22,15 +22,17 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 let migrationTestsLogPrefixer: LogPrefixer = LogPrefixer("[MigrationTests]")
 
 @available(Network 0.1.0, *)
 final class MigrationTests: XCTestCase {
-    var connection = QUICConnection<BaseQUICLinkageFamilies>(context: .implicitContext)
+    var connection = QUICConnection<TestQUICLinkageFamilies>(context: .implicitContext)
     // The base linkages are storage-backed, so lower harnesses have to come from storage
     // rather than being wrapped in a bare linkage.
-    let storage = BaseNetworkProtocolStorage(context: .implicitContext)
+    let storage = TestNetworkProtocolStorage(context: .implicitContext)
 
     static let oldCID = QUICConnectionID([0xA1, 0xA2, 0xA3, 0xA4])!
     static let newCID = QUICConnectionID([0xB1, 0xB2, 0xB3, 0xB4])!

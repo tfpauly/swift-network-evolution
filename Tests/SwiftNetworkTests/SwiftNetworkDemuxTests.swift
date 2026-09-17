@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 #if canImport(Glibc)
 import Glibc
 internal import Logging
@@ -125,9 +127,9 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             let remoteEndpoint = Endpoint(address: IPv4Address(Self.remoteIPv4Address)!, port: 8080)
 
             let path = PathProperties(parameters: parameters)
-            let storage = BaseNetworkProtocolStorage(context: context)
+            let storage = TestNetworkProtocolStorage(context: context)
 
-            let (udpUpper, udpLower) = storage.createUDPInstance()
+            let (udpUpper, udpLower) = storage.createTestUDPInstance()
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             // Accept the checksum=0 packets we inject on inbound so we don't need to compute one.
@@ -136,7 +138,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             udpOptions.setProtocolInstance(udpUpper.reference)
             parameters.defaultStack.transport = .udp(udpOptions)
 
-            let (demuxUpper, demuxLower) = storage.createDemuxInstance()
+            let (demuxUpper, demuxLower) = storage.createTestDemuxInstance()
 
             // The default upper harness attaches first, so the demux treats it as the
             // catch-all for datagrams that match none of the patterns.
@@ -196,7 +198,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
 
             // Tracks each pattern-based upper harness together with the patterns that
             // control which inbound packets it receives from the demux.
-            var patternHarnesses: [(harness: DatagramUpperHarness<BaseDatagramLinkageFamily>, patterns: [DemuxPatternInput])] = []
+            var patternHarnesses: [(harness: DatagramUpperHarness<TestDatagramLinkageFamily>, patterns: [DemuxPatternInput])] = []
 
             for demuxedFlow in demuxedFlows {
                 var demuxParameters = Parameters()
@@ -276,7 +278,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             // Inject inbound datagrams for each flow. Default first, then each pattern
             // flow so that FIFO drain from the lower harness lets each upper harness
             // pull exactly the packets that belong to it.
-            var expectedInboundFlows: [(harness: DatagramUpperHarness<BaseDatagramLinkageFamily>, payloads: [[UInt8]])] = []
+            var expectedInboundFlows: [(harness: DatagramUpperHarness<TestDatagramLinkageFamily>, payloads: [[UInt8]])] = []
 
             var defaultInboundPayloads: [[UInt8]] = []
             for sequence in 0..<datagramsPerFlow {

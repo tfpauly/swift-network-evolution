@@ -130,9 +130,19 @@ let package = Package(
             swiftSettings: settings
         ),
         .target(
+            name: "SwiftNetworkTestHarness",
+            dependencies: [
+                "SwiftNetwork",
+                .product(name: "Logging", package: "swift-log", condition: .when(platforms: [.linux])),
+                .product(name: "BasicContainers", package: "swift-collections"),
+            ],
+            swiftSettings: availabilityMacros + settings
+        ),
+        .target(
             name: "SwiftNetworkBenchmarks",
             dependencies: [
                 "SwiftNetwork",
+                "SwiftNetworkTestHarness",
                 .product(name: "SwiftTLS", package: "swift-tls"),
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "Logging", package: "swift-log", condition: .when(platforms: [.linux])),
@@ -141,12 +151,12 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftNetworkTests",
-            dependencies: ["SwiftNetwork"],
+            dependencies: ["SwiftNetwork", "SwiftNetworkTestHarness"],
             swiftSettings: availabilityMacros + settings
         ),
         .testTarget(
             name: "QUICTests",
-            dependencies: ["SwiftNetwork"],
+            dependencies: ["SwiftNetwork", "SwiftNetworkTestHarness"],
             swiftSettings: availabilityMacros + settings
         ),
         .executableTarget(
@@ -158,21 +168,21 @@ let package = Package(
         ),
         .executableTarget(
             name: "IPUDPTransfer",
-            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks"],
+            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks", "SwiftNetworkTestHarness"],
             path: "Sources/Tools/IPUDPTransfer",
             exclude: ["README.md"],
             swiftSettings: availabilityMacros + settings
         ),
         .executableTarget(
             name: "QUICTransfer",
-            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks"],
+            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks", "SwiftNetworkTestHarness"],
             path: "Sources/Tools/QUICTransfer",
             exclude: ["README.md"],
             swiftSettings: availabilityMacros + settings
         ),
         .executableTarget(
             name: "QUICStreamLoad",
-            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks"],
+            dependencies: ["SwiftNetwork", "SwiftNetworkBenchmarks", "SwiftNetworkTestHarness"],
             path: "Sources/Tools/QUICStreamLoad",
             exclude: ["README.md"],
             swiftSettings: availabilityMacros + settings

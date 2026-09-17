@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
 import Dispatch
 
 #if canImport(CryptoKit)
@@ -42,22 +43,22 @@ internal import os
 @available(Network 0.1.0, *)
 public struct QUICLoopbackState {
     public let context: NetworkContext
-    public var clientApplicationLayers: [StreamUpperHarness<BaseStreamLinkageFamily>]
-    public let clientInstance: QUICConnection<BaseQUICLinkageFamilies>
-    public let clientNetworkLayer: DatagramLowerHarness<BaseDatagramLinkageFamily>
-    public let serverApplicationLayer: NewStreamFlowHarness<BaseStreamLinkageFamily>
-    public let serverNetworkLayer: DatagramLowerHarness<BaseDatagramLinkageFamily>
-    public let serverInstance: QUICConnection<BaseQUICLinkageFamilies>
-    public let clientNewFlowHandler: NewStreamFlowHarness<BaseStreamLinkageFamily>?
+    public var clientApplicationLayers: [StreamUpperHarness<TestStreamLinkageFamily>]
+    public let clientInstance: QUICConnection<TestQUICLinkageFamilies>
+    public let clientNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>
+    public let serverApplicationLayer: NewStreamFlowHarness<TestStreamLinkageFamily>
+    public let serverNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>
+    public let serverInstance: QUICConnection<TestQUICLinkageFamilies>
+    public let clientNewFlowHandler: NewStreamFlowHarness<TestStreamLinkageFamily>?
     public init(
         context: NetworkContext,
-        clientApplicationLayers: [StreamUpperHarness<BaseStreamLinkageFamily>],
-        clientInstance: QUICConnection<BaseQUICLinkageFamilies>,
-        clientNetworkLayer: DatagramLowerHarness<BaseDatagramLinkageFamily>,
-        serverApplicationLayer: NewStreamFlowHarness<BaseStreamLinkageFamily>,
-        serverNetworkLayer: DatagramLowerHarness<BaseDatagramLinkageFamily>,
-        serverInstance: QUICConnection<BaseQUICLinkageFamilies>,
-        clientNewFlowHandler: NewStreamFlowHarness<BaseStreamLinkageFamily>?
+        clientApplicationLayers: [StreamUpperHarness<TestStreamLinkageFamily>],
+        clientInstance: QUICConnection<TestQUICLinkageFamilies>,
+        clientNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>,
+        serverApplicationLayer: NewStreamFlowHarness<TestStreamLinkageFamily>,
+        serverNetworkLayer: DatagramLowerHarness<TestDatagramLinkageFamily>,
+        serverInstance: QUICConnection<TestQUICLinkageFamilies>,
+        clientNewFlowHandler: NewStreamFlowHarness<TestStreamLinkageFamily>?
     ) {
         self.context = context
         self.clientApplicationLayers = clientApplicationLayers
@@ -73,20 +74,20 @@ public struct QUICLoopbackState {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICClientEndpointResult {
-    public var instance: QUICConnection<BaseQUICLinkageFamilies>
+    public var instance: QUICConnection<TestQUICLinkageFamilies>
     public var parameters: Parameters
-    public var upperHandler: StreamUpperHarness<BaseStreamLinkageFamily>
-    public var lowerHandler: DatagramLowerHarness<BaseDatagramLinkageFamily>
-    public var clientNewFlowHandler: NewStreamFlowHarness<BaseStreamLinkageFamily>?
+    public var upperHandler: StreamUpperHarness<TestStreamLinkageFamily>
+    public var lowerHandler: DatagramLowerHarness<TestDatagramLinkageFamily>
+    public var clientNewFlowHandler: NewStreamFlowHarness<TestStreamLinkageFamily>?
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct QUICServerEndpointResult {
-    public var instance: QUICConnection<BaseQUICLinkageFamilies>
+    public var instance: QUICConnection<TestQUICLinkageFamilies>
     public var parameters: Parameters
-    public var upperHandler: NewStreamFlowHarness<BaseStreamLinkageFamily>
-    public var lowerHandler: DatagramLowerHarness<BaseDatagramLinkageFamily>
+    public var upperHandler: NewStreamFlowHarness<TestStreamLinkageFamily>
+    public var lowerHandler: DatagramLowerHarness<TestDatagramLinkageFamily>
 }
 
 @_spi(ProtocolProvider)
@@ -143,9 +144,9 @@ public final class QUICBenchmarkUtility {
     /// to wire the stack together. `options` must already name the instance's reference, so the
     /// caller creates the instance first via `createQUICInstance()`.
     public func createClientEndpoint(
-        storage: BaseNetworkProtocolStorage,
-        streamListener: BaseNetworkProtocolStorage.BaseStreamListenerLinkage,
-        multipath: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage,
+        storage: TestNetworkProtocolStorage,
+        streamListener: TestStreamListenerLinkage,
+        multipath: TestDatagramMultipathLinkage,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -191,6 +192,7 @@ public final class QUICBenchmarkUtility {
             context: context
         )
         do {
+            var multipath = multipath
             try multipath.invokeAttachLowerProtocolForNewPath(
                 outputHandlerLinkage,
                 remote: remoteEndpoint,
@@ -213,9 +215,9 @@ public final class QUICBenchmarkUtility {
 
     /// Builds the server half of a loopback QUIC stack. See `createClientEndpoint`.
     public func createServerEndpoint(
-        storage: BaseNetworkProtocolStorage,
-        streamListener: BaseNetworkProtocolStorage.BaseStreamListenerLinkage,
-        multipath: BaseNetworkProtocolStorage.BaseDatagramMultipathLinkage,
+        storage: TestNetworkProtocolStorage,
+        streamListener: TestStreamListenerLinkage,
+        multipath: TestDatagramMultipathLinkage,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -260,6 +262,7 @@ public final class QUICBenchmarkUtility {
             context: context
         )
         do {
+            var multipath = multipath
             try multipath.invokeAttachLowerProtocolForNewPath(
                 outputHandlerLinkage,
                 remote: remoteEndpoint,

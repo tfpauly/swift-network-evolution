@@ -338,7 +338,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
     /// A TLS instance that runs only the handshake, with QUIC carrying the records.
     final class SwiftTLSQUICOnlyInstance<
-        Families: QUICLinkageFamilies
+        Families: LinkageFamilyGroup
     >: BottomStreamProtocol, OutboundStreamLinkage, ProtocolInstanceAsLinkage {
         typealias PairedUpperLinkage = QUICCrypto<Families>
         typealias LinkageType = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>

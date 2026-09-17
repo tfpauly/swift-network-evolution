@@ -159,7 +159,7 @@ public enum QUICConnectionState: CustomStringConvertible {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyApplicationStreamProtocol,
+public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyApplicationStreamProtocol,
     ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     StreamListenerHandler, HeterogeneousManyToManyProtocolHandler, TimerSchedulable
 {
@@ -170,15 +170,14 @@ public final class QUICConnection<Families: QUICLinkageFamilies>: ManyToManyAppl
     public var multiplexedSecondaryFlows = [MultiplexedFlowIdentifier: SecondaryFlow]()
     public var multiplexingPaths = [MultiplexingPathIdentifier: Path]()
 
-    public typealias StreamFlowLinkageFamily = Families.StreamFlowLinkageFamily
-    public typealias DatagramFlowLinkageFamily = Families.DatagramFlowLinkageFamily
-    public typealias PathLinkageFamily = Families.PathLinkageFamily
+    public typealias StreamFamily = Families.StreamFamily
+    public typealias DatagramFamily = Families.DatagramFamily
 
     public typealias Flow = QUICStreamInstance<Families>
-    public typealias UpperProtocol = StreamFlowLinkageFamily.InboundFlow
+    public typealias UpperProtocol = StreamFamily.InboundFlow
 
     public typealias SecondaryFlow = QUICDatagramFlow<Families>
-    public typealias SecondaryUpperProtocol = DatagramFlowLinkageFamily.InboundFlow
+    public typealias SecondaryUpperProtocol = DatagramFamily.InboundFlow
 
     public typealias Path = QUICPath<Families>
 

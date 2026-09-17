@@ -85,7 +85,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
     }
 
     @inline(never)
-    private mutating func parseFrames<Families: QUICLinkageFamilies>(
+    private mutating func parseFrames<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         frame: inout Frame,
         packet: inout Packet,
@@ -131,7 +131,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
     }
 
     @inline(never)
-    private func decodePacketNumber<Families: QUICLinkageFamilies>(
+    private func decodePacketNumber<Families: LinkageFamilyGroup>(
         frame: inout Frame,
         packet: inout Packet,
         receivedLargestPacketNumber: PacketNumber,
@@ -190,7 +190,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
         return reservedBits
     }
 
-    mutating func parse<Families: QUICLinkageFamilies>(
+    mutating func parse<Families: LinkageFamilyGroup>(
         state contextState: inout NetworkContext.State,
         frame: inout Frame,
         connection: QUICConnection<Families>,
@@ -556,7 +556,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
         )
     }
 
-    private func openHeader<Families: QUICLinkageFamilies>(
+    private func openHeader<Families: LinkageFamilyGroup>(
         connection: QUICConnection<Families>,
         packet: inout Packet,
         frame: inout Frame
@@ -589,7 +589,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
         return true
     }
 
-    private func openPacket<Families: QUICLinkageFamilies>(
+    private func openPacket<Families: LinkageFamilyGroup>(
         packet: inout Packet,
         frame: inout Frame,
         connection: QUICConnection<Families>

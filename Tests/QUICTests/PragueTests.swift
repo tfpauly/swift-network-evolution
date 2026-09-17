@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class PragueTests: XCTestCase {
 
@@ -438,7 +440,7 @@ final class PragueTests: XCTestCase {
 
     func testPragueExercisingPacer() {
         // Path holds both Pacer and Prague, thats why its setup this way.
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestQUICLinkageFamilies>(context: NetworkContext.implicitContext)
         let path = connection.context.onQueue {
             QUICTestPath.makeFromExternal(parent: connection)
         }

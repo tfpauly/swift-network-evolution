@@ -22,11 +22,13 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class FlowControlTests: XCTestCase {
     func testOutboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(
+        let connection = QUICConnection<TestQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
         try connection.context.onQueue {
@@ -64,7 +66,7 @@ final class FlowControlTests: XCTestCase {
 
     func testInboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(
+        let connection = QUICConnection<TestQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
         try connection.context.onQueue {
@@ -105,7 +107,7 @@ final class FlowControlTests: XCTestCase {
 
     func testDuplicateResetStreamOverflow() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<BaseQUICLinkageFamilies>(
+        let connection = QUICConnection<TestQUICLinkageFamilies>(
             context: NetworkContext(identifier: "test context")
         )
         try connection.context.onQueue {

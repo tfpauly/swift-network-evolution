@@ -25,6 +25,8 @@ typealias QUICTimer = SwiftNetwork.Timer
 typealias QUICTimer = Network.Timer
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 let timerTestsLogPrefixer = LogPrefixer("[TimerTests]")
 

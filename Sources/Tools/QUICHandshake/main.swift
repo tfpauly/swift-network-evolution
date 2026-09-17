@@ -14,6 +14,7 @@
 
 @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetwork
 @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkBenchmarks
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
 import Dispatch
 
 #if canImport(Glibc)
@@ -50,9 +51,9 @@ final class QUICHandshake {
             context.async {
                 // The storage owns the protocol instances and hands back the linkages used to
                 // wire the stack together.
-                let storage = BaseNetworkProtocolStorage(context: context)
+                let storage = TestNetworkProtocolStorage(context: context)
 
-                let (clientStreamListener, _, clientMultipath) = storage.createQUICInstance()
+                let (clientStreamListener, _, clientMultipath) = storage.createTestQUICInstanceLinkages()
                 let clientOptions = self.quicBenchmarkUtility.createQUICTestOptions(datagram: false)
                 clientOptions.setLogID(
                     prefix: "C",
@@ -61,7 +62,7 @@ final class QUICHandshake {
                 )
                 clientOptions.setProtocolInstance(clientStreamListener.reference)
 
-                let (serverStreamListener, _, serverMultipath) = storage.createQUICInstance()
+                let (serverStreamListener, _, serverMultipath) = storage.createTestQUICInstanceLinkages()
                 let serverOptions = self.quicBenchmarkUtility.createQUICTestOptions(server: true, datagram: false)
                 serverOptions.setLogID(
                     prefix: "L",
