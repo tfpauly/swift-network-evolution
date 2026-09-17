@@ -26,8 +26,6 @@ import Musl
 import Darwin
 #endif
 
-// The stream half of the out-of-package linkage family, and the QUIC families that go with it.
-//
 // This mirrors `TestProtocolLinkages.swift`: each `Test*` linkage wraps the matching `Base*`
 // linkage, adds cases for the protocols only this module knows about -- here, the stream
 // harnesses -- and falls through to the wrapped base linkage for everything the framework
@@ -580,7 +578,7 @@ public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked
     ) {
         switch protocolType {
         case .newStreamFlowHarness(let harness):
-            _ = harness.handleNetworkProtocolEvent(state: &state, from, event: event)
+            harness.handleNetworkProtocolEvent(state: &state, from, event: event)
         default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
         }
     }
@@ -691,7 +689,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        let lowerProtocol: TestOutboundStreamLinkage
         switch protocolType {
         default:
             try base.invokeAttachUpperProtocolToNewFlow(
@@ -703,13 +700,6 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
             )
             return
         }
-        try upperProtocol.invokeAttachLowerProtocol(
-            lowerProtocol,
-            remote: remote,
-            local: local,
-            parameters: parameters,
-            path: path
-        )
     }
 
     public func invokeAttachUpperProtocolToExistingFlow(
@@ -799,14 +789,4 @@ public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Senda
     public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
-}
-
-// MARK: - QUIC linkage construction
-
-// QUIC needs to be able to wrap a stream, datagram flow, or path in a linkage knowing only the
-// linkage family, so each of these carries the instance directly in its protocol type.
-
-@_spi(TestHarness)
-@available(Network 0.1.0, *)
-extension TestOutboundStreamLinkage {
 }

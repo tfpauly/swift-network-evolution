@@ -335,7 +335,6 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
     public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
         switch protocolType {
         case .multiplexingPath(let path):
-            var path = path
             path.handleConnectedEvent(state: &state, from)
         case .datagramUpperHarness(let harness): harness.handleConnectedEvent(state: &state, from)
         default: base.handleConnectedEvent(state: &state, from)
@@ -349,7 +348,6 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
     ) {
         switch protocolType {
         case .multiplexingPath(let path):
-            var path = path
             path.handleDisconnectedEvent(state: &state, from, error: error)
         case .datagramUpperHarness(let harness):
             harness.handleDisconnectedEvent(state: &state, from, error: error)
@@ -532,7 +530,6 @@ public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked S
     ) throws(NetworkError) -> FrameArray? {
         switch protocolType {
         case .multiplexedFlow(let flow):
-            var flow = flow
             return try flow.getDatagramsToSend(
                 state: &state,
                 from,
@@ -715,7 +712,6 @@ public struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unche
     ) throws(NetworkError) {
         switch protocolType {
         case .newDatagramFlowHarness(let harness):
-            var harness = harness
             _ = try harness.attachLowerProtocol(lowerProtocol)
             try lowerProtocol.attachInboundFlow(
                 self,
@@ -761,7 +757,7 @@ public struct TestInboundDatagramFlowLinkage: InboundDatagramFlowLinkage, @unche
     ) {
         switch protocolType {
         case .newDatagramFlowHarness(let harness):
-            _ = harness.handleNetworkProtocolEvent(state: &state, from, event: event)
+            harness.handleNetworkProtocolEvent(state: &state, from, event: event)
         default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
         }
     }
@@ -1098,7 +1094,6 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
                 path: path
             )
         default:
-            var base = base
             try base.invokeAttachLowerProtocolForNewPath(
                 lowerProtocol,
                 remote: remote,
@@ -1116,23 +1111,6 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
     public func hash(into hasher: inout Hasher) {
         hasher.combine(reference)
     }
-}
-
-// MARK: - QUIC linkage construction
-
-// QUIC needs to be able to wrap a datagram flow or a path in a linkage knowing only the linkage
-// family, so each of these carries the instance directly in its protocol type. These live here
-// rather than alongside the stream linkages because they set stored properties that are private
-// to this file.
-
-@_spi(TestHarness)
-@available(Network 0.1.0, *)
-extension TestOutboundDatagramLinkage {
-}
-
-@_spi(TestHarness)
-@available(Network 0.1.0, *)
-extension TestInboundDatagramLinkage {
 }
 
 // MARK: - Harness factories
