@@ -139,13 +139,13 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 2)
-            clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
+            clientUDPOptions.setProtocolInstance(clientUDPLower.identifier)
 
             let (clientIPUpper, clientIPLower) = storage.createIPInstance()
 
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(clientIPLower.reference)
+            clientIPOptions.setProtocolInstance(clientIPLower.identifier)
 
             let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
 
@@ -153,13 +153,13 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 2)
-            serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
+            serverUDPOptions.setProtocolInstance(serverUDPLower.identifier)
 
             let (serverIPUpper, serverIPLower) = storage.createIPInstance()
 
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 3)
-            serverIPOptions.setProtocolInstance(serverIPLower.reference)
+            serverIPOptions.setProtocolInstance(serverIPLower.identifier)
 
             var clientParameters = Parameters()
             clientParameters.context = context
@@ -295,7 +295,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 )
             }
             clientQUICOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.reference)
+            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.identifier)
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
@@ -330,7 +330,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 mutualAuthentication: mutualAuthentication
             )
             serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
+            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.identifier)
 
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 

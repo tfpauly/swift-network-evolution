@@ -2650,11 +2650,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2670,11 +2670,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2692,11 +2692,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2713,11 +2713,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2735,11 +2735,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2756,11 +2756,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2779,11 +2779,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2801,11 +2801,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2823,11 +2823,11 @@ class QUICFrameTests: XCTestCase {
         var frame = Frame(copyBuffer: bytes)
         do {
             _ = try FrameDatagram(
-                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
-                connection: connection
+                connection: connection,
+                in: &connection.context.state
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3065,11 +3065,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3086,11 +3086,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3109,11 +3109,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3131,11 +3131,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3154,11 +3154,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3176,11 +3176,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3200,11 +3200,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3223,11 +3223,11 @@ class QUICFrameTests: XCTestCase {
         ]
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3246,11 +3246,11 @@ class QUICFrameTests: XCTestCase {
         var frame = Frame(copyBuffer: bytes)
         do {
             _ = try FrameDatagram(
-                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
-                connection: connection
+                connection: connection,
+                in: &connection.context.state
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3498,11 +3498,11 @@ class QUICFrameTests: XCTestCase {
         }
         var frame = Frame(copyBuffer: bytes)
         var quicFrame = try FrameDatagram(
-            state: &connection.context.state,
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.state
         )
 
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3530,11 +3530,11 @@ class QUICFrameTests: XCTestCase {
         do {
             // Ask to parse flow ID and context ID, even though the length doesn't allow for them
             var quicFrame = try FrameDatagram(
-                state: &connection.context.state,
                 frame: &frame,
                 useFlowID: true,
                 useContextID: false,
-                connection: connection
+                connection: connection,
+                in: &connection.context.state
             )
 
             quicFrame.frame.finalize(success: true)

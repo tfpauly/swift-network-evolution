@@ -122,7 +122,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         lhs === rhs
     }
 
-    public struct State: ~Copyable {
+    public struct EventContext: ~Copyable {
         let globals: NetworkContext.Globals
         let scheduler: any NetworkContext.Scheduler
         let schedulerIsDefault: Bool
@@ -147,7 +147,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
             protocolEventStates.remove(index: index)
         }
     }
-    var state: State
+    var state: EventContext
 
     internal init(
         identifier: String,
@@ -406,7 +406,7 @@ extension NetworkContext {
 }
 
 @available(Network 0.1.0, *)
-extension NetworkContext.State {
+extension NetworkContext.EventContext {
 
     var queue: DispatchQueue {
         globals.queue
@@ -455,7 +455,7 @@ extension NetworkContext {
 }
 
 @available(Network 0.1.0, *)
-extension NetworkContext.State {
+extension NetworkContext.EventContext {
     func resetTimer(for reference: TimerReference, to time: NetworkContext.FutureTime) {
         switch time {
         case .unschedule:

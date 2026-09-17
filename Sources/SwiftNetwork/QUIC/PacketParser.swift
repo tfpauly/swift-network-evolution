@@ -86,11 +86,11 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
 
     @inline(never)
     private mutating func parseFrames<Families: LinkageFamilyGroup>(
-        state contextState: inout NetworkContext.State,
         frame: inout Frame,
         packet: inout Packet,
         connection: QUICConnection<Families>,
-        isLastPacketInFrame: Bool
+        isLastPacketInFrame: Bool,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(QUICError) {
         if QUICShorthandFrame.shouldGenerateShorthandFrames(hasQLog: (connection.qLog != nil)) {
             packet.shorthandFrames = .init()
@@ -113,18 +113,18 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
             // encoding."
 
             if _slowPath(type.isOneByte && typeLength != 1) {
-                connection.close(state: &contextState, with: .protocolViolation, "Invalid frame type encoding")
+                connection.close(with: .protocolViolation, "Invalid frame type encoding", in: &eventContext)
                 throw QUICError.frameParse(
                     FrameParseError.invalidValue("Invalid frame type encoding")
                 )
             }
             let quicFrame = try QUICFrame.parse(
-                state: &contextState,
                 type: type,
                 frame: &frame,
                 packet: &packet,
                 connection: connection,
-                isLastPacketInFrame: isLastPacketInFrame
+                isLastPacketInFrame: isLastPacketInFrame,
+                in: &eventContext
             )
             self.framesReceived.append(quicFrame)
         }
@@ -191,11 +191,11 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
     }
 
     mutating func parse<Families: LinkageFamilyGroup>(
-        state contextState: inout NetworkContext.State,
         frame: inout Frame,
         connection: QUICConnection<Families>,
         path: QUICPath<Families>,
-        ecn: IPProtocol.ECN
+        ecn: IPProtocol.ECN,
+        in eventContext: inout NetworkContext.EventContext
     ) -> Packet? {
         if _slowPath(frame.unclaimedLength < Constants.minimumPacketSize) {
             connection.log.error("Dropping short packet, len=\(frame.unclaimedLength)")
@@ -307,7 +307,7 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
             guard reservedBits == 0 else {
                 let reason = "Reserved bits are not zero"
                 connection.log.error("\(reason)")
-                connection.close(state: &contextState, with: .protocolViolation, reason)
+                connection.close(with: .protocolViolation, reason, in: &eventContext)
                 return nil
             }
 
@@ -318,11 +318,11 @@ struct PacketParser: ~Copyable, PrefixedLoggable {
 
             do throws(QUICError) {
                 try parseFrames(
-                    state: &contextState,
                     frame: &frame,
                     packet: &packet,
                     connection: connection,
-                    isLastPacketInFrame: extraLength == 0
+                    isLastPacketInFrame: extraLength == 0,
+                    in: &eventContext
                 )
             } catch {
                 // Explicitly release finalize frames in case of error

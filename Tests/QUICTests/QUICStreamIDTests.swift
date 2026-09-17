@@ -396,9 +396,9 @@ final class QUICStreamIDTests: XCTestCase {
             streamsState.addPending(stream3)
             XCTAssertEqual(streamsState.pendingStartStreams.count, 3)
 
-            XCTAssertTrue(stream1.identifier != MultiplexedFlowIdentifier.allFlows)
-            XCTAssertTrue(stream2.identifier != MultiplexedFlowIdentifier.allFlows)
-            XCTAssertTrue(stream3.identifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream1.flowIdentifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream2.flowIdentifier != MultiplexedFlowIdentifier.allFlows)
+            XCTAssertTrue(stream3.flowIdentifier != MultiplexedFlowIdentifier.allFlows)
 
             // Remove the last added pending stream
             streamsState.removePending(stream3)

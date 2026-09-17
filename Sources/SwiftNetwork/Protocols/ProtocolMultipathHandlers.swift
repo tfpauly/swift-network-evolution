@@ -18,12 +18,12 @@ public protocol MultipathProtocolHandler<MultipathLowerProtocol>: ~Copyable, Pro
     associatedtype MultipathLowerProtocol: LowerProtocolLinkage
 
     mutating func attachLowerProtocolForNewPath(
-        state: inout NetworkContext.State,
         _ lowerProtocol: MultipathLowerProtocol,
         remote: Endpoint?,
         local: Endpoint?,
         parameters: Parameters?,
-        path: PathProperties?
+        path: PathProperties?,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> MultipathLowerProtocol.PairedUpperLinkage
 }
 

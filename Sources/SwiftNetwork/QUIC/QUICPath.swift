@@ -319,14 +319,14 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     /// this convenience is for external entry points such as tests.
     static func makeFromExternal(parent: QUICConnection<Families>) -> Self {
         parent.fromExternal { state in
-            Self(state: &state, parent: parent)
+            Self(parent: parent, in: &state)
         }
     }
 
-    required init(state: inout NetworkContext.State, parent: QUICConnection<Families>) {
+    required init(parent: QUICConnection<Families>, in eventContext: inout NetworkContext.EventContext) {
         self.rtt = RTT(logPrefixer: parent.logPrefixer)
         self.pacer = Pacer()
-        super.init(state: &state, parent: parent)
+        super.init(parent: parent, in: &eventContext)
     }
 
     private func setup() {
@@ -344,7 +344,7 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
                 if !foundMSS, interface == otherPath.interface, otherPath.mss > 0 {
                     self.mss = otherPath.mss
                     log.debug(
-                        "MSS \(otherPath.mss) copied from path \(otherPath.identifier.description), since they share the same interface \(interface)"
+                        "MSS \(otherPath.mss) copied from path \(otherPath.pathIdentifier.description), since they share the same interface \(interface)"
                     )
                     foundMSS = true
                 }
@@ -577,9 +577,9 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     }
 
     func addPathChallenge(
-        state contextState: inout NetworkContext.State,
         to pendingItems: inout PendingItems,
-        now: NetworkClock.Instant
+        now: NetworkClock.Instant,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         guard shouldSendPathChallenge(now: now) else { return }
 
@@ -587,7 +587,7 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
             // Exceeded limit, move to unreachable, and retire the CID
             changeState(to: .unreachable)
             if let dcid, !hasPreAssignedCIDs {
-                if let sequenceNumber = parentProtocol.retireConnectionID(state: &contextState, dcid) {
+                if let sequenceNumber = parentProtocol.retireConnectionID(dcid, in: &eventContext) {
                     pendingItems.addRetireConnectionID(
                         FrameRetireConnectionID(sequence: sequenceNumber)
                     )
@@ -607,13 +607,13 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
         }
         challengesSent += 1
 
-        parentProtocol.migration.resetTimer(state: &contextState, connection: parentProtocol)
+        parentProtocol.migration.resetTimer(connection: parentProtocol, in: &eventContext)
     }
 
     func addPendingItems(
-        state contextState: inout NetworkContext.State,
         _ pendingItems: inout PendingItems,
-        now: NetworkClock.Instant
+        now: NetworkClock.Instant,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         // Respond to any pending inbound challenges
         for challenge in pendingInboundChallenges {
@@ -622,12 +622,12 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
         pendingInboundChallenges.removeAll()
 
         // Send path challenges as needed
-        addPathChallenge(state: &contextState, to: &pendingItems, now: now)
+        addPathChallenge(to: &pendingItems, now: now, in: &eventContext)
     }
 
     func handlePathChallengeResponse(
-        state contextState: inout NetworkContext.State,
-        _ data: UInt64
+        _ data: UInt64,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         guard case .probing = state else { return }
         guard
@@ -647,15 +647,15 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
         changeState(to: .validated)
         // Initialize RTT based on the PATH_RESPONSE duration so that we have a proper RTT estimate when we reset the timers.
         rtt.processNewSample(ackDuration: responseDuration, packetAckedTime: now, ackDelay: .zero)
-        parentProtocol.migration.resetTimer(state: &contextState, connection: parentProtocol)
+        parentProtocol.migration.resetTimer(connection: parentProtocol, in: &eventContext)
         if migrationPending {
             migrationPending = false
-            parentProtocol.migration.migrate(state: &contextState, to: self, connection: parentProtocol)
+            parentProtocol.migration.migrate(to: self, connection: parentProtocol, in: &eventContext)
         }
     }
 
-    func tearDownLowerStack(state contextState: inout NetworkContext.State) {
-        try? lower.invokeDetach(state: &contextState, self.reference)
+    func tearDownLowerStack(in eventContext: inout NetworkContext.EventContext) {
+        try? lower.invokeDetach(for: self.identifier, in: &eventContext)
     }
 }
 

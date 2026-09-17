@@ -32,13 +32,13 @@ internal import os
 @available(Network 0.1.0, *)
 protocol TimerUser {
     var timerID: Timer.TimerID? { get set }
-    func timerFired(state: inout NetworkContext.State, timeNow: NetworkClock.Instant)
+    func timerFired(timeNow: NetworkClock.Instant, in eventContext: inout NetworkContext.EventContext)
 }
 
 @available(Network 0.1.0, *)
 protocol NonCopyableTimerUser: ~Copyable {
     var timerID: Timer.TimerID? { get set }
-    mutating func timerFired(state: inout NetworkContext.State, timeNow: NetworkClock.Instant)
+    mutating func timerFired(timeNow: NetworkClock.Instant, in eventContext: inout NetworkContext.EventContext)
 }
 
 @available(Network 0.1.0, *)
@@ -46,12 +46,12 @@ private struct TimerEntry: ~Copyable {
     let identifier: Timer.TimerID
     var deadline: NetworkClock.Instant = .zero
     let description: String
-    let closure: (inout NetworkContext.State) -> Void
+    let closure: (inout NetworkContext.EventContext) -> Void
 
     init(
         identifier: Timer.TimerID,
         description: String,
-        closure: @escaping (inout NetworkContext.State) -> Void
+        closure: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
         self.identifier = identifier
         self.description = description
@@ -75,7 +75,7 @@ final class Timer: PrefixedLoggable {
     typealias TimerID = UInt8
 
     var log: LogPrefixer
-    private var reference: ProtocolInstanceReference? = nil
+    private var identifier: InstanceIdentifier? = nil
     private var context: NetworkContext? = nil
     private var timerReference: TimerReference
     private var nextID: TimerID = 1
@@ -105,13 +105,13 @@ final class Timer: PrefixedLoggable {
     static let timerThreshold = NetworkDuration.milliseconds(1)
 
     init(
-        reference: ProtocolInstanceReference,
+        identifier: InstanceIdentifier,
         context: NetworkContext,
         timerReference: TimerReference,
         logPrefixer: LogPrefixer
     ) {
         self.log = logPrefixer
-        self.reference = reference
+        self.identifier = identifier
         self.context = context
         self.timerReference = timerReference
     }
@@ -121,11 +121,11 @@ final class Timer: PrefixedLoggable {
         self.timerReference = timerReference
     }
     func insert(
-        state contextState: inout NetworkContext.State,
         description: String,
         fromNow: NetworkDuration = .zero,
         timerNow: NetworkClock.Instant = .now,
-        closure: @escaping (inout NetworkContext.State) -> Void
+        in eventContext: inout NetworkContext.EventContext,
+        closure: @escaping (inout NetworkContext.EventContext) -> Void
     ) -> TimerID {
         let identifier = nextID
         var entry = TimerEntry(identifier: nextID, description: description, closure: closure)
@@ -135,7 +135,7 @@ final class Timer: PrefixedLoggable {
         entries.append(entry)
         nextID += 1
         if !avoidRecalculate {
-            recalculate(state: &contextState, timerNow)
+            recalculate(timerNow, in: &eventContext)
         }
         log.datapath("added timer [T\(identifier)]")
         return identifier
@@ -153,25 +153,25 @@ final class Timer: PrefixedLoggable {
         log.datapath("removing timer [T\(identifier)]")
     }
 
-    func stop(state contextState: inout NetworkContext.State, final: Bool = true) {
+    func stop(final: Bool = true, in eventContext: inout NetworkContext.EventContext) {
         if !timerCancelled {
             log.debug("Stopping timer")
             timerCancelled = true
             wakeup = .idle
-            if let reference {
-                reference.unscheduleWakeup(
-                    state: &contextState,
-                    timerReference: timerReference
+            if let identifier {
+                identifier.unscheduleWakeup(
+                    timerReference: timerReference,
+                    in: &eventContext
                 )
             }
         }
         if final {
             entries.removeAll()
-            reference = nil
+            identifier = nil
         }
     }
 
-    private func recalculate(state contextState: inout NetworkContext.State, _ now: NetworkClock.Instant) {
+    private func recalculate(_ now: NetworkClock.Instant, in eventContext: inout NetworkContext.EventContext) {
         if extraDebugging {
             let entryCount = entries.count
             for i in 0..<entryCount {
@@ -205,7 +205,7 @@ final class Timer: PrefixedLoggable {
 
         guard let earliestDeadline else {
             log.debug("No more timers to run")
-            stop(state: &contextState, final: false)
+            stop(final: false, in: &eventContext)
             return
         }
 
@@ -235,14 +235,14 @@ final class Timer: PrefixedLoggable {
         log.datapath(
             "arming timer for the next \(delta) (now \(now)), new deadline \(nextDeadline) old deadline \(oldDeadline)"
         )
-        if let reference, let context {
-            reference.scheduleWakeup(
+        if let identifier, let context {
+            identifier.scheduleWakeup(
                 context: context,
-                state: &contextState,
                 milliseconds: UInt64(delta.milliseconds),
-                timerReference: timerReference
+                timerReference: timerReference,
+                in: &eventContext
             ) { [weak self] timerState in
-                self?.timerFired(state: &timerState)
+                self?.timerFired(in: &timerState)
             }
         }
     }
@@ -261,10 +261,10 @@ final class Timer: PrefixedLoggable {
     }
 
     func reschedule(
-        state contextState: inout NetworkContext.State,
         identifier: TimerID,
         fromNow: NetworkDuration,
-        timerNow: NetworkClock.Instant = .now
+        timerNow: NetworkClock.Instant = .now,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         guard let index = find(identifier) else {
             return
@@ -278,13 +278,13 @@ final class Timer: PrefixedLoggable {
             entries[index].schedule(fromNow: fromNow, timerNow: timerNow)
         }
         if !avoidRecalculate {
-            recalculate(state: &contextState, timerNow)
+            recalculate(timerNow, in: &eventContext)
         }
     }
 
     public func timerFired(
-        state contextState: inout NetworkContext.State,
-        timeNow: NetworkClock.Instant = .now
+        timeNow: NetworkClock.Instant = .now,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         // Timer fired means the kernel woke us up.
         wakeup = .idle
@@ -319,7 +319,7 @@ final class Timer: PrefixedLoggable {
                     )
                 }
                 entries[index].disable()
-                entries[index].closure(&contextState)
+                entries[index].closure(&eventContext)
                 ranOne = true
             }
             index += 1
@@ -336,7 +336,7 @@ final class Timer: PrefixedLoggable {
                 "Spurious timer at \(now)), next deadline \(nextDeadline), cancelled? \(timerCancelled)"
             )
         }
-        recalculate(state: &contextState, timeNow)
+        recalculate(timeNow, in: &eventContext)
         avoidRecalculate = false
     }
 }

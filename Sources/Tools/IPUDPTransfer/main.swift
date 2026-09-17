@@ -66,14 +66,14 @@ final class IPUDPTransfer {
                 let (clientIPUpper, clientIPLower) = storage.createIPInstance()
                 let clientIPOptions = IPProtocol.options()
                 clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-                clientIPOptions.setProtocolInstance(clientIPUpper.reference)
+                clientIPOptions.setProtocolInstance(clientIPUpper.identifier)
                 clientParameters.defaultStack.internet = .ip(clientIPOptions)
 
                 let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
                 let clientUDPOptions = UDPProtocol.options()
                 clientUDPOptions.noMetadata = true
                 clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-                clientUDPOptions.setProtocolInstance(clientUDPUpper.reference)
+                clientUDPOptions.setProtocolInstance(clientUDPUpper.identifier)
                 clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
                 let (clientInput, clientInputLinkage) = storage.createDatagramUpperHarness(
@@ -122,14 +122,14 @@ final class IPUDPTransfer {
                 let (serverIPUpper, serverIPLower) = storage.createIPInstance()
                 let serverIPOptions = IPProtocol.options()
                 serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
-                serverIPOptions.setProtocolInstance(serverIPUpper.reference)
+                serverIPOptions.setProtocolInstance(serverIPUpper.identifier)
                 serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
                 let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
                 let serverUDPOptions = UDPProtocol.options()
                 serverUDPOptions.noMetadata = true
                 serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-                serverUDPOptions.setProtocolInstance(serverUDPUpper.reference)
+                serverUDPOptions.setProtocolInstance(serverUDPUpper.identifier)
                 serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
                 let (serverInput, serverInputLinkage) = storage.createDatagramUpperHarness(

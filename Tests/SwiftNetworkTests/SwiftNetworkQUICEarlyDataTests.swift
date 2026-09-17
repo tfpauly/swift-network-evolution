@@ -141,13 +141,13 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 2)
-            clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
+            clientUDPOptions.setProtocolInstance(clientUDPLower.identifier)
 
             let (clientIPUpper, clientIPLower) = storage.createIPInstance()
 
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: identifier, protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(clientIPLower.reference)
+            clientIPOptions.setProtocolInstance(clientIPLower.identifier)
 
             let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             serverTop = serverUDPLower
@@ -155,13 +155,13 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 2)
-            serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
+            serverUDPOptions.setProtocolInstance(serverUDPLower.identifier)
 
             let (serverIPUpper, serverIPLower) = storage.createIPInstance()
 
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 3)
-            serverIPOptions.setProtocolInstance(serverIPLower.reference)
+            serverIPOptions.setProtocolInstance(serverIPLower.identifier)
 
             var clientParameters = Parameters()
             clientParameters.context = context
@@ -258,8 +258,8 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
         var serverConnected = false
         var clientUpperHarness: StreamUpperHarness<TestStreamLinkageFamily>?
         var serverUpperHarness: NewStreamFlowHarness<TestStreamLinkageFamily>?
-        var clientQUICReference: ProtocolInstanceReference?
-        var serverQUICReference: ProtocolInstanceReference?
+        var clientQUICInstance: InstanceIdentifier?
+        var serverQUICInstance: InstanceIdentifier?
 
         let storage = TestNetworkProtocolStorage(context: context)
 
@@ -284,7 +284,7 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
 
             let clientPath = PathProperties(parameters: clientParameters)
             let (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
-            clientQUICReference = clientQUICStreamListener.reference
+            clientQUICInstance = clientQUICStreamListener.identifier
 
             let clientQUICOptions: ProtocolOptions<QUICProtocol>
             clientQUICOptions = self.createQUICTestOptions(
@@ -294,7 +294,7 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
                 resendRejectedEarlyDataAutomatically: resendRejectedEarlyDataAutomatically
             )
             clientQUICOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.reference)
+            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.identifier)
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
@@ -343,11 +343,11 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             serverParameters.isServer = true
             let serverPath = PathProperties(parameters: serverParameters)
             let (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
-            serverQUICReference = serverQUICStreamListener.reference
+            serverQUICInstance = serverQUICStreamListener.identifier
 
             let serverQUICOptions = self.createQUICTestOptions(server: true, enableEarlyData: acceptEarlyData)
             serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
+            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.identifier)
 
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
@@ -441,8 +441,8 @@ final class SwiftNetworkQUICEarlyDataTests: NetTestCase {
             XCTAssertTrue(clientConnected, "QUIC stack client wasn't connected")
             XCTAssertTrue(serverConnected, "QUIC stack server wasn't connected")
 
-            XCTAssertNotNil(clientQUICReference)
-            XCTAssertNotNil(serverQUICReference)
+            XCTAssertNotNil(clientQUICInstance)
+            XCTAssertNotNil(serverQUICInstance)
 
             if let dataToSend {
                 if !acceptEarlyData, !resendRejectedEarlyDataAutomatically {

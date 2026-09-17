@@ -107,7 +107,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
 
     let connectionID: SystemUUID
     #if !NETWORK_NO_SWIFT_QUIC
-    var quicConnectionReference: ProtocolInstanceReference? = nil
+    var quicConnectionInstance: InstanceIdentifier? = nil
     var quicStreamListenerLinkage: BaseStreamListener? = nil
     #endif
 
@@ -138,7 +138,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
         self.identifier = EndpointFlow.nextInstanceCounter
         self.storage = flow.storage
         #if !NETWORK_NO_SWIFT_QUIC
-        self.quicConnectionReference = flow.quicConnectionReference
+        self.quicConnectionInstance = flow.quicConnectionInstance
         self.quicStreamListenerLinkage = flow.quicStreamListenerLinkage
         #endif
 
@@ -191,22 +191,22 @@ final class EndpointFlow: CustomDebugStringConvertible {
     // The flow's connected/inbound/outbound completions all run inline while the delivering event
     // holds the context state, so each of these takes the state and threads it back into the
     // stack. The state-free `read()`/`write()` wrappers below are for external entry points.
-    internal func startCompleted(state: inout NetworkContext.State, _ connectedError: NetworkError?) {
+    internal func startCompleted(_ connectedError: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         if let connectedError {
             self.state = .failed(connectedError)
             return
         }
         self.state = .ready
-        self.write(state: &state)
-        self.read(state: &state)
+        self.write(in: &eventContext)
+        self.read(in: &eventContext)
     }
 
-    private func inputAvailable(state: inout NetworkContext.State, _ additionalDataAvailable: Bool) {
-        self.read(state: &state)
+    private func inputAvailable(_ additionalDataAvailable: Bool, in eventContext: inout NetworkContext.EventContext) {
+        self.read(in: &eventContext)
     }
 
-    private func outputAvailable(state: inout NetworkContext.State) {
-        self.write(state: &state)
+    private func outputAvailable(in eventContext: inout NetworkContext.EventContext) {
+        self.write(in: &eventContext)
     }
 
     /// Drains pending write requests. This is an external entry point; see `write(state:)`.
@@ -214,17 +214,17 @@ final class EndpointFlow: CustomDebugStringConvertible {
         precondition(self.state == .ready)
         parameters.context.assert()
         fromExternalOnFlow { state in
-            self.write(state: &state)
+            self.write(in: &state)
         }
     }
 
-    private func write(state: inout NetworkContext.State) {
+    private func write(in eventContext: inout NetworkContext.EventContext) {
         precondition(self.state == .ready)
         do {
             switch self.flowProtocol {
             case .stream(let flow):
                 while !writeRequests.isEmpty {
-                    if try flow.getOutboundStreamDataRoomAvailable(state: &state) == 0 {
+                    if try flow.getOutboundStreamDataRoomAvailable(in: &eventContext) == 0 {
                         flow.waitForOutputRoomAvailable(self.outputAvailable)
                         break
                     }
@@ -232,16 +232,16 @@ final class EndpointFlow: CustomDebugStringConvertible {
                         break
                     }
                     let completion = writeRequest.completion
-                    let success = flow.write(state: &state, writeRequest.frame)
-                    deliverToApplication(state: &state) {
+                    let success = flow.write(writeRequest.frame, in: &eventContext)
+                    deliverToApplication(in: &eventContext) {
                         WriteRequest.runCompletion(completion, success: success)
                     }
                 }
             case .datagram(let flow):
                 while let writeRequest = writeRequests.popFirst() {
                     let completion = writeRequest.completion
-                    let success = flow.write(state: &state, writeRequest.frame)
-                    deliverToApplication(state: &state) {
+                    let success = flow.write(writeRequest.frame, in: &eventContext)
+                    deliverToApplication(in: &eventContext) {
                         WriteRequest.runCompletion(completion, success: success)
                     }
                 }
@@ -258,11 +258,11 @@ final class EndpointFlow: CustomDebugStringConvertible {
         precondition(self.state == .ready)
         parameters.context.assert()
         fromExternalOnFlow { state in
-            self.read(state: &state)
+            self.read(in: &state)
         }
     }
 
-    private func read(state: inout NetworkContext.State) {
+    private func read(in eventContext: inout NetworkContext.EventContext) {
         precondition(self.state == .ready)
 
         switch self.flowProtocol {
@@ -270,18 +270,20 @@ final class EndpointFlow: CustomDebugStringConvertible {
             while true {
                 if let readRequest = self.readRequests.first {
                     if let content = flow.read(
-                        state: &state,
                         minimumBytes: readRequest.minimumBytes,
-                        maximumBytes: readRequest.maximumBytes
+                        maximumBytes: readRequest.maximumBytes,
+                        in: &eventContext
                     ) {
                         // TODO: This is not efficient. Probably better to use an ArraySlice here
                         self.readRequests.removeFirst()
                         // TODO: Get the actual metadata
-                        deliverToApplication(state: &state) {
+                        deliverToApplication(in: &eventContext) {
                             readRequest.complete(content: content, isComplete: false, isFinal: true)
                         }
                     } else {
-                        flow.waitForInboundDataAvailable(completion: self.inputAvailable)
+                        flow.waitForInboundDataAvailable { state, additionalDataAvailable in
+                            self.inputAvailable(additionalDataAvailable, in: &state)
+                        }
                         break
                     }
                 } else {
@@ -291,14 +293,16 @@ final class EndpointFlow: CustomDebugStringConvertible {
         case .datagram(let flow):
             while true {
                 if let readRequest = self.readRequests.first {
-                    if let content = flow.read(state: &state) {
+                    if let content = flow.read(in: &eventContext) {
                         // TODO: This is not efficient. Probably better to use an ArraySlice here
                         self.readRequests.removeFirst()
-                        deliverToApplication(state: &state) {
+                        deliverToApplication(in: &eventContext) {
                             readRequest.complete(content: content, isComplete: true, isFinal: false)
                         }
                     } else {
-                        flow.waitForInboundDataAvailable(completion: self.inputAvailable)
+                        flow.waitForInboundDataAvailable { state, additionalDataAvailable in
+                            self.inputAvailable(additionalDataAvailable, in: &state)
+                        }
                         break
                     }
                 } else {
@@ -315,18 +319,18 @@ final class EndpointFlow: CustomDebugStringConvertible {
     // Application callbacks are the boundary into user code and may call straight back into any
     // public API, which acquires the state itself. Invoking them while a delivering event still
     // holds the state would trip exclusivity, so they are scheduled onto the context queue
-    // instead. `State.async` is used rather than `NetworkContext.async` because the latter reads
-    // `state` to reach the scheduler.
+    // instead. `EventContext.async` is used rather than `NetworkContext.async` because the latter
+    // reads the context's state to reach the scheduler.
     private func deliverToApplication(
-        state: inout NetworkContext.State,
+        in eventContext: inout NetworkContext.EventContext,
         _ completion: @escaping () -> Void
     ) {
-        state.async(completion)
+        eventContext.async(completion)
     }
 
     // Acquires the context state through whichever flow protocol is active, so the state-free
     // entry points above can reach the state-taking implementations.
-    private func fromExternalOnFlow(_ body: (inout NetworkContext.State) -> Void) {
+    private func fromExternalOnFlow(_ body: (inout NetworkContext.EventContext) -> Void) {
         switch self.flowProtocol {
         case .stream(let flow): flow.fromExternal { state in body(&state) }
         case .datagram(let flow): flow.fromExternal { state in body(&state) }
@@ -416,7 +420,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
                     Logger.connection.debug(
                         "EndpointFlow: \(self.debugDescription) disconnected event received, tearing down"
                     )
-                    self.completeTeardown(state: &state)
+                    self.completeTeardown(in: &state)
                 }
                 flow.stop()
                 return true
@@ -442,7 +446,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
     /// lower layer has not already delivered `disconnected`.
     private var shouldDeferTeardown: Bool {
         #if !NETWORK_NO_SWIFT_QUIC
-        guard self.quicConnectionReference != nil else { return false }
+        guard self.quicConnectionInstance != nil else { return false }
         if case .failed = self.state { return false }
         return true
         #else
@@ -468,20 +472,20 @@ final class EndpointFlow: CustomDebugStringConvertible {
     private func completeTeardown() {
         guard !self.teardownComplete else { return }
         switch self.flowProtocol {
-        case .stream(let flow): flow.fromExternal { state in completeTeardown(state: &state) }
-        case .datagram(let flow): flow.fromExternal { state in completeTeardown(state: &state) }
+        case .stream(let flow): flow.fromExternal { state in completeTeardown(in: &state) }
+        case .datagram(let flow): flow.fromExternal { state in completeTeardown(in: &state) }
         case .none: finishTeardownBookkeeping()
         }
     }
 
-    private func completeTeardown(state: inout NetworkContext.State) {
+    private func completeTeardown(in eventContext: inout NetworkContext.EventContext) {
         guard !self.teardownComplete else { return }
         self.teardownComplete = true
         switch self.flowProtocol {
         case .stream(let flow):
-            flow.teardown(state: &state)
+            flow.teardown(in: &eventContext)
         case .datagram(let flow):
-            flow.teardown(state: &state)
+            flow.teardown(in: &eventContext)
         case .none:
             break
         }
@@ -494,7 +498,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
         self.teardownComplete = true
         self.flowProtocol = nil
         #if !NETWORK_NO_SWIFT_QUIC
-        self.quicConnectionReference = nil
+        self.quicConnectionInstance = nil
         self.quicStreamListenerLinkage = nil
         #endif
         self.state = .cancelled

@@ -48,9 +48,9 @@ public protocol AutomaticLowerStreamProcessing: ~Copyable, InboundStreamHandler 
     /// A function the framework calls when the lower protocol has added stream data to
     /// `lowerReceiveQueue`.
     ///
-    /// Protocols should implement this function to customize behavior. Thread `state` into any
+    /// Protocols should implement this function to customize behavior. Thread `eventContext` into any
     /// calls made to other protocols so that the state is never re-derived from the context.
-    mutating func serviceLowerReceiveQueue(state: inout NetworkContext.State)
+    mutating func serviceLowerReceiveQueue(in eventContext: inout NetworkContext.EventContext)
 }
 
 @_spi(ProtocolProvider)
@@ -66,14 +66,14 @@ extension AutomaticLowerStreamProcessing where Self: ~Copyable {
     /// Indicates to the lower protocol that stream data has been added to the send queue.
     ///
     /// Drains `lowerSendQueue` to the lower protocol.
-    public mutating func serviceLowerSendQueue(state: inout NetworkContext.State) {
+    public mutating func serviceLowerSendQueue(in eventContext: inout NetworkContext.EventContext) {
         guard !lowerSendQueue.isEmpty else { return }
-        try? lower.invokeSendStreamData(state: &state, reference, streamData: lowerSendQueue.drainArray())
+        try? lower.invokeSendStreamData(lowerSendQueue.drainArray(), from: identifier, in: &eventContext)
     }
 
     /// Indicates that stream data should be read from the lower protocol.
-    public mutating func resumeReadingInboundStreamData(state: inout NetworkContext.State) {
-        _readInboundStreamData(state: &state)
+    public mutating func resumeReadingInboundStreamData(in eventContext: inout NetworkContext.EventContext) {
+        _readInboundStreamData(in: &eventContext)
     }
 }
 
@@ -96,7 +96,7 @@ public protocol AutomaticUpperStreamProcessing: ~Copyable, OutboundStreamHandler
     /// `upperSendQueue`.
     ///
     /// Protocols should implement this function to customize behavior.
-    mutating func serviceUpperSendQueue(state: inout NetworkContext.State)
+    mutating func serviceUpperSendQueue(in eventContext: inout NetworkContext.EventContext)
 
     /// The maximum amount of stream data allowed to be pending in the upper send queue.
     ///
@@ -116,7 +116,7 @@ public protocol AutomaticUpperStreamProcessing: ~Copyable, OutboundStreamHandler
     /// `upperReceiveQueue`.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int)
+    mutating func upperReceiveQueueDrainedBytes(_ bytes: Int, in eventContext: inout NetworkContext.EventContext)
 }
 
 @_spi(ProtocolProvider)
@@ -132,9 +132,9 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
     /// Indicates to the upper protocol that stream data has been added to the receive queue.
     ///
     /// Notifies the upper protocol that frames are available in `upperReceiveQueue`.
-    public func serviceUpperReceiveQueue(state: inout NetworkContext.State) {
+    public func serviceUpperReceiveQueue(in eventContext: inout NetworkContext.EventContext) {
         guard !upperReceiveQueue.isEmpty else { return }
-        upper.deliverInboundDataAvailableEvent(state: &state, reference)
+        upper.deliverInboundDataAvailableEvent(from: identifier, in: &eventContext)
     }
 }
 
@@ -144,14 +144,14 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
 @available(Network 0.1.0, *)
 public protocol InboundStreamHandler: ~Copyable, InboundDataHandler where LowerProtocol: OutboundStreamLinkage {
     mutating func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
     mutating func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 }
 
@@ -159,19 +159,19 @@ public protocol InboundStreamHandler: ~Copyable, InboundDataHandler where LowerP
 @available(Network 0.1.0, *)
 public protocol OutboundStreamHandler: ~Copyable, OutboundDataHandler where UpperProtocol: InboundStreamLinkage {
     mutating func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
     mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int
     mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 }
 
@@ -182,14 +182,14 @@ public protocol OutboundStreamHandler: ~Copyable, OutboundDataHandler where Uppe
 @available(Network 0.1.0, *)
 public protocol OutboundStreamUnidirectionalAbortHandler: ~Copyable, OutboundStreamHandler {
     mutating func abortInbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
     mutating func abortOutbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 }
 
@@ -200,9 +200,9 @@ public protocol OutboundStreamUnidirectionalAbortHandler: ~Copyable, OutboundStr
 @available(Network 0.1.0, *)
 public protocol OutboundStreamEarlyDataHandler: ~Copyable, OutboundStreamHandler {
     mutating func sendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 }
 
@@ -210,15 +210,15 @@ public protocol OutboundStreamEarlyDataHandler: ~Copyable, OutboundStreamHandler
 
 @available(Network 0.1.0, *)
 extension AutomaticLowerStreamProcessing where Self: ~Copyable {
-    mutating func _readInboundStreamData(state: inout NetworkContext.State) {
+    mutating func _readInboundStreamData(in eventContext: inout NetworkContext.EventContext) {
         var readCount = 0
         repeat {
             do throws(NetworkError) {
                 let streamData = try lower.invokeReceiveStreamData(
-                    state: &state,
-                    reference,
                     minimumBytes: 1,
-                    maximumBytes: Int.max
+                    maximumBytes: Int.max,
+                    for: identifier,
+                    in: &eventContext
                 )
                 if let streamData = consume streamData {
                     readCount = streamData.count
@@ -229,13 +229,13 @@ extension AutomaticLowerStreamProcessing where Self: ~Copyable {
             } catch {
                 break
             }
-            serviceLowerReceiveQueue(state: &state)
-            serviceLowerSendQueue(state: &state)
+            serviceLowerReceiveQueue(in: &eventContext)
+            serviceLowerSendQueue(in: &eventContext)
         } while readCount != 0
     }
 
-    mutating func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
-        _readInboundStreamData(state: &state)
+    mutating func handleInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
+        _readInboundStreamData(in: &eventContext)
     }
 }
 
@@ -246,9 +246,9 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
     }
 
     public mutating func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         guard !upperReceiveQueue.isEmpty else {
             return nil
@@ -259,17 +259,17 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
             return nil
         }
         defer {
-            upperReceiveQueueDrainedBytes(state: &state, min(remainingBytes, maximumBytes))
+            upperReceiveQueueDrainedBytes(min(remainingBytes, maximumBytes), in: &eventContext)
         }
         return upperReceiveQueue.drainArray(maximumByteCount: maximumBytes)
     }
 
-    public mutating func upperReceiveQueueDrainedBytes(state: inout NetworkContext.State, _ bytes: Int) {
+    public mutating func upperReceiveQueueDrainedBytes(_ bytes: Int, in eventContext: inout NetworkContext.EventContext) {
         // No-op by default
     }
 
     public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
         guard !blockUpperSendQueue else { return 0 }
         if upperSendQueue.isEmpty { return maximumStreamDataSize }
@@ -282,21 +282,21 @@ extension AutomaticUpperStreamProcessing where Self: ~Copyable {
     }
 
     public mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         upperSendQueue.add(frames: streamData)
-        serviceUpperSendQueue(state: &state)
+        serviceUpperSendQueue(in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension AutomaticUpperStreamProcessing where Self: ~Copyable, Self: OutboundStreamEarlyDataHandler {
     mutating func sendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         upperSendQueue.add(frames: streamData)
-        serviceUpperSendQueue(state: &state)
+        serviceUpperSendQueue(in: &eventContext)
     }
 }

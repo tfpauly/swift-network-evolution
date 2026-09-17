@@ -144,9 +144,9 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+            self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
-        public let reference: ProtocolInstanceReference
+        public let identifier: InstanceIdentifier
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         public let timerReference = TimerReference()
@@ -178,28 +178,28 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         ///
         /// This runs from inside `sendDatagrams` on the peer bridge, which already holds the
         /// context state, so the state is threaded in rather than re-derived.
-        func deliverInboundDataAvailableEvent(state: inout NetworkContext.State) {
+        func deliverInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
             if linkDelay == .zero {
-                self.async(state: &state) { state in
-                    self.upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
+                self.async(in: &eventContext) { eventContext in
+                    self.upper.deliverInboundDataAvailableEvent(from: self.identifier, in: &eventContext)
                 }
             } else {
                 guard !timerSet else { return }
                 timerSet = true
-                self.scheduleWakeup(state: &state, milliseconds: UInt64(linkDelay.milliseconds))
+                self.scheduleWakeup(milliseconds: UInt64(linkDelay.milliseconds), in: &eventContext)
             }
         }
 
         /// Entry point for callers with no context state, such as tests injecting a datagram.
         func deliverInboundDataAvailableEventFromExternal() {
             fromExternal { state in
-                deliverInboundDataAvailableEvent(state: &state)
+                deliverInboundDataAvailableEvent(in: &state)
             }
         }
 
-        public func wakeup(state: inout NetworkContext.State) {
+        public func wakeup(in eventContext: inout NetworkContext.EventContext) {
             timerSet = false
-            self.upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
+            self.upper.deliverInboundDataAvailableEvent(from: self.identifier, in: &eventContext)
         }
 
         public func setup(
@@ -243,7 +243,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
 
         public var connectionIsIdle = false
-        public func handleApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {
+        public func handleApplicationEvent(_ event: ApplicationEvent, in eventContext: inout NetworkContext.EventContext) {
             if event == .connectionIdle {
                 if !connectionIsIdle {
                     log.debug(
@@ -261,28 +261,28 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             }
         }
 
-        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-            upper.deliverConnectedEvent(state: &state, reference)
+        public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+            upper.deliverConnectedEvent(from: identifier, in: &eventContext)
         }
 
         public func receiveDatagrams(
-            state: inout NetworkContext.State,
-            maximumDatagramCount: Int
+            maximumDatagramCount: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? {
             incomingFrames.drainArray(maximumFrameCount: maximumDatagramCount)
         }
 
         public func getDatagramsToSend(
-            state: inout NetworkContext.State,
             maximumDatagramCount: Int,
-            minimumDatagramSize: Int
+            minimumDatagramSize: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? {
             if datagramDrops?.blockPacketGeneration ?? false {
                 if datagramDrops?.shouldDropPacket() ?? false {
                     log.datapath("blocking \(maximumDatagramCount) datagrams to port: \(self.remoteEndpoint!.port)")
-                    self.async(state: &state) { state in
+                    self.async(in: &eventContext) { eventContext in
                         self.log.datapath("unblocking outbound data")
-                        self.upper.deliverOutboundRoomAvailableEvent(state: &state, self.reference)
+                        self.upper.deliverOutboundRoomAvailableEvent(from: self.identifier, in: &eventContext)
                     }
                     return nil
                 }
@@ -298,8 +298,8 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
 
         public func sendDatagrams(
-            state: inout NetworkContext.State,
-            _ datagrams: consuming FrameArray
+            _ datagrams: consuming FrameArray,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeDatagramRegistry.instances[remotePort]
@@ -333,7 +333,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
                 }
             }
             remoteInstance.incomingFrames.add(frames: datagrams)
-            remoteInstance.deliverInboundDataAvailableEvent(state: &state)
+            remoteInstance.deliverInboundDataAvailableEvent(in: &eventContext)
         }
 
         public static func injectDatagram(_ datagram: consuming Frame, to remotePort: UInt16) {
@@ -358,7 +358,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         BridgeOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
         nil
     }
 
@@ -369,13 +369,11 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         BridgeDatagramProtocol.definition.protocolOptions()
     }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
         BridgeDatagramProtocol().newProtocolInstance(context: context)!
     }
 
-    // TODO: TFPDEBUG Fix this
     static public func instance<LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> LowerLinkage {
-        let reference = BridgeDatagramProtocol().newProtocolInstance(context: context)!
         return LowerLinkage()
     }
 }
@@ -453,9 +451,9 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+            self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
-        public let reference: ProtocolInstanceReference
+        public let identifier: InstanceIdentifier
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         var localEndpoint: Endpoint?
@@ -493,27 +491,27 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             incomingFrames.finalizeAllFramesAsFailed()
         }
 
-        public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-            upper.deliverConnectedEvent(state: &state, reference)
+        public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+            upper.deliverConnectedEvent(from: identifier, in: &eventContext)
         }
 
         public func receiveStreamData(
-            state: inout NetworkContext.State,
             minimumBytes: Int,
-            maximumBytes: Int
+            maximumBytes: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? {
             incomingFrames.drainArray(maximumByteCount: maximumBytes)
         }
 
         public func getOutboundStreamDataRoomAvailable(
-            state: inout NetworkContext.State
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> Int {
             Int.max
         }
 
         public func sendStreamData(
-            state: inout NetworkContext.State,
-            _ streamData: consuming FrameArray
+            _ streamData: consuming FrameArray,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeStreamRegistry.instances[remotePort]
@@ -524,10 +522,10 @@ public struct BridgeStreamProtocol: NetworkProtocol {
                 return
             }
             remoteInstance.incomingFrames.add(frames: streamData)
-            remoteInstance.async(state: &state) { state in
+            remoteInstance.async(in: &eventContext) { eventContext in
                 remoteInstance.upper.deliverInboundDataAvailableEvent(
-                    state: &state,
-                    remoteInstance.reference
+                    from: remoteInstance.identifier,
+                    in: &eventContext
                 )
             }
         }
@@ -544,7 +542,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         BridgeOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
         nil
     }
 
@@ -555,7 +553,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         BridgeStreamProtocol.definition.protocolOptions()
     }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
         BridgeStreamProtocol().newProtocolInstance(context: context)!
     }
 }

@@ -56,17 +56,17 @@ public protocol OneToOneProtocolHandler: ~Copyable, OutboundDataHandler, Inbound
     ///
     /// If not implemented, the protocol delivers the connected event automatically.
     /// Protocols can implement this function to customize behavior.
-    mutating func connect(state: inout NetworkContext.State)
+    mutating func connect(in eventContext: inout NetworkContext.EventContext)
 
     /// Requests that this protocol gracefully close.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func disconnect(state: inout NetworkContext.State, error: NetworkError?)
+    mutating func disconnect(error: NetworkError?, in eventContext: inout NetworkContext.EventContext)
 
     /// A function the framework calls when the lower protocol disconnects.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?)
+    mutating func handleDisconnectedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext)
 
     /// A function the framework calls when a lower protocol sends an event.
     ///
@@ -74,8 +74,8 @@ public protocol OneToOneProtocolHandler: ~Copyable, OutboundDataHandler, Inbound
     /// upper protocols, and `.unconsumed` otherwise.
     /// Protocols can implement this function to customize behavior.
     mutating func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ event: NetworkProtocolEvent
+        _ event: NetworkProtocolEvent,
+        in eventContext: inout NetworkContext.EventContext
     ) -> HandleNetworkEventResult
 
     /// A function the framework calls when the app sends an event.
@@ -84,8 +84,8 @@ public protocol OneToOneProtocolHandler: ~Copyable, OutboundDataHandler, Inbound
     /// lower protocols, and `.unconsumed` otherwise.
     /// Protocols can implement this function to customize behavior.
     mutating func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ event: ApplicationEvent
+        _ event: ApplicationEvent,
+        in eventContext: inout NetworkContext.EventContext
     ) -> HandleNetworkEventResult
 
     #if !NETWORK_EMBEDDED
@@ -122,22 +122,22 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
     /// Indicates to the upper protocol that this protocol is connected.
     ///
     /// Call this only if the protocol customizes `connect()`.
-    public func deliverConnectedEvent(state: inout NetworkContext.State) {
-        upper.deliverConnectedEvent(state: &state, self.reference)
+    public func deliverConnectedEvent(in eventContext: inout NetworkContext.EventContext) {
+        upper.deliverConnectedEvent(from: self.identifier, in: &eventContext)
     }
 
     /// Indicates to the upper protocol that this protocol is disconnected, with an error.
-    public func deliverDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
-        upper.deliverDisconnectedEvent(state: &state, self.reference, error: error)
+    public func deliverDisconnectedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
+        upper.deliverDisconnectedEvent(error: error, from: self.identifier, in: &eventContext)
     }
 
     /// Passes an event to the upper protocol.
-    public func deliverNetworkProtocolEvent(state: inout NetworkContext.State, _ event: NetworkProtocolEvent) {
+    public func deliverNetworkProtocolEvent(_ event: NetworkProtocolEvent, in eventContext: inout NetworkContext.EventContext) {
         upper.deliverNetworkProtocolEvent(
-            state: &state,
-            originalReference: self.reference,
-            selfReference: self.reference,
-            event: event
+            originalInstance: self.identifier,
+            selfInstance: self.identifier,
+            event: event,
+            in: &eventContext
         )
     }
 }
@@ -150,12 +150,12 @@ where UpperProtocol: InboundDataLinkage, LowerProtocol: OutboundDataLinkage {
     /// A function the framework calls when the lower protocol has inbound data available to read.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func handleInboundDataAvailableEvent(state: inout NetworkContext.State)
+    mutating func handleInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext)
 
     /// A function the framework calls when the lower protocol has outbound room available to send.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State)
+    mutating func handleOutboundRoomAvailableEvent(in eventContext: inout NetworkContext.EventContext)
 }
 
 /// One-to-one protocol with an upper stream linkage and a lower stream linkage.
@@ -168,35 +168,35 @@ where UpperProtocol: InboundStreamLinkage, LowerProtocol: OutboundStreamLinkage 
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     /// Returns the number of bytes of stream data that can be written.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int
 
     /// Sends stream data created by the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 
     /// A function the framework calls when the lower protocol reports that the inbound direction of data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?)
+    mutating func handleInboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext)
 
     /// A function the framework calls when the lower protocol reports that the outbound direction of data is aborted.
     ///
     /// Protocols can implement this function to customize behavior.
-    mutating func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?)
+    mutating func handleOutboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext)
 }
 
 /// One-to-one protocol with an upper stream linkage and a lower datagram linkage.
@@ -209,24 +209,24 @@ where UpperProtocol: InboundStreamLinkage, LowerProtocol: OutboundDatagramLinkag
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     /// Returns the number of bytes of stream data that can be written.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int
 
     /// Sends stream data created by the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 }
 
@@ -240,25 +240,25 @@ where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundDatagramLink
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func receiveDatagrams(
-        state: inout NetworkContext.State,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     /// Returns datagram frames the upper protocol can use to send.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func getDatagramsToSend(
-        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     /// Sends datagrams created by the upper protocol.
     ///
     /// Protocols can implement this function to customize behavior.
     mutating func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 }
 
@@ -270,34 +270,34 @@ public protocol OneToOneDatagramToStreamProtocol: ~Copyable, OneToOneDatapathPro
 where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundStreamLinkage {
 
     mutating func receiveDatagrams(
-        state: inout NetworkContext.State,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     mutating func getDatagramsToSend(
-        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     mutating func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 
     mutating func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray?
 
     mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int
 
     mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError)
 }
 
@@ -306,11 +306,11 @@ where UpperProtocol: InboundDatagramLinkage, LowerProtocol: OutboundStreamLinkag
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable {
     internal func validate(
-        upper upperProtocol: ProtocolInstanceReference,
+        upper upperProtocol: InstanceIdentifier,
         _ label: String
     ) throws(ProtocolInstanceError) {
         #if DEBUG
-        guard upperProtocol == upper.reference else {
+        guard upperProtocol == upper.identifier else {
             Logger.proto.fault("Received \'\(label)\' from incorrect upper protocol")
             throw ProtocolInstanceError.invalidUpperProtocol
         }
@@ -318,7 +318,7 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
     }
 
     internal func validate(
-        lower lowerProtocol: ProtocolInstanceReference,
+        lower lowerProtocol: InstanceIdentifier,
         _ label: String
     ) throws(ProtocolInstanceError) {
         #if DEBUG
@@ -329,12 +329,12 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
         #endif
     }
 
-    public func invokeConnect(state: inout NetworkContext.State) {
-        lower.invokeConnect(state: &state, effectiveSelfReference)
+    public func invokeConnect(in eventContext: inout NetworkContext.EventContext) {
+        lower.invokeConnect(for: effectiveSelfInstance, in: &eventContext)
     }
 
-    public func invokeDisconnect(state: inout NetworkContext.State, error: NetworkError? = nil) {
-        lower.invokeDisconnect(state: &state, effectiveSelfReference, error: error)
+    public func invokeDisconnect(error: NetworkError? = nil, in eventContext: inout NetworkContext.EventContext) {
+        lower.invokeDisconnect(error: error, for: effectiveSelfInstance, in: &eventContext)
     }
 
     public mutating func attachLowerProtocol(
@@ -378,109 +378,109 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
     }
 
     public mutating func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        let reference = effectiveSelfReference
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        let identifier = effectiveSelfInstance
         upper = .init()
         teardown()
-        try lower.invokeDetach(state: &state, reference)
+        try lower.invokeDetach(for: identifier, in: &eventContext)
         lower = .init()
     }
 
-    public mutating func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        do { try validate(upper: from, #function) } catch { return }
-        if lower.protocolIsConnected(state: &state) {
-            if canCallConnect(state: &state, requested: true) {
-                connect(state: &state)
+    public mutating func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        do { try validate(upper: instance, #function) } catch { return }
+        if lower.protocolIsConnected(in: &eventContext) {
+            if canCallConnect(requested: true, in: &eventContext) {
+                connect(in: &eventContext)
             }
         } else {
-            connectRequested(state: &state)
-            invokeConnect(state: &state)
+            connectRequested(in: &eventContext)
+            invokeConnect(in: &eventContext)
         }
     }
 
     public mutating func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(upper: from, #function) } catch { return }
-        if canCallDisconnect(state: &state) {
-            disconnect(state: &state, error: error)
+        do { try validate(upper: instance, #function) } catch { return }
+        if canCallDisconnect(in: &eventContext) {
+            disconnect(error: error, in: &eventContext)
         }
     }
 
     public mutating func handleConnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        if canCallConnect(state: &state, requested: false) {
-            connect(state: &state)
+        do { try validate(lower: instance, #function) } catch { return }
+        if canCallConnect(requested: false, in: &eventContext) {
+            connect(in: &eventContext)
         }
     }
 
     public mutating func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        self.handleDisconnectedEvent(state: &state, error: error)
+        do { try validate(lower: instance, #function) } catch { return }
+        self.handleDisconnectedEvent(error: error, in: &eventContext)
     }
 
     public mutating func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         // Don't validate lower, can pass through
-        if self.handleNetworkProtocolEvent(state: &state, event) == .consumed { return }
+        if self.handleNetworkProtocolEvent(event, in: &eventContext) == .consumed { return }
         upper.deliverNetworkProtocolEvent(
-            state: &state,
-            originalReference: from,
-            selfReference: self.reference,
-            event: event
+            originalInstance: instance,
+            selfInstance: self.identifier,
+            event: event,
+            in: &eventContext
         )
     }
 
     public mutating func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
+        event: ApplicationEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         // Don't validate upper, can pass through
-        if self.handleApplicationEvent(state: &state, event) == .consumed { return }
-        lower.invokeApplicationEvent(state: &state, from, event: event)
+        if self.handleApplicationEvent(event, in: &eventContext) == .consumed { return }
+        lower.invokeApplicationEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
-        do { try validate(upper: from, #function) } catch { return nil }
+        do { try validate(upper: instance, #function) } catch { return nil }
         #if !NETWORK_EMBEDDED
         if let metadata = self.metadata as? ProtocolMetadata<P> {
             return metadata
         }
-        return lower.invokeGetMetadata(state: &state, effectiveSelfReference)
+        return lower.invokeGetMetadata(for: effectiveSelfInstance, in: &eventContext)
         #else
         return nil
         #endif
     }
 
     public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
-        do { try validate(upper: from, #function) } catch { return nil }
+        do { try validate(upper: instance, #function) } catch { return nil }
         let lowerMetrics = lower.invokeGetMetrics(
-            state: &state,
-            effectiveSelfReference,
-            requestedNetworkMetric: requestedNetworkMetric
+            requestedNetworkMetric: requestedNetworkMetric,
+            for: effectiveSelfInstance,
+            in: &eventContext
         )
         switch requestedNetworkMetric {
         case .protocolEstablishmentReports:
@@ -504,21 +504,21 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
     }
 
     public func tlsOptions(from parameters: Parameters) -> ProtocolOptions<SwiftTLSProtocol>? {
-        parameters.tlsOptions(for: self.reference)
+        parameters.tlsOptions(for: self.identifier)
     }
     public func udpOptions(from parameters: Parameters) -> ProtocolOptions<UDPProtocol>? {
-        parameters.udpOptions(for: self.reference)
+        parameters.udpOptions(for: self.identifier)
     }
     public func ipOptions(from parameters: Parameters) -> ProtocolOptions<IPProtocol>? {
-        parameters.ipOptions(for: self.reference)
+        parameters.ipOptions(for: self.identifier)
     }
 
     #if !NETWORK_EMBEDDED
     public func getOptions<T>(from parameters: Parameters) -> ProtocolOptions<T>? {
-        parameters.protocolOptions(for: self.reference)
+        parameters.protocolOptions(for: self.identifier)
     }
     public func getOptions(from parameters: Parameters) -> AbstractProtocolOptions? {
-        parameters.protocolOptions(for: self.reference)
+        parameters.protocolOptions(for: self.identifier)
     }
     #endif
 }
@@ -556,31 +556,31 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 
     public mutating func teardown() {}
 
-    public mutating func connect(state: inout NetworkContext.State) {
-        deliverConnectedEvent(state: &state)
+    public mutating func connect(in eventContext: inout NetworkContext.EventContext) {
+        deliverConnectedEvent(in: &eventContext)
     }
 
-    public mutating func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
-        invokeDisconnect(state: &state, error: error)
+    public mutating func disconnect(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
+        invokeDisconnect(error: error, in: &eventContext)
     }
 
     public mutating func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        error: NetworkError?
+        error: NetworkError?,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        deliverDisconnectedEvent(state: &state, error: error)
+        deliverDisconnectedEvent(error: error, in: &eventContext)
     }
 
     public mutating func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ event: NetworkProtocolEvent
+        _ event: NetworkProtocolEvent,
+        in eventContext: inout NetworkContext.EventContext
     ) -> HandleNetworkEventResult {
         .unconsumed
     }
 
     public mutating func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ event: ApplicationEvent
+        _ event: ApplicationEvent,
+        in eventContext: inout NetworkContext.EventContext
     ) -> HandleNetworkEventResult {
         .unconsumed
     }
@@ -593,11 +593,11 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable {
     @inline(__always)
-    var effectiveSelfReference: ProtocolInstanceReference {
+    var effectiveSelfInstance: InstanceIdentifier {
         if passthroughEvents {
-            return upper.reference
+            return upper.identifier
         } else {
-            return self.reference
+            return self.identifier
         }
     }
 }
@@ -605,287 +605,287 @@ extension OneToOneProtocolHandler where Self: ~Copyable {
 @available(Network 0.1.0, *)
 extension OneToOneDatapathProtocol where Self: ~Copyable {
     public mutating func handleInboundDataAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        self.handleInboundDataAvailableEvent(state: &state)
+        do { try validate(lower: instance, #function) } catch { return }
+        self.handleInboundDataAvailableEvent(in: &eventContext)
     }
 
     public mutating func handleOutboundRoomAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        self.handleOutboundRoomAvailableEvent(state: &state)
+        do { try validate(lower: instance, #function) } catch { return }
+        self.handleOutboundRoomAvailableEvent(in: &eventContext)
     }
 
-    public func deliverInboundDataAvailableEvent(state: inout NetworkContext.State) {
-        guard passthroughEvents || isConnected(state: &state) else { return }
-        upper.deliverInboundDataAvailableEvent(state: &state, self.reference)
+    public func deliverInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
+        guard passthroughEvents || isConnected(in: &eventContext) else { return }
+        upper.deliverInboundDataAvailableEvent(from: self.identifier, in: &eventContext)
     }
 
-    public func deliverOutboundRoomAvailableEvent(state: inout NetworkContext.State) {
-        guard passthroughEvents || isConnected(state: &state) else { return }
-        upper.deliverOutboundRoomAvailableEvent(state: &state, self.reference)
+    public func deliverOutboundRoomAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
+        guard passthroughEvents || isConnected(in: &eventContext) else { return }
+        upper.deliverOutboundRoomAvailableEvent(from: self.identifier, in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneDatapathProtocol where Self: ~Copyable {
     // Default implementations, to be overridden as necessary
-    public mutating func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
-        deliverInboundDataAvailableEvent(state: &state)
+    public mutating func handleInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
+        deliverInboundDataAvailableEvent(in: &eventContext)
     }
 
-    public mutating func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {
-        deliverOutboundRoomAvailableEvent(state: &state)
+    public mutating func handleOutboundRoomAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
+        deliverOutboundRoomAvailableEvent(in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundDatagramLinkage {
     public func invokeReceiveDatagrams(
-        state: inout NetworkContext.State,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         try lower.invokeReceiveDatagrams(
-            state: &state,
-            effectiveSelfReference,
-            maximumDatagramCount: maximumDatagramCount
+            maximumDatagramCount: maximumDatagramCount,
+            for: effectiveSelfInstance,
+            in: &eventContext
         )
     }
     @inline(__always)
     public func invokeGetDatagramsToSend(
-        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         try lower.invokeGetDatagramsToSend(
-            state: &state,
-            effectiveSelfReference,
             maximumDatagramCount: maximumDatagramCount,
-            minimumDatagramSize: minimumDatagramSize
+            minimumDatagramSize: minimumDatagramSize,
+            for: effectiveSelfInstance,
+            in: &eventContext
         )
     }
 
     public func invokeSendDatagrams(
-        state: inout NetworkContext.State,
-        _ datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try lower.invokeSendDatagrams(state: &state, effectiveSelfReference, datagrams: datagrams)
+        try lower.invokeSendDatagrams(datagrams, from: effectiveSelfInstance, in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneDatagramProtocol where Self: ~Copyable {
     public mutating func receiveDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveDatagrams(state: &state, maximumDatagramCount: maximumDatagramCount)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.receiveDatagrams(maximumDatagramCount: maximumDatagramCount, in: &eventContext)
     }
     public mutating func getDatagramsToSend(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
         return try self.getDatagramsToSend(
-            state: &state,
             maximumDatagramCount: maximumDatagramCount,
-            minimumDatagramSize: minimumDatagramSize
+            minimumDatagramSize: minimumDatagramSize,
+            in: &eventContext
         )
     }
     public mutating func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        do { try validate(upper: from, #function) } catch {
+        do { try validate(upper: instance, #function) } catch {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard passthroughEvents || isConnected(state: &state) else {
+        guard passthroughEvents || isConnected(in: &eventContext) else {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendDatagrams(state: &state, datagrams)
+        try self.sendDatagrams(datagrams, in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneProtocolHandler where Self: ~Copyable, LowerProtocol: OutboundStreamLinkage {
     public mutating func invokeReceiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         try lower.invokeReceiveStreamData(
-            state: &state,
-            effectiveSelfReference,
             minimumBytes: minimumBytes,
-            maximumBytes: maximumBytes
+            maximumBytes: maximumBytes,
+            for: effectiveSelfInstance,
+            in: &eventContext
         )
     }
     public mutating func invokeGetOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        try lower.invokeGetOutboundStreamDataRoomAvailable(state: &state, effectiveSelfReference)
+        try lower.invokeGetOutboundStreamDataRoomAvailable(for: effectiveSelfInstance, in: &eventContext)
     }
     public mutating func invokeSendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try lower.invokeSendStreamData(state: &state, effectiveSelfReference, streamData: streamData)
+        try lower.invokeSendStreamData(streamData, from: effectiveSelfInstance, in: &eventContext)
     }
     public mutating func invokeSendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try lower.invokeSendEarlyStreamData(state: &state, effectiveSelfReference, streamData: streamData)
+        try lower.invokeSendEarlyStreamData(streamData, from: effectiveSelfInstance, in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneStreamToDatagramProtocol where Self: ~Copyable {
     public mutating func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveStreamData(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.receiveStreamData(minimumBytes: minimumBytes, maximumBytes: maximumBytes, in: &eventContext)
     }
     public mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.getOutboundStreamDataRoomAvailable(state: &state)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.getOutboundStreamDataRoomAvailable(in: &eventContext)
     }
     public mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        do { try validate(upper: from, #function) } catch {
+        do { try validate(upper: instance, #function) } catch {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard passthroughEvents || isConnected(state: &state) else {
+        guard passthroughEvents || isConnected(in: &eventContext) else {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendStreamData(state: &state, streamData)
+        try self.sendStreamData(streamData, in: &eventContext)
     }
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneStreamProtocol where Self: ~Copyable {
     public mutating func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveStreamData(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.receiveStreamData(minimumBytes: minimumBytes, maximumBytes: maximumBytes, in: &eventContext)
     }
     public mutating func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.getOutboundStreamDataRoomAvailable(state: &state)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.getOutboundStreamDataRoomAvailable(in: &eventContext)
     }
     public mutating func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        do { try validate(upper: from, #function) } catch {
+        do { try validate(upper: instance, #function) } catch {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard passthroughEvents || isConnected(state: &state) else {
+        guard passthroughEvents || isConnected(in: &eventContext) else {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendStreamData(state: &state, streamData)
+        try self.sendStreamData(streamData, in: &eventContext)
     }
 
     public mutating func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        self.handleInboundAbortedEvent(state: &state, error: error)
+        do { try validate(lower: instance, #function) } catch { return }
+        self.handleInboundAbortedEvent(error: error, in: &eventContext)
     }
 
     public mutating func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        do { try validate(lower: from, #function) } catch { return }
-        self.handleOutboundAbortedEvent(state: &state, error: error)
+        do { try validate(lower: instance, #function) } catch { return }
+        self.handleOutboundAbortedEvent(error: error, in: &eventContext)
     }
 
     // Default implementations
-    public mutating func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {}
-    public mutating func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {}
+    public mutating func handleInboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {}
+    public mutating func handleOutboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {}
 }
 
 @available(Network 0.1.0, *)
 extension OneToOneDatagramToStreamProtocol where Self: ~Copyable {
     public mutating func receiveDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
-        return try self.receiveDatagrams(state: &state, maximumDatagramCount: maximumDatagramCount)
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
+        return try self.receiveDatagrams(maximumDatagramCount: maximumDatagramCount, in: &eventContext)
     }
     public mutating func getDatagramsToSend(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        do { try validate(upper: from, #function) } catch { throw NetworkError.posix(EINVAL) }
-        guard passthroughEvents || isConnected(state: &state) else { throw NetworkError.posix(ENOTCONN) }
+        do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        guard passthroughEvents || isConnected(in: &eventContext) else { throw NetworkError.posix(ENOTCONN) }
         return try self.getDatagramsToSend(
-            state: &state,
             maximumDatagramCount: maximumDatagramCount,
-            minimumDatagramSize: minimumDatagramSize
+            minimumDatagramSize: minimumDatagramSize,
+            in: &eventContext
         )
     }
     public mutating func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        do { try validate(upper: from, #function) } catch {
+        do { try validate(upper: instance, #function) } catch {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
-        guard passthroughEvents || isConnected(state: &state) else {
+        guard passthroughEvents || isConnected(in: &eventContext) else {
             datagrams.finalizeAllFramesAsFailed()
             throw NetworkError.posix(ENOTCONN)
         }
-        try self.sendDatagrams(state: &state, datagrams)
+        try self.sendDatagrams(datagrams, in: &eventContext)
     }
 }

@@ -84,7 +84,7 @@ final class QUICTransfer {
             let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(clientIPLower.reference)
+            clientIPOptions.setProtocolInstance(clientIPLower.identifier)
             if !quicOnly {
                 clientParameters.defaultStack.internet = .ip(clientIPOptions)
             }
@@ -93,7 +93,7 @@ final class QUICTransfer {
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
+            clientUDPOptions.setProtocolInstance(clientUDPLower.identifier)
             if !quicOnly {
                 clientParameters.defaultStack.transport = .udp(clientUDPOptions)
             }
@@ -108,7 +108,7 @@ final class QUICTransfer {
             let clientQUICOptions = QUICStreamProtocol.options()
             clientQUICOptions.tlsOptions = clientTLSOptions
             clientQUICOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.reference)
+            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.identifier)
             if !quicOnly {
                 clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
             } else {
@@ -118,7 +118,7 @@ final class QUICTransfer {
             let clientOutput = storage.createBridgeDatagramInstance()
             let bridgeOptions = BridgeDatagramProtocol.options()
             bridgeOptions.linkDelay = linkDelay
-            bridgeOptions.setProtocolInstance(clientOutput.reference)
+            bridgeOptions.setProtocolInstance(clientOutput.identifier)
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
             let (clientInputInstance, clientInputLinkage) = storage.createNewStreamFlowHarness(
@@ -205,7 +205,7 @@ final class QUICTransfer {
             let (serverIPUpper, serverIPLower) = storage.createIPInstance()
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 3)
-            serverIPOptions.setProtocolInstance(serverIPLower.reference)
+            serverIPOptions.setProtocolInstance(serverIPLower.identifier)
             if !quicOnly {
                 serverParameters.defaultStack.internet = .ip(serverIPOptions)
             }
@@ -214,7 +214,7 @@ final class QUICTransfer {
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
-            serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
+            serverUDPOptions.setProtocolInstance(serverUDPLower.identifier)
             if !quicOnly {
                 serverParameters.defaultStack.transport = .udp(serverUDPOptions)
             }
@@ -228,7 +228,7 @@ final class QUICTransfer {
             let serverQUICOptions = QUICStreamProtocol.options()
             serverQUICOptions.tlsOptions = serverTLSOptions
             serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
+            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.identifier)
             if !quicOnly {
                 serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
             } else {
@@ -238,7 +238,7 @@ final class QUICTransfer {
             let serverOutput = storage.createBridgeDatagramInstance()
             let serverBridgeOptions = BridgeDatagramProtocol.options()
             serverBridgeOptions.linkDelay = linkDelay
-            serverBridgeOptions.setProtocolInstance(serverOutput.reference)
+            serverBridgeOptions.setProtocolInstance(serverOutput.identifier)
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
             let (serverInputInstance, serverInputLinkage) = storage.createNewStreamFlowHarness(
@@ -341,7 +341,7 @@ final class QUICTransfer {
         func readLoop(stream: StreamUpperHarness<TestStreamLinkageFamily>) {
             stream.waitForInboundDataAvailable { state, available in
                 guard available else { return }
-                totalReadSize += stream.readAndDrop(state: &state)
+                totalReadSize += stream.readAndDrop(in: &state)
                 if totalReadSize >= totalExpectedSize {
                     doneSemaphore.signal()
                 } else {
@@ -358,7 +358,7 @@ final class QUICTransfer {
                     // If there is only one inbound read then a read can take place here and that is it.
                     // If there are more data after the first read then a read loop will need to be setup
                     // to observe the rest of the inbound data events.
-                    totalReadSize += serverStream.readAndDrop(state: &state)
+                    totalReadSize += serverStream.readAndDrop(in: &state)
                     if totalReadSize >= totalExpectedSize {
                         doneSemaphore.signal()
                     } else {

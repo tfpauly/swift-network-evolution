@@ -97,14 +97,14 @@ final class QUICStreamLoad {
             let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientIPOptions = IPProtocol.options()
             clientIPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 3)
-            clientIPOptions.setProtocolInstance(clientIPLower.reference)
+            clientIPOptions.setProtocolInstance(clientIPLower.identifier)
             clientParameters.defaultStack.internet = .ip(clientIPOptions)
 
             let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
             clientUDPOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            clientUDPOptions.setProtocolInstance(clientUDPLower.reference)
+            clientUDPOptions.setProtocolInstance(clientUDPLower.identifier)
             clientParameters.defaultStack.transport = .udp(clientUDPOptions)
 
             var (clientQUICStreamListener, _, clientQUICMultipath) = storage.createQUICInstance()
@@ -119,14 +119,14 @@ final class QUICStreamLoad {
             clientQUICOptions.connectionOptions.initialMaxStreamsBidirectional = 100
             clientQUICOptions.connectionOptions.maximumConcurrentBidirectionalStreams = concurrentStreams * 2
             clientQUICOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.reference)
+            clientQUICOptions.setProtocolInstance(clientQUICStreamListener.identifier)
 
             clientParameters.defaultStack.prepend(applicationProtocol: .quic(clientQUICOptions))
 
             let clientOutput = storage.createBridgeDatagramInstance()
             let bridgeOptions = BridgeDatagramProtocol.options()
             bridgeOptions.linkDelay = linkDelay
-            bridgeOptions.setProtocolInstance(clientOutput.reference)
+            bridgeOptions.setProtocolInstance(clientOutput.identifier)
             clientParameters.defaultStack.link = .custom(bridgeOptions)
 
             clientQUICStreamListenerLinkage = clientQUICStreamListener
@@ -184,14 +184,14 @@ final class QUICStreamLoad {
             let (serverIPUpper, serverIPLower) = storage.createIPInstance()
             let serverIPOptions = IPProtocol.options()
             serverIPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 3)
-            serverIPOptions.setProtocolInstance(serverIPLower.reference)
+            serverIPOptions.setProtocolInstance(serverIPLower.identifier)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
             let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 2)
-            serverUDPOptions.setProtocolInstance(serverUDPLower.reference)
+            serverUDPOptions.setProtocolInstance(serverUDPLower.identifier)
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
 
             var (serverQUICStreamListener, _, serverQUICMultipath) = storage.createQUICInstance()
@@ -205,13 +205,13 @@ final class QUICStreamLoad {
             serverQUICOptions.connectionOptions.initialMaxStreamsBidirectional = 100
             serverQUICOptions.connectionOptions.maximumConcurrentBidirectionalStreams = concurrentStreams * 2
             serverQUICOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.reference)
+            serverQUICOptions.setProtocolInstance(serverQUICStreamListener.identifier)
             serverParameters.defaultStack.prepend(applicationProtocol: .quic(serverQUICOptions))
 
             let serverOutput = storage.createBridgeDatagramInstance()
             let serverBridgeOptions = BridgeDatagramProtocol.options()
             serverBridgeOptions.linkDelay = linkDelay
-            serverBridgeOptions.setProtocolInstance(serverOutput.reference)
+            serverBridgeOptions.setProtocolInstance(serverOutput.identifier)
             serverParameters.defaultStack.link = .custom(serverBridgeOptions)
 
             let (serverInputInstance, serverInputLinkage) = storage.createNewStreamFlowHarness(
@@ -331,9 +331,9 @@ final class QUICStreamLoad {
                 // Read on server, respond to client
                 var serverPayloadReceived = false
                 var serverReadDataSize = 0
-                var serverReadCompletion: ((inout NetworkContext.State, Bool) -> Void)? = nil
+                var serverReadCompletion: ((inout NetworkContext.EventContext, Bool) -> Void)? = nil
                 serverReadCompletion = { state, _ in
-                    let readBytes = serverStream.readAndDrop(state: &state)
+                    let readBytes = serverStream.readAndDrop(in: &state)
                     if readBytes > 0 {
                         serverReadDataSize += readBytes
                     }
@@ -342,19 +342,19 @@ final class QUICStreamLoad {
                     }
 
                     if !serverPayloadReceived {
-                        serverStream.waitForInboundDataAvailable(state: &state, completion: serverReadCompletion!)
+                        serverStream.waitForInboundDataAvailable(in: &state, completion: serverReadCompletion!)
                     } else {
                         serverReadCompletion = nil
                         let writeSuccess = serverStream.write(
-                            state: &state,
                             downloadPayload,
                             sendFIN: true,
-                            earlyData: true
+                            earlyData: true,
+                            in: &state
                         )
                         if !writeSuccess {
                             print("Issue took place writing on the server \(myIndex)")
                         }
-                        serverStream.stop(state: &state)
+                        serverStream.stop(in: &state)
                     }
                 }
                 serverReadCompletion!(&newFlowState, true)
@@ -362,9 +362,9 @@ final class QUICStreamLoad {
                 // Read on client
                 var clientPayloadReceived = false
                 var clientReadDataSize = 0
-                var clientReadCompletion: ((inout NetworkContext.State, Bool) -> Void)? = nil
+                var clientReadCompletion: ((inout NetworkContext.EventContext, Bool) -> Void)? = nil
                 clientReadCompletion = { state, _ in
-                    let readBytes = clientStream.readAndDrop(state: &state)
+                    let readBytes = clientStream.readAndDrop(in: &state)
                     if readBytes > 0 {
                         clientReadDataSize += readBytes
                     }
@@ -373,13 +373,13 @@ final class QUICStreamLoad {
                     }
 
                     if !clientPayloadReceived {
-                        clientStream.waitForInboundDataAvailable(state: &state, completion: clientReadCompletion!)
+                        clientStream.waitForInboundDataAvailable(in: &state, completion: clientReadCompletion!)
                     } else {
                         streamRoundTripDurations.append(streamStart.duration(to: .now))
 
                         clientReadCompletion = nil
                         group.leave()
-                        clientStream.stop(state: &state)
+                        clientStream.stop(in: &state)
 
                         // Start the next stream on a fresh hop: it builds new protocol instances,
                         // which is an external entry point and cannot run while this event still
@@ -390,8 +390,8 @@ final class QUICStreamLoad {
                             }
                         }
 
-                        clientStream.teardown(state: &state)
-                        serverStreamToTeardown?.teardown(state: &state)
+                        clientStream.teardown(in: &state)
+                        serverStreamToTeardown?.teardown(in: &state)
                     }
                 }
                 clientReadCompletion!(&newFlowState, true)

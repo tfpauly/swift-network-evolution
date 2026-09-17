@@ -43,12 +43,14 @@ public protocol ProtocolInstance: ~Copyable {
     /// The scheduling context on which the protocol instance must run.
     var context: NetworkContext { get }
 
-    /// A structure that refers to the protocol instance and holds a reference to its containing object.
-    var reference: ProtocolInstanceReference { get }
+    /// A structure that identifies the protocol instance and holds a reference to its containing object.
+    var identifier: InstanceIdentifier { get }
 
     /// An opaque structure that tracks the internal consistency of any protocol.
     var eventManager: ProtocolEventManager { get set }
 }
+
+// TODO: TFPDEBUG add another protocol extension, like the ones below, that just adds a single "teardown(in: inout NetworkContext.EventContext)" function. The implementation unregisters the event manager on the event context. This is to be called by any protocols that are not otherwise torn down explicitly by their linkages. Document that if you have
 
 @available(Network 0.1.0, *)
 extension ProtocolInstance where Self: ~Copyable {
@@ -59,20 +61,20 @@ extension ProtocolInstance where Self: ~Copyable {
     /// and must thread it into any calls made to other protocols.
     ///
     /// This is an external entry point: call it from code outside the protocol stack. If you
-    /// already hold the context state, call the `state:`-taking variant instead so the state
+    /// already hold the context state, call the `in:`-taking variant instead so the state
     /// isn't re-derived from the context.
-    public func async(_ block: @escaping (inout NetworkContext.State) -> Void) {
-        reference.async(context: context, state: &context.state, block)
+    public func async(_ block: @escaping (inout NetworkContext.EventContext) -> Void) {
+        identifier.async(context: context, in: &context.state, block)
     }
 
     /// Schedules an asynchronous block, using an already-acquired context state.
     ///
     /// The block still receives the state that is current when it runs; see `async(_:)`.
     public func async(
-        state: inout NetworkContext.State,
-        _ block: @escaping (inout NetworkContext.State) -> Void
+        in eventContext: inout NetworkContext.EventContext,
+        _ block: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
-        reference.async(context: context, state: &state, block)
+        identifier.async(context: context, in: &eventContext, block)
     }
 
     /// Enters a protocol's execution state from an external source.
@@ -81,20 +83,20 @@ extension ProtocolInstance where Self: ~Copyable {
     /// The block receives the context state, which must be threaded into any calls made to other
     /// protocols so that the state is never re-derived from the context class.
     public func fromExternal<R, E: Error>(
-        _ block: (inout NetworkContext.State) throws(E) -> R
+        _ block: (inout NetworkContext.EventContext) throws(E) -> R
     ) throws(E) -> R {
-        try reference.fromExternal(state: &context.state, block)
+        try identifier.fromExternal(in: &context.state, block)
     }
     public func fromExternal<R: ~Copyable, E: Error>(
-        _ block: (inout NetworkContext.State) throws(E) -> R
+        _ block: (inout NetworkContext.EventContext) throws(E) -> R
     ) throws(E) -> R {
-        try reference.fromExternal(state: &context.state, block)
+        try identifier.fromExternal(in: &context.state, block)
     }
     public func fromExternal<R, T: ~Copyable, E: Error>(
         _ value: consuming T,
-        _ block: (inout NetworkContext.State, consuming T) throws(E) -> R
+        _ block: (inout NetworkContext.EventContext, consuming T) throws(E) -> R
     ) throws(E) -> R {
-        try reference.fromExternal(state: &context.state, value, block)
+        try identifier.fromExternal(value, in: &context.state, block)
     }
 }
 
@@ -108,7 +110,7 @@ public protocol TimerSchedulable: ~Copyable, ProtocolInstance {
     ///
     /// The timer is an entry point into the stack, so the framework acquires the context state
     /// and hands it in. Thread it into any calls made to other protocols.
-    func wakeup(state: inout NetworkContext.State)
+    func wakeup(in eventContext: inout NetworkContext.EventContext)
 
     /// A reference for a timer, which should be initialized as `TimerSchedulable()`
     var timerReference: TimerReference { get }
@@ -121,19 +123,19 @@ extension TimerSchedulable {
     /// This is an external entry point; see `async(_:)`.
     public func scheduleWakeup(milliseconds: UInt64) {
         fromExternal { state in
-            scheduleWakeup(state: &state, milliseconds: milliseconds)
+            scheduleWakeup(milliseconds: milliseconds, in: &state)
         }
     }
 
     /// Schedules a timer wakeup, using an already-acquired context state.
-    public func scheduleWakeup(state: inout NetworkContext.State, milliseconds: UInt64) {
-        reference.scheduleWakeup(
+    public func scheduleWakeup(milliseconds: UInt64, in eventContext: inout NetworkContext.EventContext) {
+        identifier.scheduleWakeup(
             context: context,
-            state: &state,
             milliseconds: milliseconds,
-            timerReference: timerReference
+            timerReference: timerReference,
+            in: &eventContext
         ) { timerState in
-            self.wakeup(state: &timerState)
+            self.wakeup(in: &timerState)
         }
     }
 
@@ -141,12 +143,12 @@ extension TimerSchedulable {
     ///
     /// This is an external entry point; see `async(_:)`.
     public func unscheduleWakeup() {
-        reference.unscheduleWakeup(state: &context.state, timerReference: timerReference)
+        identifier.unscheduleWakeup(timerReference: timerReference, in: &context.state)
     }
 
     /// Unschedules a timer wakeup, using an already-acquired context state.
-    public func unscheduleWakeup(state: inout NetworkContext.State) {
-        reference.unscheduleWakeup(state: &state, timerReference: timerReference)
+    public func unscheduleWakeup(in eventContext: inout NetworkContext.EventContext) {
+        identifier.unscheduleWakeup(timerReference: timerReference, in: &eventContext)
     }
 }
 
@@ -348,7 +350,7 @@ public enum ProtocolInstanceError: Error {
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 extension Parameters {
-    public func applicationOptions(for instance: ProtocolInstanceReference) -> ProtocolStack.ApplicationProtocol? {
+    public func applicationOptions(for instance: InstanceIdentifier) -> ProtocolStack.ApplicationProtocol? {
         let stack = self.defaultStack
         for applicationProtocol in stack.persistentApplication {
             if applicationProtocol.matches(protocolInstance: instance) {
@@ -363,7 +365,7 @@ extension Parameters {
         return nil
     }
 
-    public func transportOptions(for instance: ProtocolInstanceReference) -> ProtocolStack.TransportProtocol? {
+    public func transportOptions(for instance: InstanceIdentifier) -> ProtocolStack.TransportProtocol? {
         let stack = self.defaultStack
         guard let transportProtocol = stack.transport, transportProtocol.matches(protocolInstance: instance) else {
             return nil
@@ -371,7 +373,7 @@ extension Parameters {
         return transportProtocol
     }
 
-    public func internetOptions(for instance: ProtocolInstanceReference) -> ProtocolStack.InternetProtocol? {
+    public func internetOptions(for instance: InstanceIdentifier) -> ProtocolStack.InternetProtocol? {
         let stack = self.defaultStack
         guard let internetProtocol = stack.internet, internetProtocol.matches(protocolInstance: instance) else {
             return nil
@@ -384,7 +386,7 @@ extension Parameters {
         self.defaultStack.protocolOptions(for: identifier)
     }
 
-    internal func protocolOptions(for instance: ProtocolInstanceReference) -> AbstractProtocolOptions? {
+    internal func protocolOptions(for instance: InstanceIdentifier) -> AbstractProtocolOptions? {
         self.defaultStack.protocolOptions(for: instance)
     }
 
@@ -405,7 +407,7 @@ extension Parameters {
     }
     #endif
 
-    public func protocolOptions<T>(for instance: ProtocolInstanceReference) -> ProtocolOptions<T>? {
+    public func protocolOptions<T>(for instance: InstanceIdentifier) -> ProtocolOptions<T>? {
         guard let options = self.protocolOptions(for: instance) else {
             return nil
         }
@@ -424,7 +426,7 @@ extension Parameters {
     }
 
     public func setProtocolInstance(
-        _ instance: ProtocolInstanceReference,
+        _ instance: InstanceIdentifier,
         for handle: UnsafeRawPointer
     ) {
         self.defaultStack.setProtocolInstance(instance, for: handle)
@@ -432,7 +434,7 @@ extension Parameters {
     #endif
 
     #if !NETWORK_NO_SWIFT_QUIC
-    public func quicOptions(for instance: ProtocolInstanceReference) -> ProtocolOptions<QUICProtocol>? {
+    public func quicOptions(for instance: InstanceIdentifier) -> ProtocolOptions<QUICProtocol>? {
         if let applicationProtocol = applicationOptions(for: instance),
             case .quic(let options) = applicationProtocol
         {
@@ -450,7 +452,7 @@ extension Parameters {
     }
     #endif
 
-    public func tlsOptions(for instance: ProtocolInstanceReference) -> ProtocolOptions<SwiftTLSProtocol>? {
+    public func tlsOptions(for instance: InstanceIdentifier) -> ProtocolOptions<SwiftTLSProtocol>? {
         if let applicationProtocol = applicationOptions(for: instance),
             case .swiftTLS(let options) = applicationProtocol
         {
@@ -463,7 +465,7 @@ extension Parameters {
         #endif
     }
 
-    public func udpOptions(for instance: ProtocolInstanceReference) -> ProtocolOptions<UDPProtocol>? {
+    public func udpOptions(for instance: InstanceIdentifier) -> ProtocolOptions<UDPProtocol>? {
         if let transportProtocol = transportOptions(for: instance),
             case .udp(let options) = transportProtocol
         {
@@ -476,7 +478,7 @@ extension Parameters {
         #endif
     }
 
-    public func ipOptions(for instance: ProtocolInstanceReference) -> ProtocolOptions<IPProtocol>? {
+    public func ipOptions(for instance: InstanceIdentifier) -> ProtocolOptions<IPProtocol>? {
         if let internetProtocol = internetOptions(for: instance),
             case .ip(let options) = internetProtocol
         {

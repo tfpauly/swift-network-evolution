@@ -34,7 +34,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     public typealias LinkageType = LinkageFamily.Lower
 
     public private(set) var context: NetworkContext
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
     public var eventManager = ProtocolEventManager()
     public var upper = LinkageFamily.Upper()
     var log = NetworkLoggerState()
@@ -53,7 +53,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
     }
 
     deinit {
@@ -106,12 +106,12 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
         pendingOutputFrames.finalizeAllFramesAsFailed()
     }
 
-    public func connect(state: inout NetworkContext.State) {
+    public func connect(in eventContext: inout NetworkContext.EventContext) {
         guard let socket, let remoteEndpoint,
             case .address(let address) = remoteEndpoint.type
         else {
             log.error("Cannot connect: no socket or remote endpoint")
-            deliverDisconnectedEvent(state: &state, error: .posix(ENOTCONN))
+            deliverDisconnectedEvent(error: .posix(ENOTCONN), in: &eventContext)
             return
         }
 
@@ -127,25 +127,25 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
             case .v6(let addr, _): ip = addr
             default:
                 log.error("Unsupported address family for connect")
-                deliverDisconnectedEvent(state: &state, error: .posix(EAFNOSUPPORT))
+                deliverDisconnectedEvent(error: .posix(EAFNOSUPPORT), in: &eventContext)
                 return
             }
 
             _ = try socket.connectSocket(to: ip, port: remoteEndpoint.port)
         } catch {
             log.error("Failed to connect: \(error)")
-            deliverDisconnectedEvent(state: &state, error: .posix(ECONNREFUSED))
+            deliverDisconnectedEvent(error: .posix(ECONNREFUSED), in: &eventContext)
             return
         }
 
-        deliverConnectedEvent(state: &state)
+        deliverConnectedEvent(in: &eventContext)
     }
 
     // MARK: - BottomDatagramProtocol
 
     public func receiveDatagrams(
-        state: inout NetworkContext.State,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         let result = incomingFrames.drainArray(maximumFrameCount: maximumDatagramCount)
         inputUnacknowledged = false
@@ -157,9 +157,9 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     }
 
     public func getDatagramsToSend(
-        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         // If prior writes are still pending, return nil to apply backpressure
         guard pendingOutputFrames.isEmpty else { return nil }
@@ -172,11 +172,11 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     }
 
     public func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         pendingOutputFrames.add(frames: datagrams)
-        serviceWrites(state: &state)
+        serviceWrites(in: &eventContext)
     }
 
     #if !NETWORK_EMBEDDED
@@ -282,7 +282,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
             if receivedAny {
                 inputUnacknowledged = true
                 fromExternal { state in
-                    upper.deliverInboundDataAvailableEvent(state: &state, reference)
+                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &state)
                 }
                 // If the upper protocol consumed data synchronously during the
                 // notification (via receiveDatagrams clearing inputUnacknowledged),
@@ -324,12 +324,12 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     private func triggerOutboundRoomAvailable() {
         // Notify upper protocol that output room is available
         fromExternal { state in
-            triggerOutboundRoomAvailable(state: &state)
+            triggerOutboundRoomAvailable(in: &state)
         }
     }
 
-    private func triggerOutboundRoomAvailable(state: inout NetworkContext.State) {
-        upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
+    private func triggerOutboundRoomAvailable(in eventContext: inout NetworkContext.EventContext) {
+        upper.deliverOutboundRoomAvailableEvent(from: identifier, in: &eventContext)
     }
 
     private func cancelWriteSource() {
@@ -352,11 +352,11 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
         fromExternal { state in
-            serviceWrites(state: &state)
+            serviceWrites(in: &state)
         }
     }
 
-    private func serviceWrites(state: inout NetworkContext.State) {
+    private func serviceWrites(in eventContext: inout NetworkContext.EventContext) {
         var needsWriteSource = false
         var fatalError: NetworkError? = nil
 
@@ -400,7 +400,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
                 dispatchWriteSource?.suspend()
             }
             if let fatalError {
-                deliverDisconnectedEvent(state: &state, error: fatalError)
+                deliverDisconnectedEvent(error: fatalError, in: &eventContext)
             }
         }
     }
@@ -421,8 +421,8 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
         return result
     }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
-        SocketDatagramProtocol(context: context).reference
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
+        SocketDatagramProtocol(context: context).identifier
     }
 }
 
@@ -449,7 +449,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     public typealias LinkageType = LinkageFamily.Lower
 
     public private(set) var context: NetworkContext
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
     public var eventManager = ProtocolEventManager()
     public var upper = LinkageFamily.Upper()
     var log = NetworkLoggerState()
@@ -478,7 +478,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
 
     init(context: NetworkContext) {
         self.context = context
-        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
     }
 
     deinit {
@@ -533,12 +533,12 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         pendingOutputFrames.finalizeAllFramesAsFailed()
     }
 
-    public func connect(state: inout NetworkContext.State) {
+    public func connect(in eventContext: inout NetworkContext.EventContext) {
         guard let socket, let remoteEndpoint,
             case .address(let address) = remoteEndpoint.type
         else {
             log.error("Cannot connect: no socket or remote endpoint")
-            deliverDisconnectedEvent(state: &state, error: .posix(ENOTCONN))
+            deliverDisconnectedEvent(error: .posix(ENOTCONN), in: &eventContext)
             return
         }
 
@@ -564,7 +564,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             case .v6(let addr, _): ip = addr
             default:
                 log.error("Unsupported address family for connect")
-                deliverDisconnectedEvent(state: &state, error: .posix(EAFNOSUPPORT))
+                deliverDisconnectedEvent(error: .posix(EAFNOSUPPORT), in: &eventContext)
                 return
             }
 
@@ -572,7 +572,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             // Wait for the socket to become writable, then treat as connected.
             let connectedNow = try socket.connectSocket(to: ip, port: remoteEndpoint.port)
             if connectedNow {
-                deliverConnectedEvent(state: &state)
+                deliverConnectedEvent(in: &eventContext)
                 startReadSource()
             } else {
                 isConnecting = true
@@ -583,26 +583,26 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             }
         } catch let error {
             log.error("Failed to connect: \(error)")
-            deliverDisconnectedEvent(state: &state, error: .posix(ECONNREFUSED))
+            deliverDisconnectedEvent(error: .posix(ECONNREFUSED), in: &eventContext)
         }
     }
 
-    public func disconnect(state: inout NetworkContext.State) {
+    public func disconnect(in eventContext: inout NetworkContext.EventContext) {
         if pendingOutputFrames.isEmpty {
             shutdownWrites()
-            deliverDisconnectedEvent(state: &state, error: nil)
+            deliverDisconnectedEvent(error: nil, in: &eventContext)
             return
         }
         pendingDisconnect = true
-        serviceWrites(state: &state)
+        serviceWrites(in: &eventContext)
     }
 
     // MARK: - BottomStreamProtocol
 
     public func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         guard !incomingFrames.isEmpty,
             incomingFrames.unclaimedLength >= minimumBytes || incomingFrames.connectionComplete
@@ -626,7 +626,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     }
 
     public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
         let pending = pendingOutputFrames.unclaimedLength
         if pending >= maximumOutputSize { return 0 }
@@ -634,11 +634,11 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     }
 
     public func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         pendingOutputFrames.add(frames: streamData)
-        serviceWrites(state: &state)
+        serviceWrites(in: &eventContext)
     }
 
     #if !NETWORK_EMBEDDED
@@ -829,7 +829,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
 
             if receivedAny {
                 fromExternal { state in
-                    upper.deliverInboundDataAvailableEvent(state: &state, reference)
+                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &state)
                 }
             }
             // Backpressure on buffered volume: suspend whenever we're over the
@@ -897,12 +897,12 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
 
     private func triggerOutboundRoomAvailable() {
         fromExternal { state in
-            triggerOutboundRoomAvailable(state: &state)
+            triggerOutboundRoomAvailable(in: &state)
         }
     }
 
-    private func triggerOutboundRoomAvailable(state: inout NetworkContext.State) {
-        upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
+    private func triggerOutboundRoomAvailable(in eventContext: inout NetworkContext.EventContext) {
+        upper.deliverOutboundRoomAvailableEvent(from: identifier, in: &eventContext)
     }
 
     private func cancelWriteSource() {
@@ -925,11 +925,11 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
         fromExternal { state in
-            serviceWrites(state: &state)
+            serviceWrites(in: &state)
         }
     }
 
-    private func serviceWrites(state: inout NetworkContext.State) {
+    private func serviceWrites(in eventContext: inout NetworkContext.EventContext) {
         guard !isConnecting else { return }
 
         var shouldShutdownWrite = false
@@ -1011,7 +1011,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
                 waitingForWritable = false
                 dispatchWriteSource?.suspend()
             }
-            deliverDisconnectedEvent(state: &state, error: fatalError)
+            deliverDisconnectedEvent(error: fatalError, in: &eventContext)
             return
         }
 
@@ -1033,7 +1033,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         if pendingDisconnect {
             pendingDisconnect = false
             shutdownWrites()
-            deliverDisconnectedEvent(state: &state, error: nil)
+            deliverDisconnectedEvent(error: nil, in: &eventContext)
         }
     }
 
@@ -1289,8 +1289,8 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         }
     }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
-        SocketStreamProtocol(context: context).reference
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
+        SocketStreamProtocol(context: context).identifier
     }
 }
 

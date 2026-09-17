@@ -141,7 +141,7 @@ public final class QUICBenchmarkUtility {
     /// Builds the client half of a loopback QUIC stack.
     ///
     /// The QUIC instance is created by `storage`, which owns it and hands back the linkages used
-    /// to wire the stack together. `options` must already name the instance's reference, so the
+    /// to wire the stack together. `options` must already name the instance's identifier, so the
     /// caller creates the instance first via `createQUICInstance()`.
     public func createClientEndpoint(
         storage: TestNetworkProtocolStorage,

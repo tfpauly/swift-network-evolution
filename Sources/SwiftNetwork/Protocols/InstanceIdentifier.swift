@@ -12,9 +12,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// A unique identifier of a particular protocol instance that has been instantiated and registered
+/// with a NetworkContext.EventContext. Each protocol in the stack will have one of these, and
+/// this type can be used for comparison and hashing.
 @_spi(Essentials)
 @available(Network 0.1.0, *)
-public struct ProtocolInstanceReference: Hashable {
+public struct InstanceIdentifier: Hashable {
 
     let eventStateIndex: NetworkStateIndex?
 
@@ -29,8 +32,8 @@ public struct ProtocolInstanceReference: Hashable {
         protocolEventStateIndex()
     }
 
-    public mutating func setParentReference(_ parentReference: ProtocolInstanceReference) {
-        parentEventStateIndex = parentReference.eventStateIndex
+    public mutating func setParentInstance(_ parentInstance: InstanceIdentifier) {
+        parentEventStateIndex = parentInstance.eventStateIndex
     }
 
     public init() {
@@ -38,19 +41,19 @@ public struct ProtocolInstanceReference: Hashable {
     }
 
     public init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
-        self.eventStateIndex = eventManager.register(with: context, state: &context.state)
+        self.eventStateIndex = eventManager.register(with: context, in: &context.state)
     }
 
     /// Registers using a context state the caller already holds.
     ///
-    /// Use this instead of `init(context:eventManager:)` when constructing a reference from
+    /// Use this instead of `init(context:eventManager:)` when constructing an identifier from
     /// inside a call that already has the state, so the state isn't re-derived from the context.
     public init(
         eventManager: inout ProtocolEventManager,
         context: NetworkContext,
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        self.eventStateIndex = eventManager.register(with: context, state: &state)
+        self.eventStateIndex = eventManager.register(with: context, in: &eventContext)
     }
 
     public var isNone: Bool {

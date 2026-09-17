@@ -822,7 +822,7 @@ extension FrameStreamSendMetadata: SendableItem {
             if lengthWritten < lengthToSend {
                 // Incomplete write. Save what was transmitted, and record what is left.
                 let writtenStream = TransmittedItems.SentStream(
-                    flowID: stream.identifier,
+                    flowID: stream.flowIdentifier,
                     streamID: stream.streamID!,
                     offset: offset,
                     length: UInt64(lengthWritten),
@@ -846,7 +846,7 @@ extension FrameStreamSendMetadata: SendableItem {
             } else {
                 // Complete write. Save it to transmitted items for a record.
                 let writtenStream = TransmittedItems.SentStream(
-                    flowID: stream.identifier,
+                    flowID: stream.flowIdentifier,
                     streamID: stream.streamID!,
                     offset: offset,
                     length: UInt64(lengthWritten),
@@ -2572,8 +2572,8 @@ struct PendingItems: ~Copyable {
             // Nothing new to send
             return
         }
-        if !streamsToService.contains(newStream.identifier) {
-            streamsToService.append(newStream.identifier)
+        if !streamsToService.contains(newStream.flowIdentifier) {
+            streamsToService.append(newStream.flowIdentifier)
             stream = true
         }
     }
@@ -2583,8 +2583,8 @@ struct PendingItems: ~Copyable {
             // Nothing new to send
             return
         }
-        if !streamsToService.contains(newStream.identifier) {
-            streamsToService.prepend(newStream.identifier)
+        if !streamsToService.contains(newStream.flowIdentifier) {
+            streamsToService.prepend(newStream.flowIdentifier)
             stream = true
         }
     }
@@ -3138,11 +3138,11 @@ struct TransmittedItems: ~Copyable {
     }
 
     func allAcknowledged<Families: LinkageFamilyGroup>(
-        state contextState: inout NetworkContext.State,
         connection: QUICConnection<Families>,
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
-        sentPath: QUICPath<Families>
+        sentPath: QUICPath<Families>,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         if let ackFrame {
             connection.acknowledgedAck(
@@ -3155,11 +3155,11 @@ struct TransmittedItems: ~Copyable {
 
         for i in 0..<sentStreams.count {
             connection.acknowledgedStream(
-                state: &contextState,
                 flowID: sentStreams[i].flowID,
                 offset: sentStreams[i].offset,
                 length: sentStreams[i].length,
-                isFinal: sentStreams[i].isFinal
+                isFinal: sentStreams[i].isFinal,
+                in: &eventContext
             )
         }
         for i in 0..<sentCrypto.count {
@@ -3171,15 +3171,15 @@ struct TransmittedItems: ~Copyable {
         }
 
         for streamReset in streamResets {
-            connection.acknowledgedResetStream(state: &contextState, id: streamReset.streamID)
+            connection.acknowledgedResetStream(id: streamReset.streamID, in: &eventContext)
         }
 
         if let pmtudProbeMSS {
             connection.acknowledgedPMTUDProbe(
-                state: &contextState,
                 on: sentPath,
                 packetNumber: packetNumber,
-                mss: pmtudProbeMSS
+                mss: pmtudProbeMSS,
+                in: &eventContext
             )
         }
 

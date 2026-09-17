@@ -135,7 +135,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             // Accept the checksum=0 packets we inject on inbound so we don't need to compute one.
             udpOptions.ignoreInboundChecksum = true
             udpOptions.setLogID(prefix: "D", parent: "1", protocolLogIDNumber: 1)
-            udpOptions.setProtocolInstance(udpUpper.reference)
+            udpOptions.setProtocolInstance(udpUpper.identifier)
             parameters.defaultStack.transport = .udp(udpOptions)
 
             let (demuxUpper, demuxLower) = storage.createDemuxInstance()
@@ -214,7 +214,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                         mask: patternInput.mask?.span.bytes
                     )
                 }
-                demuxOptions.setProtocolInstance(demuxUpper.reference)
+                demuxOptions.setProtocolInstance(demuxUpper.identifier)
 
                 demuxParameters.defaultStack.append(applicationProtocol: .custom(demuxOptions))
 

@@ -65,7 +65,7 @@ class QUICPathValidationMessageTests: XCTestCase {
 
             let startTime = NetworkClock.Instant.now
             var pendingItems = PendingItems(packetNumberSpace: .applicationData)
-            connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime) }  // should be empty
+            connection.fromExternal { state in path.addPendingItems(&pendingItems, now: startTime, in: &state) }  // should be empty
             XCTAssertTrue(pendingItems.pathChallenges.isEmpty)
             XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 
@@ -75,7 +75,7 @@ class QUICPathValidationMessageTests: XCTestCase {
             XCTAssertEqual(path.pendingOutboundChallenges.count, 0)
             path.handlePathChallenge(1)
             XCTAssertEqual(path.pendingInboundChallenges.count, 1)
-            connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime) }
+            connection.fromExternal { state in path.addPendingItems(&pendingItems, now: startTime, in: &state) }
 
             XCTAssertFalse(pendingItems.pathChallenges.isEmpty)
             XCTAssertFalse(pendingItems.pathResponses.isEmpty)
@@ -89,18 +89,18 @@ class QUICPathValidationMessageTests: XCTestCase {
             pendingItems = PendingItems(packetNumberSpace: .applicationData)  // clear items
             // simulate send on the path before the challenge retransmission time is met
             var interval = NetworkDuration.milliseconds(100)
-            connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime + interval) }
+            connection.fromExternal { state in path.addPendingItems(&pendingItems, now: startTime + interval, in: &state) }
             XCTAssertTrue(pendingItems.pathChallenges.isEmpty)
             XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 
             // simulate a retransmission of the challenge
             interval = NetworkDuration.milliseconds(250)
-            connection.fromExternal { state in path.addPendingItems(state: &state, &pendingItems, now: startTime + interval) }
+            connection.fromExternal { state in path.addPendingItems(&pendingItems, now: startTime + interval, in: &state) }
             XCTAssertFalse(pendingItems.pathChallenges.isEmpty)
             XCTAssertTrue(pendingItems.pathResponses.isEmpty)
 
             connection.fromExternal { state in
-                path.handlePathChallengeResponse(state: &state, outboundChallenge)
+                path.handlePathChallengeResponse(outboundChallenge, in: &state)
             }
             XCTAssertEqual(path.state, .validated)
             XCTAssertEqual(path.pendingOutboundChallenges.count, 0)

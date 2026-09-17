@@ -68,16 +68,16 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     // Completions: called once!
     public struct Completions {
-        public var connected: ((inout NetworkContext.State, Bool) -> Void)?
+        public var connected: ((inout NetworkContext.EventContext, Bool) -> Void)?
         public var disconnected: (() -> Void)?
 
         // true when inbound data is available, false when disconnected. The completion runs
         // inline while the event's context state is held, so it receives that state and must
         // thread it into any reads rather than re-deriving it.
-        public var inboundDataAvailable: ((inout NetworkContext.State, Bool) -> Void)?
+        public var inboundDataAvailable: ((inout NetworkContext.EventContext, Bool) -> Void)?
 
-        public var inboundAborted: ((inout NetworkContext.State, NetworkError?) -> Void)?
-        public var outboundAborted: ((inout NetworkContext.State, NetworkError?) -> Void)?
+        public var inboundAborted: ((inout NetworkContext.EventContext, NetworkError?) -> Void)?
+        public var outboundAborted: ((inout NetworkContext.EventContext, NetworkError?) -> Void)?
         public var error: ((NetworkError) -> Void)?  // invoked when error detected
         public var earlyDataRejected: (() -> Void)?
         public var receivedRemoteTransportParameters: (([UInt8]) -> Void)?
@@ -94,7 +94,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     public fileprivate(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
 
     public var lower = LowerProtocol()
 
@@ -121,13 +121,13 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         self.parameters = parameters
         self.path = path
         log.logPrefix = "[UpperHarness:\(identifier)]"
-        reference = .init(context: context, eventManager: &self.eventManager)
+        self.identifier = .init(context: context, eventManager: &self.eventManager)
     }
 
     /// Creates a harness using a context state the caller already holds.
     ///
     /// Use this when building a harness from inside a call that carries the state, such as
-    /// handling a new inbound flow, so registering the reference doesn't re-derive it.
+    /// handling a new inbound flow, so registering the identifier doesn't re-derive it.
     public required init(
         identifier: String = "",
         local: Endpoint,
@@ -135,7 +135,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) {
         self.context = context
         self.local = local
@@ -143,24 +143,24 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         self.parameters = parameters
         self.path = path
         log.logPrefix = "[UpperHarness:\(identifier)]"
-        reference = .init(eventManager: &self.eventManager, context: context, state: &state)
+        self.identifier = .init(eventManager: &self.eventManager, context: context, in: &eventContext)
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State) {
+    public func handleConnectedEvent(in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, true)
+            completion(&eventContext, true)
         }
     }
 
-    public func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+    public func handleDisconnectedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received disconnected event, error \(error.debugDescription)")
         receivedDisconnected = true
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, false)
+            completion(&eventContext, false)
         }
         if let completion = completions.disconnected {
             completion()
@@ -172,24 +172,24 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         }
 
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
-            inboundDataAvailableCompletion(&state, false)
+            inboundDataAvailableCompletion(&eventContext, false)
             self.completions.inboundDataAvailable = nil
         }
     }
 
-    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
+    public func handleInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
             self.completions.inboundDataAvailable = nil
-            inboundDataAvailableCompletion(&state, true)
+            inboundDataAvailableCompletion(&eventContext, true)
         } else {
             self.inboundDataAvailableReceived = true
         }
     }
 
-    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State) {
+    public func handleOutboundRoomAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
     }
 
-    public func handleNetworkProtocolEvent(state: inout NetworkContext.State, _ event: NetworkProtocolEvent) {
+    public func handleNetworkProtocolEvent(_ event: NetworkProtocolEvent, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received network protocol event: \(event)")
         if let quicEvent = event.quicEvent {
             switch quicEvent {
@@ -212,7 +212,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         invokeConnect()
     }
 
-    public func start(_ completion: @escaping (inout NetworkContext.State, Bool) -> Void) {
+    public func start(_ completion: @escaping (inout NetworkContext.EventContext, Bool) -> Void) {
         self.completions.connected = completion
         start()
     }
@@ -228,8 +228,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     /// Stops using a context state the caller already holds.
-    public func stop(state: inout NetworkContext.State, error: NetworkError? = nil) {
-        invokeDisconnect(state: &state, error: error)
+    public func stop(error: NetworkError? = nil, in eventContext: inout NetworkContext.EventContext) {
+        invokeDisconnect(error: error, in: &eventContext)
     }
 
     public func teardown() {
@@ -245,17 +245,17 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     ///
     /// Completions that run inline while a delivering event holds the state have to use this
     /// rather than `teardown()`.
-    public func teardown(state: inout NetworkContext.State) {
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
         do throws(NetworkError) {
             var mutatingSelf = self
-            try mutatingSelf.invokeDetach(state: &state)
+            try mutatingSelf.invokeDetach(in: &eventContext)
         } catch {
             log.error("Failed to detach lower protocol: \(error)")
         }
     }
 
     public func waitForInboundDataAvailable(
-        completion: @escaping (inout NetworkContext.State, Bool) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, Bool) -> Void
     ) {
         if self.inboundDataAvailableReceived {
             // Received inbound data available, but didn't deliver. Fire now. This is an
@@ -275,12 +275,12 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     /// so `waitForInboundDataAvailable(completion:)` would re-enter it via `fromExternal` when
     /// data had already arrived, and the pending read would be lost.
     public func waitForInboundDataAvailable(
-        state: inout NetworkContext.State,
-        completion: @escaping (inout NetworkContext.State, Bool) -> Void
+        in eventContext: inout NetworkContext.EventContext,
+        completion: @escaping (inout NetworkContext.EventContext, Bool) -> Void
     ) {
         if self.inboundDataAvailableReceived {
             self.inboundDataAvailableReceived = false
-            completion(&state, true)
+            completion(&eventContext, true)
             return
         }
         completions.inboundDataAvailable = completion
@@ -305,15 +305,15 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
         fromExternal { state in
-            getMetadata(state: &state)
+            getMetadata(in: &state)
         }
     }
 
     /// Reads metadata using a context state the caller already holds.
     final public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
-        guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
+        guard let metadata = lower.invokeGetMetadata(for: identifier, in: &eventContext) as? ProtocolMetadata<P> else {
             return nil
         }
         return metadata
@@ -321,7 +321,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
         fromExternal { state in
-            lower.invokeGetMetrics(state: &state, reference, requestedNetworkMetric: requestedNetworkMetric)
+            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &state)
         }
     }
 
@@ -339,7 +339,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
         fromExternal { state in
-            invokeApplicationEvent(state: &state, event)
+            invokeApplicationEvent(event, in: &state)
         }
     }
 
@@ -347,8 +347,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     ///
     /// Completions such as `connected` run inline while the delivering event holds the state, so
     /// they have to use this rather than `invokeApplicationEvent(_:)`.
-    public func invokeApplicationEvent(state: inout NetworkContext.State, _ event: ApplicationEvent) {
-        lower.invokeApplicationEvent(state: &state, reference, event: event)
+    public func invokeApplicationEvent(_ event: ApplicationEvent, in eventContext: inout NetworkContext.EventContext) {
+        lower.invokeApplicationEvent(event: event, for: identifier, in: &eventContext)
     }
 }
 
@@ -357,17 +357,17 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
     public func write(_ datagram: [UInt8]) -> Bool {
         fromExternal { state in
-            write(state: &state, datagram)
+            write(datagram, in: &state)
         }
     }
 
     /// Writes using a context state the caller already holds.
-    public func write(state: inout NetworkContext.State, _ datagram: [UInt8]) -> Bool {
+    public func write(_ datagram: [UInt8], in eventContext: inout NetworkContext.EventContext) -> Bool {
         do throws(NetworkError) {
             let frames = try invokeGetDatagramsToSend(
-                state: &state,
                 maximumDatagramCount: 1,
-                minimumDatagramSize: datagram.count
+                minimumDatagramSize: datagram.count,
+                in: &eventContext
             )
             guard var frames = frames else {
                 log.error("Failed to get datagram to send")
@@ -384,7 +384,7 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
                 }
                 return false
             }
-            try invokeSendDatagrams(state: &state, frames)
+            try invokeSendDatagrams(frames, in: &eventContext)
             return true
         } catch {
             return false
@@ -393,7 +393,7 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
 
     public func read() -> [UInt8]? {
         fromExternal { state in
-            read(state: &state)
+            read(in: &state)
         }
     }
 
@@ -401,9 +401,9 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
     ///
     /// Inbound-data completions run inline while the delivering event holds the state, so they
     /// have to use this rather than `read()`.
-    public func read(state: inout NetworkContext.State) -> [UInt8]? {
+    public func read(in eventContext: inout NetworkContext.EventContext) -> [UInt8]? {
         do throws(NetworkError) {
-            let frames = try invokeReceiveDatagrams(state: &state, maximumDatagramCount: 1)
+            let frames = try invokeReceiveDatagrams(maximumDatagramCount: 1, in: &eventContext)
             guard var frames = frames else {
                 log.debug("Failed to receive datagrams")
                 return nil
@@ -432,22 +432,22 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
 @available(Network 0.1.0, *)
 public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarness<LinkageFamily>, TopStreamProtocol {
 
-    public func handleInboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+    public func handleInboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received inbound aborted event: \(error?.description ?? "no error")")
         self.inboundAborted = true
         self.inboundAbortError = error
         if let inboundAbortedCompletion = self.completions.inboundAborted {
             self.completions.inboundAborted = nil
-            inboundAbortedCompletion(&state, self.inboundAbortError)
+            inboundAbortedCompletion(&eventContext, self.inboundAbortError)
         }
     }
-    public func handleOutboundAbortedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+    public func handleOutboundAbortedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received outbound aborted event: \(error?.description ?? "no error")")
         self.outboundAborted = true
         self.outboundAbortError = error
         if let outboundAbortedCompletion = self.completions.outboundAborted {
             self.completions.outboundAborted = nil
-            outboundAbortedCompletion(&state, self.outboundAbortError)
+            outboundAbortedCompletion(&eventContext, self.outboundAbortError)
         }
     }
 
@@ -457,7 +457,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     var outboundAbortError: NetworkError?
 
     public func waitForInboundAborted(
-        completion: @escaping (inout NetworkContext.State, NetworkError?) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, NetworkError?) -> Void
     ) {
         if self.inboundAborted {
             // Already aborted, so this is an external entry point: acquire the state.
@@ -475,7 +475,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func waitForOutboundAborted(
-        completion: @escaping (inout NetworkContext.State, NetworkError?) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, NetworkError?) -> Void
     ) {
         if self.outboundAborted {
             fromExternal { state in
@@ -493,16 +493,16 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
 
     public func write(_ bytes: [UInt8], sendFIN: Bool = false, earlyData: Bool = false) -> Bool {
         fromExternal { state in
-            write(state: &state, bytes, sendFIN: sendFIN, earlyData: earlyData)
+            write(bytes, sendFIN: sendFIN, earlyData: earlyData, in: &state)
         }
     }
 
     /// Writes using a context state the caller already holds.
     public func write(
-        state: inout NetworkContext.State,
         _ bytes: [UInt8],
         sendFIN: Bool = false,
-        earlyData: Bool = false
+        earlyData: Bool = false,
+        in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         do throws(NetworkError) {
             var frame = Frame(count: bytes.count)
@@ -518,9 +518,9 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
                 frame.connectionComplete = true
             }
             if earlyData {
-                try invokeSendEarlyStreamData(state: &state, .init(frame: frame))
+                try invokeSendEarlyStreamData(.init(frame: frame), in: &eventContext)
             } else {
-                try invokeSendStreamData(state: &state, .init(frame: frame))
+                try invokeSendStreamData(.init(frame: frame), in: &eventContext)
             }
             return true
         } catch {
@@ -532,7 +532,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
 
     public func readAndDrop(upTo maximumBytes: Int = Int.max) -> Int {
         fromExternal { state in
-            readAndDrop(state: &state, upTo: maximumBytes)
+            readAndDrop(upTo: maximumBytes, in: &state)
         }
     }
 
@@ -540,13 +540,13 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     ///
     /// Inbound-data and new-flow completions run inline while the delivering event holds the
     /// state, so they have to use this rather than `readAndDrop(upTo:)`.
-    public func readAndDrop(state: inout NetworkContext.State, upTo maximumBytes: Int = Int.max) -> Int {
+    public func readAndDrop(upTo maximumBytes: Int = Int.max, in eventContext: inout NetworkContext.EventContext) -> Int {
         do throws(NetworkError) {
             guard
                 var frames = try invokeReceiveStreamData(
-                    state: &state,
                     minimumBytes: 1,
-                    maximumBytes: maximumBytes
+                    maximumBytes: maximumBytes,
+                    in: &eventContext
                 )
             else {
                 return 0
@@ -570,7 +570,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
 
     public func read(upTo maximumBytes: Int = Int.max) -> [UInt8]? {
         fromExternal { state in
-            read(state: &state, upTo: maximumBytes)
+            read(upTo: maximumBytes, in: &state)
         }
     }
 
@@ -578,13 +578,13 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     ///
     /// Inbound-data completions run inline while the delivering event holds the state, so they
     /// have to use this rather than `read(upTo:)`.
-    public func read(state: inout NetworkContext.State, upTo maximumBytes: Int = Int.max) -> [UInt8]? {
+    public func read(upTo maximumBytes: Int = Int.max, in eventContext: inout NetworkContext.EventContext) -> [UInt8]? {
         do throws(NetworkError) {
             guard
                 var frames = try invokeReceiveStreamData(
-                    state: &state,
                     minimumBytes: 1,
-                    maximumBytes: maximumBytes
+                    maximumBytes: maximumBytes,
+                    in: &eventContext
                 )
             else {
                 return nil
@@ -619,7 +619,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     public func abortInbound(error: NetworkError?) {
         fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeAbortInbound(state: &state, reference, error: error)
+                try lower.invokeAbortInbound(error: error, for: identifier, in: &state)
             } catch {
                 log.error("Failed to abort inbound: \(error)")
             }
@@ -629,7 +629,7 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     public func abortOutbound(error: NetworkError?) {
         fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeAbortOutbound(state: &state, reference, error: error)
+                try lower.invokeAbortOutbound(error: error, for: identifier, in: &state)
             } catch {
                 log.error("Failed to abort outbound: \(error)")
             }
@@ -646,7 +646,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
     public var upper = UpperProtocol()
 
     public var eventManager = ProtocolEventManager()
@@ -661,7 +661,7 @@ public class LowerHarness<LinkageFamily: DataLinkageFamily>: BottomProtocolHandl
     ) {
         log.logPrefix = "[LowerHarness:\(identifier)]"
         self.context = context
-        reference = .init(context: context, eventManager: &self.eventManager)
+        self.identifier = .init(context: context, eventManager: &self.eventManager)
     }
 
     public func flushPackets() {
@@ -733,8 +733,8 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
     public var maximumOutputSize = 1500
 
     public func receiveDatagrams(
-        state: inout NetworkContext.State,
-        maximumDatagramCount: Int
+        maximumDatagramCount: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         let array = pendingInboundPackets.drainArray(maximumFrameCount: maximumDatagramCount)
         log.debug("Deliver inbound datagram count: \(array.count)")
@@ -742,9 +742,9 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
     }
 
     public func getDatagramsToSend(
-        state: inout NetworkContext.State,
         maximumDatagramCount: Int,
-        minimumDatagramSize: Int
+        minimumDatagramSize: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         let frameSize = min(minimumDatagramSize, self.maximumOutputSize)
         var frameArray = FrameArray(capacity: maximumDatagramCount)
@@ -756,8 +756,8 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
     }
 
     public func sendDatagrams(
-        state: inout NetworkContext.State,
-        _ datagrams: consuming FrameArray
+        _ datagrams: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         pendingOutboundPackets.add(frames: datagrams)
     }
@@ -768,22 +768,22 @@ public class DatagramLowerHarness<LinkageFamily: DatagramLinkageFamily>: LowerHa
 public class StreamLowerHarness<LinkageFamily: StreamLinkageFamily>: LowerHarness<LinkageFamily>, BottomStreamProtocol {
 
     public func receiveStreamData(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
         pendingInboundPackets.drainArray(maximumByteCount: maximumBytes)
     }
 
     public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
         Int.max
     }
 
     public func sendStreamData(
-        state: inout NetworkContext.State,
-        _ streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         pendingOutboundPackets.add(frames: streamData)
     }
@@ -810,7 +810,7 @@ where
     public var log = NetworkLoggerState()
     public private(set) var context: NetworkContext
 
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
     var lower = LowerProtocol()
 
     public var upperHarnesses: [HarnessType] = []
@@ -821,14 +821,14 @@ where
     var path: PathProperties
 
     public struct Completions {
-        var createNewFlowHandler: ((inout NetworkContext.State) -> (HarnessType, HarnessType.LinkageType))?
+        var createNewFlowHandler: ((inout NetworkContext.EventContext) -> (HarnessType, HarnessType.LinkageType))?
         // Runs inline while the delivering event holds the context state, so it takes the
         // state and must thread it into any call back into the stack.
-        public var connected: ((inout NetworkContext.State, Bool) -> Void)?
+        public var connected: ((inout NetworkContext.EventContext, Bool) -> Void)?
         public var disconnected: (() -> Void)?
         // Runs inline while the new-inbound-flow event holds the context state, so the
         // completion receives it and must thread it into any calls on the new flow.
-        var newFlow = Deque<((inout NetworkContext.State) -> Void)>()
+        var newFlow = Deque<((inout NetworkContext.EventContext) -> Void)>()
         public var error: ((NetworkError) -> Void)?  // invoked when error detected
         public init() {}
     }
@@ -847,25 +847,25 @@ where
         return nil
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+    public func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received connected event")
         self.receivedConnected = true
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, true)
+            completion(&eventContext, true)
         }
     }
 
     public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         log.debug("Received disconnected event, \(error?.description ?? "<no error>")")
         receivedDisconnected = true
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, false)
+            completion(&eventContext, false)
         }
         if let completion = completions.disconnected {
             completion()
@@ -878,26 +878,26 @@ where
     }
 
     public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
+        flowInstance: InstanceIdentifier,
+        flowMetadata: AbstractProtocolMetadata?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         log.debug(
-            "Received new inbound flow event with reference \(flowReference) with flowMetadata: \(flowMetadata.debugDescription)"
+            "Received new inbound flow event with instance \(flowInstance) with flowMetadata: \(flowMetadata.debugDescription)"
         )
         guard let createNewFlowHandler = completions.createNewFlowHandler else {
             log.error("Received new inbound flow event but no handler was set")
             return
         }
         do throws(NetworkError) {
-            var (newUpperHarness, upperLinkage) = createNewFlowHandler(&state)
-            newUpperHarness.lower = try lower.invokeAttachUpperProtocolToExistingFlow(upperLinkage, existingFlowReference: flowReference)
+            var (newUpperHarness, upperLinkage) = createNewFlowHandler(&eventContext)
+            newUpperHarness.lower = try lower.invokeAttachUpperProtocolToExistingFlow(upperLinkage, existingFlowInstance: flowInstance)
             upperHarnesses.append(newUpperHarness)
             newUpperHarness.flowMetadata = flowMetadata
-            newUpperHarness.invokeConnect(state: &state)
+            newUpperHarness.invokeConnect(in: &eventContext)
             if let newFlowCompletion = completions.newFlow.popFirst() {
-                newFlowCompletion(&state)
+                newFlowCompletion(&eventContext)
             }
         } catch {
             log.error("Failed to attach new inbound flow")
@@ -909,9 +909,9 @@ where
     public var newInboundCIDEventCount = 0
     public var newOutboundCIDEventCount = 0
     public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         log.debug("Received network protocol event: \(event)")
         #if !NETWORK_NO_SWIFT_QUIC
@@ -932,7 +932,7 @@ where
         upperHarnesses.removeAll()
         fromExternal { state in
             do throws(NetworkError) {
-                try lower.invokeDetach(state: &state, reference)
+                try lower.invokeDetach(for: identifier, in: &state)
                 lower = .init()
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
@@ -947,7 +947,7 @@ where
         parameters: Parameters,
         path: PathProperties,
         context: NetworkContext,
-        createNewFlowHandler: @escaping ((inout NetworkContext.State) -> (HarnessType, HarnessType.LinkageType))
+        createNewFlowHandler: @escaping ((inout NetworkContext.EventContext) -> (HarnessType, HarnessType.LinkageType))
     ) {
         log.logPrefix = "[NewFlowHarness:\(identifier)]"
         self.context = context
@@ -955,7 +955,7 @@ where
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        reference = .init(context: context, eventManager: &self.eventManager)
+        self.identifier = .init(context: context, eventManager: &self.eventManager)
         completions.createNewFlowHandler = createNewFlowHandler
     }
 
@@ -973,11 +973,11 @@ where
 
     public func start() {
         fromExternal { state in
-            lower.invokeConnect(state: &state, reference)
+            lower.invokeConnect(for: identifier, in: &state)
         }
     }
 
-    public func start(_ completion: @escaping (inout NetworkContext.State, Bool) -> Void) {
+    public func start(_ completion: @escaping (inout NetworkContext.EventContext, Bool) -> Void) {
         completions.connected = completion
         start()
     }
@@ -990,12 +990,12 @@ where
 
     public func stop(error: NetworkError? = nil) {
         fromExternal { state in
-            lower.invokeDisconnect(state: &state, reference, error: error)
+            lower.invokeDisconnect(error: error, for: identifier, in: &state)
         }
     }
 
     public func waitForNewFlow(
-        completion: @escaping (inout NetworkContext.State) -> Void
+        completion: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
         completions.newFlow.append(completion)
     }
@@ -1007,21 +1007,21 @@ where
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
         fromExternal { state in
-            lower.invokeApplicationEvent(state: &state, reference, event: event)
+            lower.invokeApplicationEvent(event: event, for: identifier, in: &state)
         }
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
         fromExternal { state in
-            getMetadata(state: &state)
+            getMetadata(in: &state)
         }
     }
 
     /// Reads metadata using a context state the caller already holds.
     final public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
-        guard let metadata = lower.invokeGetMetadata(state: &state, reference) as? ProtocolMetadata<P> else {
+        guard let metadata = lower.invokeGetMetadata(for: identifier, in: &eventContext) as? ProtocolMetadata<P> else {
             return nil
         }
         return metadata
@@ -1029,7 +1029,7 @@ where
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
         fromExternal { state in
-            lower.invokeGetMetrics(state: &state, reference, requestedNetworkMetric: requestedNetworkMetric)
+            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &state)
         }
     }
 }

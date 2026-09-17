@@ -334,7 +334,7 @@ final class SwiftNetworkMultiplexingTests: NetTestCase {
                 upperHarness.start { state, connected in
                     // Send a placeholder event. The completion runs inline with the state held,
                     // so thread it in rather than re-acquiring it.
-                    upperHarness.invokeApplicationEvent(state: &state, .connectionIdle)
+                    upperHarness.invokeApplicationEvent(.connectionIdle, in: &state)
                 }
             }
 

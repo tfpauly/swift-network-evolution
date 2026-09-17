@@ -26,16 +26,16 @@ public protocol UpperProtocolHandler<LowerProtocol>: ~Copyable, ProtocolInstance
         _ lowerProtocol: LowerProtocol,
     ) throws(NetworkError) -> LowerProtocol.PairedUpperLinkage?
 
-    mutating func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    mutating func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext)
     mutating func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
     mutating func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 }
 
@@ -53,28 +53,28 @@ public protocol LowerProtocolHandler<UpperProtocol>: ~Copyable, ProtocolInstance
         path: PathProperties?
     ) throws(NetworkError)
 
-    mutating func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError)
+    mutating func detach(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError)
 
-    mutating func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference)
+    mutating func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext)
     mutating func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 
     mutating func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
+        event: ApplicationEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 
     func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>?
     func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics?
 }

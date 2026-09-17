@@ -383,9 +383,9 @@ public struct TCPProtocol: NetworkProtocol {
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+            self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
-        var reference: ProtocolInstanceReference
+        var identifier: InstanceIdentifier
         var passthroughEvents = false
         var log = NetworkLoggerState()
         var eventManager = ProtocolEventManager()
@@ -398,16 +398,16 @@ public struct TCPProtocol: NetworkProtocol {
         ) throws(NetworkError) {
             throw NetworkError.posix(ENOTSUP)
         }
-        func wakeup(state: inout NetworkContext.State) {}
+        func wakeup(in eventContext: inout NetworkContext.EventContext) {}
         func receiveStreamData(
-            state: inout NetworkContext.State,
             minimumBytes: Int,
-            maximumBytes: Int
+            maximumBytes: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? { nil }
-        func getOutboundStreamDataRoomAvailable(state: inout NetworkContext.State) throws(NetworkError) -> Int { 0 }
+        func getOutboundStreamDataRoomAvailable(in eventContext: inout NetworkContext.EventContext) throws(NetworkError) -> Int { 0 }
         func sendStreamData(
-            state: inout NetworkContext.State,
-            _ streamData: consuming FrameArray
+            _ streamData: consuming FrameArray,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) {}
         #if !NETWORK_EMBEDDED
         var metadata: AbstractProtocolMetadata? { nil }
@@ -419,7 +419,7 @@ public struct TCPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from existing: TCPOptions) -> TCPOptions { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> TCPOptions? { nil }
     public func newPerProtocolMetadata() -> TCPMetadata? { TCPMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? { nil }
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? { nil }
 
     static let identifier = ProtocolIdentifier(name: "tcp", level: .transport, mapping: .oneToOne)
 
@@ -429,7 +429,7 @@ public struct TCPProtocol: NetworkProtocol {
 
     static public func options() -> ProtocolOptions<TCPProtocol> { TCPProtocol.definition.protocolOptions() }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
         TCPProtocol().newProtocolInstance(context: context)!
     }
 }

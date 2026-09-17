@@ -61,7 +61,7 @@ final class MigrationTests: XCTestCase {
             context: .implicitContext
         )
         lower.fromExternal { state in
-            lower.connect(state: &state)
+            lower.connect(in: &state)
         }
         var path = connection.context.onQueue {
             QUICTestPath.makeFromExternal(parent: self.connection)
@@ -88,15 +88,15 @@ final class MigrationTests: XCTestCase {
             let newPath = self.makePath(dcid: Self.newCID, sequenceNumber: 2, validated: true)
 
             self.connection.currentPath = oldPath
-            self.connection.multiplexingPaths[oldPath.identifier] = oldPath
-            self.connection.multiplexingPaths[newPath.identifier] = newPath
-            let oldPathID = oldPath.identifier
+            self.connection.multiplexingPaths[oldPath.pathIdentifier] = oldPath
+            self.connection.multiplexingPaths[newPath.pathIdentifier] = newPath
+            let oldPathID = oldPath.pathIdentifier
 
             self.connection.fromExternal { state in
                 self.connection.migration.migrate(
-                    state: &state,
                     to: newPath,
-                    connection: self.connection
+                    connection: self.connection,
+                    in: &state
                 )
             }
 

@@ -33,17 +33,17 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     // state and must thread it into any call back into the stack. Calling a state-free entry
     // point from inside one of these would re-derive the state and trip exclusivity.
     struct Completions {
-        public var connected: ((inout NetworkContext.State, NetworkError?) -> Void)?
-        public var outputRoomAvailable: ((inout NetworkContext.State) -> Void)?
+        public var connected: ((inout NetworkContext.EventContext, NetworkError?) -> Void)?
+        public var outputRoomAvailable: ((inout NetworkContext.EventContext) -> Void)?
 
         // true when inbound data is available, false when disconnected
-        public var inboundDataAvailable: ((inout NetworkContext.State, Bool) -> Void)?
+        public var inboundDataAvailable: ((inout NetworkContext.EventContext, Bool) -> Void)?
 
         // invoked when error detected
-        public var error: ((inout NetworkContext.State, NetworkError) -> Void)?
+        public var error: ((inout NetworkContext.EventContext, NetworkError) -> Void)?
 
         // invoked when remote peer disconnects
-        public var disconnected: ((inout NetworkContext.State, NetworkError) -> Void)?
+        public var disconnected: ((inout NetworkContext.EventContext, NetworkError) -> Void)?
         public init() {}
     }
     var completions = Completions()
@@ -52,7 +52,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
 
     fileprivate(set) var context: NetworkContext
 
-    let reference: ProtocolInstanceReference
+    let identifier: InstanceIdentifier
     var lower = LowerProtocol()
 
     var eventManager = ProtocolEventManager()
@@ -76,44 +76,44 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
         self.remote = remote
         self.parameters = parameters
         self.path = path
-        reference = .init(context: context, eventManager: &self.eventManager)
+        self.identifier = .init(context: context, eventManager: &self.eventManager)
     }
 
-    func handleConnectedEvent(state: inout NetworkContext.State) {
+    func handleConnectedEvent(in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received connected event")
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, nil)
+            completion(&eventContext, nil)
         }
     }
 
     func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        error: NetworkError?
+        error: NetworkError?,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         log.debug("Received disconnected event")
         let disconnectError = error ?? .posix(ENOTCONN)
         if let completion = completions.connected {
             self.completions.connected = nil
-            completion(&state, disconnectError)
+            completion(&eventContext, disconnectError)
         }
         if let error, let errorCompletion = self.completions.error {
             self.completions.error = nil
-            errorCompletion(&state, error)
+            errorCompletion(&eventContext, error)
         }
 
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
             self.completions.inboundDataAvailable = nil
-            inboundDataAvailableCompletion(&state, false)
+            inboundDataAvailableCompletion(&eventContext, false)
         }
 
         if let disconnectedCompletion = self.completions.disconnected {
             self.completions.disconnected = nil
-            disconnectedCompletion(&state, disconnectError)
+            disconnectedCompletion(&eventContext, disconnectError)
         }
     }
 
-    func handleInboundDataAvailableEvent(state: inout NetworkContext.State) {
+    func handleInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
         log.debug("Received inbound data available event")
         // Clear the slot before invoking: the completion may synchronously
         // re-arm the waiter (when receiveStreamData returns nil because the
@@ -121,17 +121,17 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
         // would clobber that re-registration and drop later notifications.
         if let inboundDataAvailableCompletion = self.completions.inboundDataAvailable {
             self.completions.inboundDataAvailable = nil
-            inboundDataAvailableCompletion(&state, true)
+            inboundDataAvailableCompletion(&eventContext, true)
         }
     }
 
     public func handleOutboundRoomAvailableEvent(
-        state: inout NetworkContext.State,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         log.debug("Received outbound room available event")
         if let completion = self.completions.outputRoomAvailable {
             self.completions.outputRoomAvailable = nil
-            completion(&state)
+            completion(&eventContext)
         }
     }
 
@@ -140,7 +140,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
         invokeConnect()
     }
 
-    public func start(_ completion: @escaping (inout NetworkContext.State, NetworkError?) -> Void) {
+    public func start(_ completion: @escaping (inout NetworkContext.EventContext, NetworkError?) -> Void) {
         self.completions.connected = completion
         start()
     }
@@ -153,7 +153,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     public func teardown() {
         log.debug("Tearing down flow")
         fromExternal { state in
-            teardown(state: &state)
+            teardown(in: &state)
         }
     }
 
@@ -161,9 +161,9 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `teardown()`.
-    public func teardown(state: inout NetworkContext.State) {
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
         do throws(NetworkError) {
-            try lower.invokeDetach(state: &state, reference)
+            try lower.invokeDetach(for: identifier, in: &eventContext)
         } catch {
             log.error("Failed to detach lower protocol: \(error)")
         }
@@ -172,7 +172,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
         // value to the queue so it is released after this call has unwound.
         let oldLower = lower
         lower = .init()
-        state.async { _ = oldLower }
+        eventContext.async { _ = oldLower }
     }
 
     public func abort(error: NetworkError? = nil) {
@@ -181,25 +181,25 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     }
 
     public func waitForOutputRoomAvailable(
-        _ completion: @escaping (inout NetworkContext.State) -> Void
+        _ completion: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
         completions.outputRoomAvailable = completion
     }
 
     public func waitForInboundDataAvailable(
-        completion: @escaping (inout NetworkContext.State, Bool) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, Bool) -> Void
     ) {
         completions.inboundDataAvailable = completion
     }
 
     public func waitForError(
-        completion: @escaping (inout NetworkContext.State, NetworkError) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, NetworkError) -> Void
     ) {
         completions.error = completion
     }
 
     public func waitForDisconnected(
-        completion: @escaping (inout NetworkContext.State, NetworkError) -> Void
+        completion: @escaping (inout NetworkContext.EventContext, NetworkError) -> Void
     ) {
         completions.disconnected = completion
     }
@@ -215,7 +215,7 @@ final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: 
 
     func write(_ datagram: consuming Frame) -> Bool {
         fromExternal(datagram) { state, datagram in
-            write(state: &state, datagram)
+            write(datagram, in: &state)
         }
     }
 
@@ -223,14 +223,14 @@ final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: 
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `write(_:)`.
-    func write(state: inout NetworkContext.State, _ datagram: consuming Frame) -> Bool {
+    func write(_ datagram: consuming Frame, in eventContext: inout NetworkContext.EventContext) -> Bool {
         do throws(NetworkError) {
             let length = datagram.unclaimedLength
             let frames = try lower.invokeGetDatagramsToSend(
-                state: &state,
-                reference,
                 maximumDatagramCount: 1,
-                minimumDatagramSize: length
+                minimumDatagramSize: length,
+                for: identifier,
+                in: &eventContext
             )
             guard var frames = frames else {
                 log.error("Failed to get datagram to send")
@@ -248,7 +248,7 @@ final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: 
                 datagram.finalize(success: true)
                 return false
             }
-            try lower.invokeSendDatagrams(state: &state, reference, datagrams: frames)
+            try lower.invokeSendDatagrams(frames, from: identifier, in: &eventContext)
             return true
         } catch {
             return false
@@ -257,17 +257,17 @@ final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: 
 
     func read() -> [UInt8]? {
         fromExternal { state in
-            read(state: &state)
+            read(in: &state)
         }
     }
 
     /// Reads using a context state the caller already holds.
-    func read(state: inout NetworkContext.State) -> [UInt8]? {
+    func read(in eventContext: inout NetworkContext.EventContext) -> [UInt8]? {
         do throws(NetworkError) {
             let frames = try lower.invokeReceiveDatagrams(
-                state: &state,
-                reference,
-                maximumDatagramCount: 1
+                maximumDatagramCount: 1,
+                for: identifier,
+                in: &eventContext
             )
             guard var frames = frames else {
                 log.debug("Failed to receive datagrams")
@@ -299,37 +299,37 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
     override public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
         fromExternal { state in
-            abort(state: &state, error: error)
+            abort(error: error, in: &state)
         }
     }
 
     /// Aborts using a context state the caller already holds.
-    func abort(state: inout NetworkContext.State, error: NetworkError? = nil) {
+    func abort(error: NetworkError? = nil, in eventContext: inout NetworkContext.EventContext) {
         do throws(NetworkError) {
-            try lower.invokeAbortOutbound(state: &state, reference, error: error)
-            try lower.invokeAbortInbound(state: &state, reference, error: error)
+            try lower.invokeAbortOutbound(error: error, for: identifier, in: &eventContext)
+            try lower.invokeAbortInbound(error: error, for: identifier, in: &eventContext)
         } catch {
             log.error("Failed to abort stream: \(error)")
         }
-        lower.invokeDisconnect(state: &state, reference, error: error)
+        lower.invokeDisconnect(error: error, for: identifier, in: &eventContext)
     }
 
     func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
         try fromExternal { state throws(NetworkError) in
-            try getOutboundStreamDataRoomAvailable(state: &state)
+            try getOutboundStreamDataRoomAvailable(in: &state)
         }
     }
 
     /// Queries outbound room using a context state the caller already holds.
     func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        try lower.invokeGetOutboundStreamDataRoomAvailable(state: &state, self.reference)
+        try lower.invokeGetOutboundStreamDataRoomAvailable(for: self.identifier, in: &eventContext)
     }
 
     func write(_ frame: consuming Frame) -> Bool {
         fromExternal(frame) { state, frame in
-            write(state: &state, frame)
+            write(frame, in: &state)
         }
     }
 
@@ -337,9 +337,9 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `write(_:)`.
-    func write(state: inout NetworkContext.State, _ frame: consuming Frame) -> Bool {
+    func write(_ frame: consuming Frame, in eventContext: inout NetworkContext.EventContext) -> Bool {
         do throws(NetworkError) {
-            try lower.invokeSendStreamData(state: &state, self.reference, streamData: .init(frame: frame))
+            try lower.invokeSendStreamData(.init(frame: frame), from: self.identifier, in: &eventContext)
             return true
         } catch {
             return false
@@ -348,23 +348,23 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
 
     func read(minimumBytes: Int, maximumBytes: Int) -> [UInt8]? {
         fromExternal { state in
-            read(state: &state, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+            read(minimumBytes: minimumBytes, maximumBytes: maximumBytes, in: &state)
         }
     }
 
     /// Reads using a context state the caller already holds.
     func read(
-        state: inout NetworkContext.State,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        in eventContext: inout NetworkContext.EventContext
     ) -> [UInt8]? {
         do throws(NetworkError) {
             guard
                 var frames = try lower.invokeReceiveStreamData(
-                    state: &state,
-                    reference,
                     minimumBytes: minimumBytes,
-                    maximumBytes: maximumBytes
+                    maximumBytes: maximumBytes,
+                    for: identifier,
+                    in: &eventContext
                 )
             else {
                 log.debug("No more stream data available")

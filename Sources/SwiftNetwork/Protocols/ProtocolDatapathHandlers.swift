@@ -16,12 +16,12 @@
 @available(Network 0.1.0, *)
 public protocol InboundDataHandler: ~Copyable, UpperProtocolHandler {
     mutating func handleInboundDataAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
     mutating func handleOutboundRoomAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 }
 

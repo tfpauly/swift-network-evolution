@@ -42,11 +42,11 @@ final class QUICStreamZombieListTests: XCTestCase {
                 let zombie = self.zombieList.find(streamID: streamID)
                 XCTAssertNotNil(zombie)
                 self.zombieList.finalSizeReceived(
-                    state: &state,
                     logIDString: "QUICStreamZombieListTests:\(#function)",
                     streamID: streamID,
                     finalSize: 42,
-                    connection: connection
+                    connection: connection,
+                    in: &state
                 )
                 XCTAssertNil(self.zombieList.find(streamID: streamID))
             }

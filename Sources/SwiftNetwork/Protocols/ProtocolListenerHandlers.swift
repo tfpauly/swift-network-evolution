@@ -16,10 +16,10 @@
 @available(Network 0.1.0, *)
 public protocol InboundFlowHandler: ~Copyable, UpperProtocolHandler {
     func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
+        flowInstance: InstanceIdentifier,
+        flowMetadata: AbstractProtocolMetadata?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     )
 }
 
@@ -40,7 +40,7 @@ public protocol ListenerHandler: ~Copyable, LowerProtocolHandler where UpperProt
     // Attach to an inbound flow
     mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: Flow.UpperProtocol,
-        existingFlowReference: ProtocolInstanceReference
+        existingFlowInstance: InstanceIdentifier
     ) throws(NetworkError) -> Flow.UpperProtocol.PairedLowerLinkage
 }
 
@@ -73,6 +73,6 @@ public protocol HeterogeneousListenerHandler: ~Copyable, ListenerHandler {
     // Attach to an inbound flow
     mutating func attachUpperProtocolToExistingFlow(
         _ upperProtocol: SecondaryFlow.UpperProtocol,
-        existingFlowReference: ProtocolInstanceReference
+        existingFlowInstance: InstanceIdentifier
     ) throws(NetworkError) -> SecondaryFlow.UpperProtocol.PairedLowerLinkage
 }

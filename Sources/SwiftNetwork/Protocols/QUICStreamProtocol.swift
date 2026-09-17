@@ -370,7 +370,7 @@ public struct QUICStreamProtocol: NetworkProtocol {
         QUICStreamOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> QUICStreamMetadata? { QUICStreamMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? { nil }
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? { nil }
 
     static let identifier = ProtocolIdentifier(name: "quic", level: .transport, mapping: .manyToOne)
 
@@ -384,7 +384,7 @@ public struct QUICStreamProtocol: NetworkProtocol {
     static public func metadata() -> ProtocolMetadata<QUICStreamProtocol> {
         QUICStreamProtocol.definition.protocolMetadata()
     }
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
         QUICStreamProtocol().newProtocolInstance(context: context)!
     }
 }

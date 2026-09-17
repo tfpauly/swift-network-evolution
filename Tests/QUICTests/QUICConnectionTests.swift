@@ -37,8 +37,8 @@ final class QUICConnectionTests: XCTestCase {
             NetworkContext.implicitContext.async {
                 self.connection.fromExternal { state in
                     let _ = self.connection.createInboundStreams(
-                        state: &state,
-                        streamID: zeroStreamID
+                        streamID: zeroStreamID,
+                        in: &state
                     )
                 }
             }

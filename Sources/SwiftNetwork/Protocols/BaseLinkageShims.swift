@@ -36,50 +36,50 @@ public struct BaseDatagramUpper: InboundDatagramLinkage, @unchecked Sendable {
 
     init(base: BaseInboundDatagramLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachLowerProtocol(_ lowerProtocol: BaseDatagramLower, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
         try base.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.handleConnectedEvent(state: &state, from)
+    public func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleConnectedEvent(for: instance, in: &eventContext)
     }
 
     public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleDisconnectedEvent(state: &state, from, error: error)
+        base.handleDisconnectedEvent(error: error, for: instance, in: &eventContext)
     }
 
     public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        base.handleNetworkProtocolEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func handleInboundDataAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleInboundDataAvailableEvent(state: &state, from)
+        base.handleInboundDataAvailableEvent(for: instance, in: &eventContext)
     }
 
     public func handleOutboundRoomAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleOutboundRoomAvailableEvent(state: &state, from)
+        base.handleOutboundRoomAvailableEvent(for: instance, in: &eventContext)
     }
 }
 
@@ -94,60 +94,60 @@ public struct BaseDatagramLower: OutboundDatagramLinkage, @unchecked Sendable {
 
     init(base: BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
-    public func receiveDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int) throws(NetworkError) -> FrameArray? {
-        return try base.receiveDatagrams(state: &state, from, maximumDatagramCount: maximumDatagramCount)
+    public func receiveDatagrams(maximumDatagramCount: Int, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) -> FrameArray? {
+        return try base.receiveDatagrams(maximumDatagramCount: maximumDatagramCount, for: instance, in: &eventContext)
     }
 
-    public func getDatagramsToSend(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, maximumDatagramCount: Int, minimumDatagramSize: Int) throws(NetworkError) -> FrameArray? {
-        return try base.getDatagramsToSend(state: &state, from, maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize)
+    public func getDatagramsToSend(maximumDatagramCount: Int, minimumDatagramSize: Int, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) -> FrameArray? {
+        return try base.getDatagramsToSend(maximumDatagramCount: maximumDatagramCount, minimumDatagramSize: minimumDatagramSize, for: instance, in: &eventContext)
     }
 
-    public func sendDatagrams(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, datagrams: consuming FrameArray) throws(NetworkError) {
-        try base.sendDatagrams(state: &state, from, datagrams: datagrams)
+    public func sendDatagrams(_ datagrams: consuming FrameArray, from instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) {
+        try base.sendDatagrams(datagrams, from: instance, in: &eventContext)
     }
 
-    public func isConnected(state: inout NetworkContext.State) -> Bool {
-        return base.isConnected(state: &state)
+    public func isConnected(in eventContext: inout NetworkContext.EventContext) -> Bool {
+        return base.isConnected(in: &eventContext)
     }
 
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.connect(state: &state, from)
+    public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.connect(for: instance, in: &eventContext)
     }
 
-    public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
-        base.disconnect(state: &state, from, error: error)
+    public func disconnect(error: NetworkError?, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.disconnect(error: error, for: instance, in: &eventContext)
     }
 
-    public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-        try base.detach(state: &state, from)
+    public func detach(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) {
+        try base.detach(for: instance, in: &eventContext)
     }
 
-    public func teardown(state: inout NetworkContext.State) {
-        base.teardown(state: &state)
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
+        base.teardown(in: &eventContext)
     }
 
-    public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
-        base.handleApplicationEvent(state: &state, from, event: event)
+    public func handleApplicationEvent(event: ApplicationEvent, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleApplicationEvent(event: event, for: instance, in: &eventContext)
     }
 
-    public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-        return base.getMetadata(state: &state, from)
+    public func getMetadata<P: NetworkProtocol>(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) -> ProtocolMetadata<P>? {
+        return base.getMetadata(for: instance, in: &eventContext)
     }
 
     public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
-        return base.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+        return base.getMetrics(requestedNetworkMetric: requestedNetworkMetric, for: instance, in: &eventContext)
     }
 
     public func invokeAttachUpperProtocol(_ upperProtocol: BaseDatagramUpper, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
@@ -166,13 +166,13 @@ public struct BaseDatagramListener: DatagramListenerLinkage, @unchecked Sendable
 
     init(base: BaseDatagramListenerLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachUpperProtocol(_ upperProtocol: PairedUpperLinkage, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
         try base.invokeAttachUpperProtocol(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
@@ -182,54 +182,54 @@ public struct BaseDatagramListener: DatagramListenerLinkage, @unchecked Sendable
         try base.invokeAttachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
-        return try base.invokeAttachUpperProtocolToExistingFlow(upperProtocol, existingFlowReference: existingFlowReference)
+    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowInstance: InstanceIdentifier) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
+        return try base.invokeAttachUpperProtocolToExistingFlow(upperProtocol, existingFlowInstance: existingFlowInstance)
     }
 
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.connect(state: &state, from)
+    public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.connect(for: instance, in: &eventContext)
     }
 
     public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.disconnect(state: &state, from, error: error)
+        base.disconnect(error: error, for: instance, in: &eventContext)
     }
 
     public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.detach(state: &state, from)
+        try base.detach(for: instance, in: &eventContext)
     }
 
-    public func teardown(state: inout NetworkContext.State) {
-        base.teardown(state: &state)
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
+        base.teardown(in: &eventContext)
     }
 
     public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
+        event: ApplicationEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleApplicationEvent(state: &state, from, event: event)
+        base.handleApplicationEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
-        return base.getMetadata(state: &state, from)
+        return base.getMetadata(for: instance, in: &eventContext)
     }
 
     public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
-        return base.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+        return base.getMetrics(requestedNetworkMetric: requestedNetworkMetric, for: instance, in: &eventContext)
     }
 }
 
@@ -245,45 +245,45 @@ public struct BaseDatagramInboundFlow: InboundDatagramFlowLinkage, @unchecked Se
 
     init(base: BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachLowerProtocol(_ lowerProtocol: BaseDatagramListener, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) {
         try base.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.handleConnectedEvent(state: &state, from)
+    public func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleConnectedEvent(for: instance, in: &eventContext)
     }
 
     public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleDisconnectedEvent(state: &state, from, error: error)
+        base.handleDisconnectedEvent(error: error, for: instance, in: &eventContext)
     }
 
     public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        base.handleNetworkProtocolEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
+        flowInstance: InstanceIdentifier,
+        flowMetadata: AbstractProtocolMetadata?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNewInboundFlowEvent(state: &state, from, flowReference: flowReference, flowMetadata: flowMetadata)
+        base.handleNewInboundFlowEvent(flowInstance: flowInstance, flowMetadata: flowMetadata, for: instance, in: &eventContext)
     }
 }
 
@@ -298,13 +298,13 @@ public struct BaseDatagramMultipath: DatagramMultipathLinkage, @unchecked Sendab
 
     init(base: BaseDatagramMultipathLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
 
     public func invokeAttachLowerProtocolForNewPath(
@@ -329,13 +329,13 @@ public struct BaseStreamUpper: InboundStreamLinkage, @unchecked Sendable {
 
     init(base: BaseInboundStreamLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachLowerProtocol(
         _ lowerProtocol: BaseStreamLower,
@@ -347,54 +347,54 @@ public struct BaseStreamUpper: InboundStreamLinkage, @unchecked Sendable {
         try base.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.handleConnectedEvent(state: &state, from)
+    public func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleConnectedEvent(for: instance, in: &eventContext)
     }
 
     public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleDisconnectedEvent(state: &state, from, error: error)
+        base.handleDisconnectedEvent(error: error, for: instance, in: &eventContext)
     }
 
     public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        base.handleNetworkProtocolEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func handleInboundDataAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleInboundDataAvailableEvent(state: &state, from)
+        base.handleInboundDataAvailableEvent(for: instance, in: &eventContext)
     }
 
     public func handleOutboundRoomAvailableEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleOutboundRoomAvailableEvent(state: &state, from)
+        base.handleOutboundRoomAvailableEvent(for: instance, in: &eventContext)
     }
 
     public func handleInboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleInboundAbortedEvent(state: &state, from, error: error)
+        base.handleInboundAbortedEvent(error: error, for: instance, in: &eventContext)
     }
 
     public func handleOutboundAbortedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleOutboundAbortedEvent(state: &state, from, error: error)
+        base.handleOutboundAbortedEvent(error: error, for: instance, in: &eventContext)
     }
 }
 
@@ -409,96 +409,96 @@ public struct BaseStreamLower: OutboundStreamLinkage, @unchecked Sendable {
 
     init(base: BaseOutboundStreamLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        return try base.receiveStreamData(state: &state, from, minimumBytes: minimumBytes, maximumBytes: maximumBytes)
+        return try base.receiveStreamData(minimumBytes: minimumBytes, maximumBytes: maximumBytes, for: instance, in: &eventContext)
     }
 
     public func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        return try base.getOutboundStreamDataRoomAvailable(state: &state, from)
+        return try base.getOutboundStreamDataRoomAvailable(for: instance, in: &eventContext)
     }
 
     public func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.sendStreamData(state: &state, from, streamData: streamData)
+        try base.sendStreamData(streamData, from: instance, in: &eventContext)
     }
 
     public func sendEarlyStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.sendEarlyStreamData(state: &state, from, streamData: streamData)
+        try base.sendEarlyStreamData(streamData, from: instance, in: &eventContext)
     }
 
     public func abortInbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.abortInbound(state: &state, from, error: error)
+        try base.abortInbound(error: error, for: instance, in: &eventContext)
     }
 
     public func abortOutbound(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.abortOutbound(state: &state, from, error: error)
+        try base.abortOutbound(error: error, for: instance, in: &eventContext)
     }
 
-    public func isConnected(state: inout NetworkContext.State) -> Bool {
-        return base.isConnected(state: &state)
+    public func isConnected(in eventContext: inout NetworkContext.EventContext) -> Bool {
+        return base.isConnected(in: &eventContext)
     }
 
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.connect(state: &state, from)
+    public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.connect(for: instance, in: &eventContext)
     }
 
-    public func disconnect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, error: NetworkError?) {
-        base.disconnect(state: &state, from, error: error)
+    public func disconnect(error: NetworkError?, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.disconnect(error: error, for: instance, in: &eventContext)
     }
 
-    public func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-        try base.detach(state: &state, from)
+    public func detach(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) {
+        try base.detach(for: instance, in: &eventContext)
     }
 
-    public func teardown(state: inout NetworkContext.State) {
-        base.teardown(state: &state)
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
+        base.teardown(in: &eventContext)
     }
 
-    public func handleApplicationEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference, event: ApplicationEvent) {
-        base.handleApplicationEvent(state: &state, from, event: event)
+    public func handleApplicationEvent(event: ApplicationEvent, for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleApplicationEvent(event: event, for: instance, in: &eventContext)
     }
 
-    public func getMetadata<P: NetworkProtocol>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>? {
-        return base.getMetadata(state: &state, from)
+    public func getMetadata<P: NetworkProtocol>(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) -> ProtocolMetadata<P>? {
+        return base.getMetadata(for: instance, in: &eventContext)
     }
 
     public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
-        return base.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+        return base.getMetrics(requestedNetworkMetric: requestedNetworkMetric, for: instance, in: &eventContext)
     }
 
     public func invokeAttachUpperProtocol(
@@ -523,13 +523,13 @@ public struct BaseStreamListener: StreamListenerLinkage, @unchecked Sendable {
 
     init(base: BaseStreamListenerLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachUpperProtocol(
         _ upperProtocol: PairedUpperLinkage,
@@ -545,54 +545,54 @@ public struct BaseStreamListener: StreamListenerLinkage, @unchecked Sendable {
         try base.invokeAttachUpperProtocolToNewFlow(upperProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowReference: ProtocolInstanceReference) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
-        return try base.invokeAttachUpperProtocolToExistingFlow(upperProtocol, existingFlowReference: existingFlowReference)
+    public func invokeAttachUpperProtocolToExistingFlow(_ upperProtocol: PairedUpperLinkage.DataLinkage.PairedUpperLinkage, existingFlowInstance: InstanceIdentifier) throws(NetworkError) -> PairedUpperLinkage.DataLinkage {
+        return try base.invokeAttachUpperProtocolToExistingFlow(upperProtocol, existingFlowInstance: existingFlowInstance)
     }
 
-    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.connect(state: &state, from)
+    public func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.connect(for: instance, in: &eventContext)
     }
 
     public func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.disconnect(state: &state, from, error: error)
+        base.disconnect(error: error, for: instance, in: &eventContext)
     }
 
     public func detach(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        try base.detach(state: &state, from)
+        try base.detach(for: instance, in: &eventContext)
     }
 
-    public func teardown(state: inout NetworkContext.State) {
-        base.teardown(state: &state)
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {
+        base.teardown(in: &eventContext)
     }
 
     public func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
+        event: ApplicationEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleApplicationEvent(state: &state, from, event: event)
+        base.handleApplicationEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func getMetadata<P: NetworkProtocol>(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
-        return base.getMetadata(state: &state, from)
+        return base.getMetadata(for: instance, in: &eventContext)
     }
 
     public func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
-        return base.getMetrics(state: &state, from, requestedNetworkMetric: requestedNetworkMetric)
+        return base.getMetrics(requestedNetworkMetric: requestedNetworkMetric, for: instance, in: &eventContext)
     }
 }
 
@@ -608,13 +608,13 @@ public struct BaseStreamInboundFlow: InboundStreamFlowLinkage, @unchecked Sendab
 
     init(base: BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup>) { self.base = base }
 
-    public var reference: ProtocolInstanceReference { base.reference }
+    public var identifier: InstanceIdentifier { base.identifier }
 
     public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
-        lhs.reference == rhs.reference
+        lhs.identifier == rhs.identifier
     }
 
-    public func hash(into hasher: inout Hasher) { hasher.combine(reference) }
+    public func hash(into hasher: inout Hasher) { hasher.combine(identifier) }
 
     public func invokeAttachLowerProtocol(
         _ lowerProtocol: BaseStreamListener,
@@ -626,32 +626,32 @@ public struct BaseStreamInboundFlow: InboundStreamFlowLinkage, @unchecked Sendab
         try base.invokeAttachLowerProtocol(lowerProtocol, remote: remote, local: local, parameters: parameters, path: path)
     }
 
-    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        base.handleConnectedEvent(state: &state, from)
+    public func handleConnectedEvent(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        base.handleConnectedEvent(for: instance, in: &eventContext)
     }
 
     public func handleDisconnectedEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleDisconnectedEvent(state: &state, from, error: error)
+        base.handleDisconnectedEvent(error: error, for: instance, in: &eventContext)
     }
 
     public func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        base.handleNetworkProtocolEvent(event: event, for: instance, in: &eventContext)
     }
 
     public func handleNewInboundFlowEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        flowReference: ProtocolInstanceReference,
-        flowMetadata: AbstractProtocolMetadata?
+        flowInstance: InstanceIdentifier,
+        flowMetadata: AbstractProtocolMetadata?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
-        base.handleNewInboundFlowEvent(state: &state, from, flowReference: flowReference, flowMetadata: flowMetadata)
+        base.handleNewInboundFlowEvent(flowInstance: flowInstance, flowMetadata: flowMetadata, for: instance, in: &eventContext)
     }
 }

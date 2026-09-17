@@ -1178,7 +1178,7 @@ public struct QUICConnectionProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from existing: QUICConnectionOptions) -> QUICConnectionOptions { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> QUICConnectionOptions? { nil }
     public func newPerProtocolMetadata() -> QUICConnectionMetadata? { QUICConnectionMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? { nil }
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? { nil }
 
     static let identifier = ProtocolIdentifier(name: "quic-connection", level: .transport, mapping: .manyToOne)
 

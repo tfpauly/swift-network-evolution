@@ -60,7 +60,7 @@ final class QUICHandshake {
                     parent: "1",
                     protocolLogIDNumber: 1
                 )
-                clientOptions.setProtocolInstance(clientStreamListener.reference)
+                clientOptions.setProtocolInstance(clientStreamListener.identifier)
 
                 let (serverStreamListener, _, serverMultipath) = storage.createQUICInstance()
                 let serverOptions = self.quicBenchmarkUtility.createQUICTestOptions(server: true, datagram: false)
@@ -69,7 +69,7 @@ final class QUICHandshake {
                     parent: "1",
                     protocolLogIDNumber: 1
                 )
-                serverOptions.setProtocolInstance(serverStreamListener.reference)
+                serverOptions.setProtocolInstance(serverStreamListener.identifier)
 
                 // Create endpoints
                 guard

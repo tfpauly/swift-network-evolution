@@ -110,10 +110,10 @@ public struct UDPProtocol: NetworkProtocol {
         private(set) var context: NetworkContext
         init(context: NetworkContext) {
             self.context = context
-            self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+            self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
 
-        var reference: ProtocolInstanceReference
+        var identifier: InstanceIdentifier
 
         var log = NetworkLoggerState()
 
@@ -289,13 +289,13 @@ public struct UDPProtocol: NetworkProtocol {
         }
 
         mutating func receiveDatagrams(
-            state: inout NetworkContext.State,
-            maximumDatagramCount: Int
+            maximumDatagramCount: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? {
             repeat {
                 guard var frameArray = try invokeReceiveDatagrams(
-                    state: &state,
-                    maximumDatagramCount: maximumDatagramCount
+                    maximumDatagramCount: maximumDatagramCount,
+                    in: &eventContext
                 ),
                     frameArray.count > 0
                 else {
@@ -393,9 +393,9 @@ public struct UDPProtocol: NetworkProtocol {
         }
 
         mutating func getDatagramsToSend(
-            state: inout NetworkContext.State,
             maximumDatagramCount: Int,
-            minimumDatagramSize: Int
+            minimumDatagramSize: Int,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) -> FrameArray? {
             if self.flags.contains(.flowControlled) {
                 // Wait until UDP flow is allowed
@@ -404,9 +404,9 @@ public struct UDPProtocol: NetworkProtocol {
             }
 
             var outputFrames = try invokeGetDatagramsToSend(
-                state: &state,
                 maximumDatagramCount: maximumDatagramCount,
-                minimumDatagramSize: incrementByUDPHeaderLength(minimumDatagramSize)
+                minimumDatagramSize: incrementByUDPHeaderLength(minimumDatagramSize),
+                in: &eventContext
             )
             outputFrames?.iterateMutableFrames { frame in
                 _ = frame.claim(fromStart: UDPProtocol.headerLength)
@@ -417,8 +417,8 @@ public struct UDPProtocol: NetworkProtocol {
         }
 
         mutating func sendDatagrams(
-            state: inout NetworkContext.State,
-            _ datagrams: consuming FrameArray
+            _ datagrams: consuming FrameArray,
+            in eventContext: inout NetworkContext.EventContext
         ) throws(NetworkError) {
             datagrams.iterateMutableFrames { frame in
                 recordStatsEvent(stat: .outboundPackets)
@@ -502,7 +502,7 @@ public struct UDPProtocol: NetworkProtocol {
                 return .continueIterating
             }
 
-            return try invokeSendDatagrams(state: &state, datagrams)
+            return try invokeSendDatagrams(datagrams, in: &eventContext)
         }
 
         #if !NETWORK_EMBEDDED
@@ -515,9 +515,9 @@ public struct UDPProtocol: NetworkProtocol {
         }
 
         mutating func handleDisconnectedEvent(
-            state: inout NetworkContext.State,
-            _ from: ProtocolInstanceReference,
-            error: NetworkError?
+            error: NetworkError?,
+            for instance: InstanceIdentifier,
+            in eventContext: inout NetworkContext.EventContext
         ) {
             recordStatsEvent(stat: .clear)
         }
@@ -533,7 +533,7 @@ public struct UDPProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> UDPMetadata? { UDPMetadata() }
 
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
         nil
     }
 
@@ -545,13 +545,11 @@ public struct UDPProtocol: NetworkProtocol {
 
     static public func options() -> ProtocolOptions<UDPProtocol> { UDPProtocol.definition.protocolOptions() }
 
-    static public func instance(context: NetworkContext) -> ProtocolInstanceReference {
+    static public func instance(context: NetworkContext) -> InstanceIdentifier {
         UDPProtocol().newProtocolInstance(context: context)!
     }
 
-    // TODO: TFPDEBUG Remove this?
     static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
-        let reference = UDPProtocol().newProtocolInstance(context: context)!
         return (UpperLinkage(), LowerLinkage())
     }
 }

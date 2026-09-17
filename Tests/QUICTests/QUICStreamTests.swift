@@ -44,7 +44,7 @@ final class QUICStreamTests: XCTestCase {
         connection.context.onQueue {
             let streamFrame = FrameStreamReceived(id: 0, offset: 0, data: [], isFinal: true)
             let result = connection.fromExternal(streamFrame) { state, frame in
-                stream.processIncomingStream(state: &state, connection: connection, frame: frame)
+                stream.processIncomingStream(connection: connection, frame: frame, in: &state)
             }
             XCTAssertTrue(result)
         }
@@ -58,8 +58,8 @@ final class QUICStreamTests: XCTestCase {
             XCTAssertTrue(stream.flowControlState.outboundMaxData == 1024)
             connection.fromExternal { state in
                 stream.processIncomingMaxStreamData(
-                    state: &state,
-                    remoteMaxStreamData: maxStreamDataFrame.max
+                    remoteMaxStreamData: maxStreamDataFrame.max,
+                    in: &state
                 )
             }
             XCTAssertTrue(stream.flowControlState.outboundMaxData == 2048)

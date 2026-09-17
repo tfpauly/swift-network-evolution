@@ -111,7 +111,7 @@ extension EndpointFlow {
                     } else {
                         transportLower = self.storage.createSocketStreamInstance()
                     }
-                    options.setProtocolInstance(transportLower.reference)
+                    options.setProtocolInstance(transportLower.identifier)
                     let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -136,7 +136,7 @@ extension EndpointFlow {
                     )
                 case .udp(let options):
                     let (udpUpper, udpLower) = self.storage.createUDPInstance()
-                    options.setProtocolInstance(udpUpper.reference)
+                    options.setProtocolInstance(udpUpper.identifier)
                     let flow = try DatagramEndpointFlowProtocol<BaseDatagramLinkageFamily>(
                         identifier: String(self.identifier),
                         local: effectiveLocalEndpoint,
@@ -196,10 +196,10 @@ extension EndpointFlow {
                 case .quic(let options):
                     let (quicStreamListener, _, quicMultipath) = self.storage.createQUICInstance()
 
-                    self.quicConnectionReference = quicStreamListener.reference
+                    self.quicConnectionInstance = quicStreamListener.identifier
                     self.quicStreamListenerLinkage = quicStreamListener
 
-                    options.setProtocolInstance(quicStreamListener.reference)
+                    options.setProtocolInstance(quicStreamListener.identifier)
                     options.setLogID(
                         prefix: "C",
                         parent: String(self.identifier),
@@ -310,10 +310,10 @@ extension EndpointFlow {
                 } else if stack.applicationProtocols.count == 1 {
                     switch stack.applicationProtocols.first {
                     case .swiftTLS(let options):
-                        guard let reference = TLSProtocol().newProtocolInstance(context: context) else {
+                        guard let identifier = TLSProtocol().newProtocolInstance(context: context) else {
                             throw NetworkError.posix(EINVAL)
                         }
-                        options.setProtocolInstance(reference)
+                        options.setProtocolInstance(identifier)
                         let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
                             identifier: String(self.identifier),
                             local: effectiveLocalEndpoint,
@@ -343,10 +343,10 @@ extension EndpointFlow {
         switch self.flowProtocol {
         case .stream(let flow):
             flow.waitForDisconnected { error in self.state = .failed(error) }
-            flow.start(self.startCompleted)
+            flow.start { state, connectedError in self.startCompleted(connectedError, in: &state) }
         case .datagram(let flow):
             flow.waitForDisconnected { error in self.state = .failed(error) }
-            flow.start(self.startCompleted)
+            flow.start { state, connectedError in self.startCompleted(connectedError, in: &state) }
         case .none:
             Logger.connection.error("No current flow")
             throw NetworkError.posix(EINVAL)

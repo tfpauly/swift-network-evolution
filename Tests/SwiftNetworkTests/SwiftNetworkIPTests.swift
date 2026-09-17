@@ -480,7 +480,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let path = PathProperties(parameters: parameters)
 
             let (ipUpper, ipLower) = storage.createIPInstance()
-            let reference = ipUpper.reference
+            let identifier = ipUpper.identifier
             let ipOptions = IPProtocol.options()
             ipOptions.dscpValue = dscpValue
             if corrumptChecksum {
@@ -490,7 +490,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 ipOptions.hopLimit = ttl
             }
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            ipOptions.setProtocolInstance(reference)
+            ipOptions.setProtocolInstance(identifier)
             parameters.defaultStack.internet = .ip(ipOptions)
 
             let udpOptions = UDPProtocol.options()
@@ -939,7 +939,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 .union(.fragmentationEnabledOverridden)
                 .union(.fragmentationEnabled)
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            ipOptions.setProtocolInstance(ipUpper.reference)
+            ipOptions.setProtocolInstance(ipUpper.identifier)
             parameters.defaultStack.internet = .ip(ipOptions)
 
             let udpOptions = UDPProtocol.options()
@@ -1058,7 +1058,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 .union(.fragmentationEnabledOverridden)
                 .union(.fragmentationEnabled)
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 2)
-            ipOptions.setProtocolInstance(ipUpper.reference)
+            ipOptions.setProtocolInstance(ipUpper.identifier)
             parameters.defaultStack.internet = .ip(ipOptions)
 
             let udpOptions = UDPProtocol.options()
@@ -1166,7 +1166,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let (ipUpper, ipLower) = storage.createIPInstance()
             let ipOptions = IPProtocol.options()
             ipOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: logIDNumber)
-            ipOptions.setProtocolInstance(ipUpper.reference)
+            ipOptions.setProtocolInstance(ipUpper.identifier)
             parameters.defaultStack.internet = .ip(ipOptions)
 
             let udpOptions = UDPProtocol.options()
@@ -1230,7 +1230,7 @@ final class SwiftNetworkIPTests: NetTestCase {
             let (clientIPUpper, clientIPLower) = storage.createIPInstance()
             let clientOptions = IPProtocol.options()
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientOptions.setProtocolInstance(clientIPLower.reference)
+            clientOptions.setProtocolInstance(clientIPLower.identifier)
             clientParameters.defaultStack.internet = .ip(clientOptions)
 
             let (clientUpperHarness, clientUpperHarnessLinkage) = storage.createDatagramUpperHarness(
@@ -1262,7 +1262,7 @@ final class SwiftNetworkIPTests: NetTestCase {
 
             let serverOptions = IPProtocol.options()
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverOptions.setProtocolInstance(serverIPUpper.reference)
+            serverOptions.setProtocolInstance(serverIPUpper.identifier)
             serverParameters.defaultStack.internet = .ip(serverOptions)
 
             let (serverUpperHarness, serverUpperHarnessLinkage) = storage.createDatagramUpperHarness(

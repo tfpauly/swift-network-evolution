@@ -60,7 +60,7 @@ enum QUICCryptoConstants {
 final class QUICCrypto<Families: LinkageFamilyGroup> {
     var eventManager = ProtocolEventManager()
 
-    var reference: ProtocolInstanceReference
+    var identifier: InstanceIdentifier
 
     var tlsInstance: SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>!
 
@@ -96,12 +96,12 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
     var enableEarlyData = false
 
     init() {
-        reference = .init()
+        identifier = .init()
         tlsInstance = nil
     }
 
     init(context: NetworkContext) {
-        reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>(
             context: context,
             quicCrypto: self
@@ -111,23 +111,23 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
     /// Registers using a context state the caller already holds, so the state isn't re-derived
     /// from the context. Use this when replacing the crypto instance from inside the stack, such
     /// as when restarting the handshake after version negotiation or a retry.
-    init(context: NetworkContext, state: inout NetworkContext.State) {
-        reference = ProtocolInstanceReference(
+    init(context: NetworkContext, in eventContext: inout NetworkContext.EventContext) {
+        identifier = InstanceIdentifier(
             eventManager: &self.eventManager,
             context: context,
-            state: &state
+            in: &eventContext
         )
         tlsInstance = SwiftTLSProtocol.SwiftTLSQUICOnlyInstance<Families>(
             context: context,
-            state: &state,
-            quicCrypto: self
+            quicCrypto: self,
+            in: &eventContext
         )
     }
 
     func start(
-        state: inout NetworkContext.State,
         with parentConnection: QUICConnection<Families>,
-        tlsOptions inputTLSOptions: SwiftTLSProtocol.Options
+        tlsOptions inputTLSOptions: SwiftTLSProtocol.Options,
+        in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         self.parentConnection = parentConnection
 
@@ -150,7 +150,7 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
             parent: parentConnection.logIDString,
             protocolLogIDNumber: 0
         )
-        tlsOptions.setProtocolInstance(tlsInstance.reference)
+        tlsOptions.setProtocolInstance(tlsInstance.identifier)
         tlsOptions.perProtocolOptions = mutableTLSOptions
 
         var tlsParameters = Parameters()
@@ -173,17 +173,17 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
             parentConnection.log.error("Failed to attach TLS protocol")
             return false
         }
-        self.tlsLinkage?.invokeConnect(state: &state, reference)
+        self.tlsLinkage?.invokeConnect(for: identifier, in: &eventContext)
         return true
     }
 
     /// Stops using a context state the caller already holds.
-    func stop(state: inout NetworkContext.State) {
+    func stop(in eventContext: inout NetworkContext.EventContext) {
         guard self.parentConnection != nil else {
             // Already stopped, ignore
             return
         }
-        try? self.tlsLinkage?.invokeDetach(state: &state, reference)
+        try? self.tlsLinkage?.invokeDetach(for: identifier, in: &eventContext)
         tlsLinkage = .init()
 
         initialInboundData.finalizeAllFramesAsFailed()
@@ -207,12 +207,12 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
         }
     }
 
-    func sendAtLevel(state: inout NetworkContext.State, _ level: PacketNumberSpace) {
+    func sendAtLevel(_ level: PacketNumberSpace, in eventContext: inout NetworkContext.EventContext) {
         guard let parentConnection else {
             return
         }
         markSendPending(level, on: parentConnection)
-        guard parentConnection.sendFrames(state: &state) else {
+        guard parentConnection.sendFrames(in: &eventContext) else {
             parentConnection.log.error("Unable to send Crypto Frames")
             return
         }
@@ -235,10 +235,10 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
 @available(Network 0.1.0, *)
 extension QUICCrypto {
     func updateSecret(
-        state: inout NetworkContext.State,
         _ secret: [UInt8],
         for level: SwiftTLSOptions.EncryptionLevel,
-        isWrite: Bool
+        isWrite: Bool,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         guard let parentConnection else { return }
         parentConnection.log.debug(
@@ -284,12 +284,12 @@ extension QUICCrypto {
             parentConnection.log.debug("Signaling availability of early data")
 
             parentConnection.setupFlowControl(
-            state: &state,
-            remoteTransportParameters: remoteTransportParameters
+            remoteTransportParameters: remoteTransportParameters,
+            in: &eventContext
         )
 
             parentConnection.earlyDataSignalled = true
-            parentConnection.readyAllOutboundStreams(state: &state)
+            parentConnection.readyAllOutboundStreams(in: &eventContext)
         }
     }
 
@@ -302,9 +302,9 @@ extension QUICCrypto {
     }
 
     func updatePeerQUICTransportParameters(
-        state: inout NetworkContext.State,
         _ peerQUICTransportParameters: [UInt8],
-        earlyData: Bool
+        earlyData: Bool,
+        in eventContext: inout NetworkContext.EventContext
     ) {
         guard let parentConnection else {
             return
@@ -322,13 +322,13 @@ extension QUICCrypto {
         // send them up to allow the client to store them for future connections
         if !earlyData, !parentConnection.isServer, enableEarlyData {
             parentConnection.deliverNetworkProtocolEvent(
-                state: &state,
                 flow: .allFlows,
                 event: .init(
                     quicEvent: .receivedRemoteTransportParameters(
                         transportParameters: peerQUICTransportParameters
                     )
-                )
+                ),
+                in: &eventContext
             )
         }
 
@@ -339,9 +339,9 @@ extension QUICCrypto {
                 logPrefixer: parentConnection.logPrefixer
             )
             parentConnection.setRemoteTransportParameters(
-                state: &state,
                 remoteTransportParameters,
-                earlyData: earlyData
+                earlyData: earlyData,
+                in: &eventContext
             )
         } catch {
             if earlyData {
@@ -352,10 +352,10 @@ extension QUICCrypto {
                 parentConnection.log.error("Failed to parse transport parameters: \(error)")
                 parentConnection.closeFrameType = .crypto
                 parentConnection.close(
-                    state: &state,
                     with:
                         .transportParameterError,
-                    "Failed to deserialize transport parameters"
+                    "Failed to deserialize transport parameters",
+                    in: &eventContext
                 )
             }
         }
@@ -365,10 +365,10 @@ extension QUICCrypto {
         peerQUICTransportParameters.removeAll()
     }
 
-    func updateEarlyDataAccepted(state: inout NetworkContext.State, _ earlyDataAccepted: Bool) {
+    func updateEarlyDataAccepted(_ earlyDataAccepted: Bool, in eventContext: inout NetworkContext.EventContext) {
         guard let parentConnection, parentConnection.earlyDataSignalled else { return }
         parentConnection.log.debug("Got early data accepted: \(earlyDataAccepted)")
-        parentConnection.updateEarlyDataAccepted(state: &state, earlyDataAccepted)
+        parentConnection.updateEarlyDataAccepted(earlyDataAccepted, in: &eventContext)
     }
 
     func updateNegotiatedCiphersuite(_ ciphersuite: Int) {
@@ -406,13 +406,13 @@ extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInsta
         throw NetworkError.posix(ENOTSUP)
     }
 
-    func teardown(state: inout NetworkContext.State) {
+    func teardown(in eventContext: inout NetworkContext.EventContext) {
         // Every encryption level has to be done with this crypto object before its event
         // state can go away.
         guard initialLinkage == nil, earlyDataLinkage == nil, handshakeLinkage == nil,
             applicationLinkage == nil
         else { return }
-        eventManager.unregister(state: &state)
+        eventManager.unregister(in: &eventContext)
     }
 }
 
@@ -433,40 +433,40 @@ extension QUICCrypto: TopStreamProtocol {
         set { tlsLinkage = newValue }
     }
 
-    func handleConnectedEvent(state: inout NetworkContext.State) {
+    func handleConnectedEvent(in eventContext: inout NetworkContext.EventContext) {
         guard let parentConnection else { return }
         parentConnection.log.info("Connected: TLS finished")
-        parentConnection.reportReady(state: &state)
+        parentConnection.reportReady(in: &eventContext)
     }
 
-    func handleDisconnectedEvent(state: inout NetworkContext.State, error: NetworkError?) {
+    func handleDisconnectedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         guard let parentConnection else { return }
         parentConnection.log.error("Disconnected: TLS error \(error?.description ?? "<none>")")
         parentConnection.closeFrameType = .crypto
 
         // Closing already being deferred, no need to schedule asynchronously
         if parentConnection.deferClosing {
-            parentConnection.close(state: &state, withCryptoError: 0, "TLS error")
+            parentConnection.close(withCryptoError: 0, "TLS error", in: &eventContext)
         } else {
             parentConnection.deferClosing = true
             // Note that close(withCryptoError:) will set the error but not actually
             // close when deferClosing is set. We then async to complete closing.
             // This is done to avoid closing in the wrong protocol state and causing
             // re-entrancy.
-            parentConnection.close(state: &state, withCryptoError: 0, "TLS error")
+            parentConnection.close(withCryptoError: 0, "TLS error", in: &eventContext)
             parentConnection.async { asyncState in
                 parentConnection.deferClosing = false
                 if parentConnection.closeError != nil {
-                    parentConnection.close(state: &asyncState, sendCloseFrame: true)
+                    parentConnection.close(sendCloseFrame: true, in: &asyncState)
                 }
             }
         }
     }
 
     func handleApplicationEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: ApplicationEvent
+        event: ApplicationEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {
     }
 
@@ -476,7 +476,7 @@ extension QUICCrypto: TopStreamProtocol {
         reassemblyQueue: inout ReassemblyQueue,
         frameArray: inout FrameArray,
         linkage: UpperProtocol?,
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         guard let linkage else {
             return false
@@ -510,7 +510,7 @@ extension QUICCrypto: TopStreamProtocol {
             wakeUp = true
         }
         if wakeUp {
-            linkage.deliverInboundDataAvailableEvent(state: &state, reference)
+            linkage.deliverInboundDataAvailableEvent(from: identifier, in: &eventContext)
         }
         return true
     }
@@ -523,17 +523,17 @@ extension QUICCrypto: TopStreamProtocol {
     func appendInput(
         _ cryptoFrame: consuming FrameCrypto,
         for packetNumberSpace: PacketNumberSpace,
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
-        reference.handleCallFromUpperProtocol(state: &state, cryptoFrame) { state, cryptoFrame in
-            appendInputInScope(cryptoFrame, for: packetNumberSpace, state: &state)
+        identifier.handleCallFromUpperProtocol(cryptoFrame, in: &eventContext) { eventContext, cryptoFrame in
+            appendInputInScope(cryptoFrame, for: packetNumberSpace, in: &eventContext)
         }
     }
 
     private func appendInputInScope(
         _ cryptoFrame: consuming FrameCrypto,
         for packetNumberSpace: PacketNumberSpace,
-        state: inout NetworkContext.State
+        in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         switch packetNumberSpace {
         case .initial:
@@ -543,7 +543,7 @@ extension QUICCrypto: TopStreamProtocol {
                 reassemblyQueue: &initialReassemblyQueue,
                 frameArray: &initialInboundData,
                 linkage: initialLinkage,
-                state: &state
+                in: &eventContext
             )
         case .handshake:
             return appendInput(
@@ -552,7 +552,7 @@ extension QUICCrypto: TopStreamProtocol {
                 reassemblyQueue: &handshakeReassemblyQueue,
                 frameArray: &handshakeInboundData,
                 linkage: handshakeLinkage,
-                state: &state
+                in: &eventContext
             )
         case .applicationData:
             return appendInput(
@@ -561,7 +561,7 @@ extension QUICCrypto: TopStreamProtocol {
                 reassemblyQueue: &applicationReassemblyQueue,
                 frameArray: &applicationInboundData,
                 linkage: applicationLinkage,
-                state: &state
+                in: &eventContext
             )
         }
     }
@@ -584,62 +584,62 @@ extension QUICCrypto: OutboundStreamHandler {
     // One crypto object backs all four TLS encryption-level handlers, so each of them detaches
     // from it in turn. Drop the linkage that is going away; `teardown` releases the event state
     // once the last one is gone.
-    func detach(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) throws(NetworkError) {
-        if from == initialLinkage?.reference { initialLinkage = nil }
-        if from == earlyDataLinkage?.reference { earlyDataLinkage = nil }
-        if from == handshakeLinkage?.reference { handshakeLinkage = nil }
-        if from == applicationLinkage?.reference { applicationLinkage = nil }
+    func detach(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) throws(NetworkError) {
+        if instance == initialLinkage?.identifier { initialLinkage = nil }
+        if instance == earlyDataLinkage?.identifier { earlyDataLinkage = nil }
+        if instance == handshakeLinkage?.identifier { handshakeLinkage = nil }
+        if instance == applicationLinkage?.identifier { applicationLinkage = nil }
     }
 
-    func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
-        if let initialLinkage, from == initialLinkage.reference { initialLinkage.deliverConnectedEvent(state: &state, reference) }
-        if let earlyDataLinkage, from == earlyDataLinkage.reference { earlyDataLinkage.deliverConnectedEvent(state: &state, reference) }
-        if let handshakeLinkage, from == handshakeLinkage.reference { handshakeLinkage.deliverConnectedEvent(state: &state, reference) }
-        if let applicationLinkage, from == applicationLinkage.reference { applicationLinkage.deliverConnectedEvent(state: &state, reference) }
+    func connect(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) {
+        if let initialLinkage, instance == initialLinkage.identifier { initialLinkage.deliverConnectedEvent(from: identifier, in: &eventContext) }
+        if let earlyDataLinkage, instance == earlyDataLinkage.identifier { earlyDataLinkage.deliverConnectedEvent(from: identifier, in: &eventContext) }
+        if let handshakeLinkage, instance == handshakeLinkage.identifier { handshakeLinkage.deliverConnectedEvent(from: identifier, in: &eventContext) }
+        if let applicationLinkage, instance == applicationLinkage.identifier { applicationLinkage.deliverConnectedEvent(from: identifier, in: &eventContext) }
     }
 
     func disconnect(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        error: NetworkError?
+        error: NetworkError?,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {}
     func handleNetworkProtocolEvent(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        event: NetworkProtocolEvent
+        event: NetworkProtocolEvent,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) {}
-    func getMetadata<P>(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) -> ProtocolMetadata<P>?
+    func getMetadata<P>(for instance: InstanceIdentifier, in eventContext: inout NetworkContext.EventContext) -> ProtocolMetadata<P>?
     where P: NetworkProtocol { nil }
     func getMetrics(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        requestedNetworkMetric: RequestedNetworkMetrics
+        requestedNetworkMetric: RequestedNetworkMetrics,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) -> NetworkMetrics? {
         nil
     }
-    func levelForReference(_ from: ProtocolInstanceReference) -> SwiftTLSOptions.EncryptionLevel? {
-        if from == initialLinkage?.reference { return .initial }
-        if from == earlyDataLinkage?.reference { return .earlyData }
-        if from == handshakeLinkage?.reference { return .handshake }
-        if from == applicationLinkage?.reference { return .application }
+    func encryptionLevel(for instance: InstanceIdentifier) -> SwiftTLSOptions.EncryptionLevel? {
+        if instance == initialLinkage?.identifier { return .initial }
+        if instance == earlyDataLinkage?.identifier { return .earlyData }
+        if instance == handshakeLinkage?.identifier { return .handshake }
+        if instance == applicationLinkage?.identifier { return .application }
         return nil
     }
 
-    func packetNumberSpaceForReference(_ from: ProtocolInstanceReference) -> PacketNumberSpace? {
-        if from == initialLinkage?.reference { return .initial }
-        if from == handshakeLinkage?.reference { return .handshake }
-        if from == applicationLinkage?.reference { return .applicationData }
-        if from == earlyDataLinkage?.reference { return .applicationData }
+    func packetNumberSpace(for instance: InstanceIdentifier) -> PacketNumberSpace? {
+        if instance == initialLinkage?.identifier { return .initial }
+        if instance == handshakeLinkage?.identifier { return .handshake }
+        if instance == applicationLinkage?.identifier { return .applicationData }
+        if instance == earlyDataLinkage?.identifier { return .applicationData }
         return nil
     }
 
     func receiveStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
         minimumBytes: Int,
-        maximumBytes: Int
+        maximumBytes: Int,
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> FrameArray? {
-        guard let level = levelForReference(from) else {
+        guard let level = encryptionLevel(for: instance) else {
             throw NetworkError.posix(EINVAL)
         }
         if level == .initial {
@@ -653,21 +653,21 @@ extension QUICCrypto: OutboundStreamHandler {
     }
 
     func getOutboundStreamDataRoomAvailable(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference
+        for instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
-        guard let _ = levelForReference(from) else {
+        guard let _ = encryptionLevel(for: instance) else {
             throw NetworkError.posix(EINVAL)
         }
         return Int(UInt16.max)
     }
 
     func sendStreamData(
-        state: inout NetworkContext.State,
-        _ from: ProtocolInstanceReference,
-        streamData: consuming FrameArray
+        _ streamData: consuming FrameArray,
+        from instance: InstanceIdentifier,
+        in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
-        guard let level = packetNumberSpaceForReference(from) else {
+        guard let level = packetNumberSpace(for: instance) else {
             streamData.finalizeAllFramesAsFailed()
             throw NetworkError.posix(EINVAL)
         }
@@ -679,7 +679,7 @@ extension QUICCrypto: OutboundStreamHandler {
         case .applicationData:
             applicationOutboundData.addSendData(streamData, isLast: false)
         }
-        sendAtLevel(state: &state, level)
+        sendAtLevel(level, in: &eventContext)
     }
 
     func copyOutSendData(

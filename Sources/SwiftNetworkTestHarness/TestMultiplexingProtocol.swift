@@ -78,71 +78,71 @@ public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtoc
     public private(set) var context: NetworkContext
     public init(context: NetworkContext) {
         self.context = context
-        self.reference = ProtocolInstanceReference(context: context, eventManager: &self.eventManager)
+        self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
     }
 
-    public var reference: ProtocolInstanceReference
+    public var identifier: InstanceIdentifier
     public var log = NetworkLoggerState()
     public var eventManager = ProtocolEventManager()
 
     public var multiplexedFlows = [MultiplexedFlowIdentifier: TestDatagramFlow]()
     public var multiplexingPaths = [MultiplexingPathIdentifier: TestDatagramPath]()
 
-    public func serviceDatagramsToSend(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func serviceDatagramsToSend(flow: MultiplexedFlowIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol asked to service datagrams to send from flow \(flow.debugDescription)")
         guard let path = somePathIdentifier else {
             return
         }
         accessDatagramsToSend(flow: flow) { frames in
-            // `state` is already held here, so use the state-taking variants rather than the
+            // The event context is already held here, so use the `in:`-taking variants rather than the
             // external entry points, which would re-derive it.
             try? enqueueOutboundDatagrams(path: path, datagrams: frames.drainArray())
-            try? sendEnqueuedOutboundDatagrams(state: &state, path: path)
+            try? sendEnqueuedOutboundDatagrams(path: path, in: &eventContext)
         }
     }
 
-    public func serviceReceivedDatagrams(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func serviceReceivedDatagrams(path: MultiplexingPathIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol asked to service received datagrams on path \(path.description)")
         guard let flow = someFlowIdentifier else {
             return
         }
         accessReceivedDatagrams(path: path) { frames in
             try? deliverInboundDatagrams(
-                state: &state,
                 flow: flow,
-                datagrams: frames.drainArray()
+                datagrams: frames.drainArray(),
+                in: &eventContext
             )
         }
     }
 
-    public func handleInboundDataAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func handleInboundDataAvailableEvent(path: MultiplexingPathIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol inbound data available for path \(path.description)")
     }
 
-    public func handleOutboundRoomAvailableEvent(state: inout NetworkContext.State, path: MultiplexingPathIdentifier) {
+    public func handleOutboundRoomAvailableEvent(path: MultiplexingPathIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol outbound room available for path \(path.description)")
     }
 
     // FROM LISTENER
-    public func connect(state: inout NetworkContext.State) {
+    public func connect(in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol connect for listener")
         if !delayConnected {
-            deliverConnectedEvent(state: &state, flow: .allFlows)
+            deliverConnectedEvent(flow: .allFlows, in: &eventContext)
         }
     }
 
     // FROM LISTENER
-    public func disconnect(state: inout NetworkContext.State, error: NetworkError?) {
+    public func disconnect(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol disconnect for listener")
 
     }
 
     // FROM FLOW
-    public func connect(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func connect(flow: MultiplexedFlowIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol connect for flow \(flow.debugDescription)")
 
         if !delayConnected {
-            deliverConnectedEvent(state: &state, flow: flow)
+            deliverConnectedEvent(flow: flow, in: &eventContext)
         }
     }
 
@@ -151,7 +151,7 @@ public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtoc
         log.debug("Multiplexing protocol disconnect for flow \(flow.debugDescription)")
     }
 
-    public func teardown(state: inout NetworkContext.State, flow: MultiplexedFlowIdentifier) {
+    public func teardown(flow: MultiplexedFlowIdentifier, in eventContext: inout NetworkContext.EventContext) {
         log.debug("Multiplexing protocol teardown for flow \(flow.debugDescription)")
     }
 
@@ -170,9 +170,9 @@ public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtoc
     public func triggerNewFlowCreation() {
         log.debug("Multiplexing protocol creating a new inbound flow")
         fromExternal { state in
-            let newFlow = Flow(parent: self, inbound: true, state: &state)
-            multiplexedFlows[newFlow.identifier] = newFlow
-            deliverNewInboundFlowEvent(state: &state, newFlow.reference, flowMetadata: nil)
+            let newFlow = Flow(parent: self, inbound: true, in: &state)
+            multiplexedFlows[newFlow.flowIdentifier] = newFlow
+            deliverNewInboundFlowEvent(newFlow.identifier, flowMetadata: nil, in: &state)
         }
     }
 
@@ -180,7 +180,7 @@ public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtoc
         log.debug("Multiplexing protocol triggering connected event")
         fromExternal { state in
             delayConnected = false
-            deliverConnectedEvent(state: &state, flow: .allFlows)
+            deliverConnectedEvent(flow: .allFlows, in: &state)
         }
     }
 }

@@ -71,7 +71,7 @@ public struct CustomIPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from existing: Options) -> Options { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> Options? { Options(from: serializedBytes) }
     public func newPerProtocolMetadata() -> Metadata? { Metadata() }
-    public func newProtocolInstance(context: NetworkContext) -> ProtocolInstanceReference? {
+    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
         nil
     }
 

@@ -97,7 +97,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let udpOptions = UDPProtocol.options()
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            udpOptions.setProtocolInstance(udpUpper.reference)
+            udpOptions.setProtocolInstance(udpUpper.identifier)
             parameters.defaultStack.transport = .udp(udpOptions)
 
             let (upperHarness, upperHarnessLinkage) = storage.createDatagramUpperHarness(
@@ -232,7 +232,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             udpOptions.preferNoChecksum = preferNoChecksum
             udpOptions.noMetadata = true
             udpOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            udpOptions.setProtocolInstance(udpUpper.reference)
+            udpOptions.setProtocolInstance(udpUpper.identifier)
             parameters.defaultStack.transport = .udp(udpOptions)
 
             let (upperHarness, upperHarnessLinkage) = storage.createDatagramUpperHarness(
@@ -371,7 +371,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let clientOptions = UDPProtocol.options()
             clientOptions.noMetadata = true
             clientOptions.setLogID(prefix: "C", parent: "1", protocolLogIDNumber: 1)
-            clientOptions.setProtocolInstance(clientUDPUpper.reference)
+            clientOptions.setProtocolInstance(clientUDPUpper.identifier)
             clientParameters.defaultStack.transport = .udp(clientOptions)
 
             let (clientUpperHarness, clientUpperHarnessLinkage) = storage.createDatagramUpperHarness(
@@ -403,7 +403,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
             let serverOptions = UDPProtocol.options()
             serverOptions.noMetadata = true
             serverOptions.setLogID(prefix: "L", parent: "1", protocolLogIDNumber: 1)
-            serverOptions.setProtocolInstance(serverUDPUpper.reference)
+            serverOptions.setProtocolInstance(serverUDPUpper.identifier)
             serverParameters.defaultStack.transport = .udp(serverOptions)
 
             let (serverUpperHarness, serverUpperHarnessLinkage) = storage.createDatagramUpperHarness(
