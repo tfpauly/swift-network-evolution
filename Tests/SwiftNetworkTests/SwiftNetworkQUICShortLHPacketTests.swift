@@ -184,7 +184,7 @@ final class SwiftNetworkQUICShortLHPacketTests: NetTestCase {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverUpperHarnessLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: serverQUICStreamListener),
+                    serverQUICStreamListener,
                     remote: clientEndpoint,
                     local: serverEndpoint,
                     parameters: serverParameters,

@@ -1287,6 +1287,26 @@ public struct TestLinkageFamilyGroup: LinkageFamilyGroup {
     public static func family(
         for linkage: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>
     ) -> TestInboundStreamFlowLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseOutboundDatagramLinkage<TestLinkageFamilyGroup>
+    ) -> TestOutboundDatagramLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseDatagramListenerLinkage<TestLinkageFamilyGroup>
+    ) -> TestDatagramListenerLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>
+    ) -> TestDatagramMultipathLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseOutboundStreamLinkage<TestLinkageFamilyGroup>
+    ) -> TestOutboundStreamLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseStreamListenerLinkage<TestLinkageFamilyGroup>
+    ) -> TestStreamListenerLinkage { .init(base: linkage) }
 }
 
 @_spi(TestHarness)

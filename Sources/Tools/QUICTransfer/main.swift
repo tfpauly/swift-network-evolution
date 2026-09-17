@@ -148,7 +148,7 @@ final class QUICTransfer {
                 // Attach the application layers to QUIC. `clientInput` observes inbound flows,
                 // and `clientStream` is the outbound stream this tool writes on.
                 try clientInputLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: clientQUICStreamListener),
+                    clientQUICStreamListener,
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
@@ -165,21 +165,21 @@ final class QUICTransfer {
                 if !quicOnly {
                     // Use QUIC -> UDP -> IP -> BridgeProtocol
                     try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                        TestOutboundDatagramLinkage(base: clientUDPLower),
+                        clientUDPLower,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
                         path: path
                     )
                     try clientUDPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: clientIPLower),
+                        clientIPLower,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
                         path: path
                     )
                     try clientIPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: clientOutput),
+                        clientOutput,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
@@ -188,7 +188,7 @@ final class QUICTransfer {
                 } else {
                     // Use only QUIC -> Bridge Protocol
                     try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                        TestOutboundDatagramLinkage(base: clientOutput),
+                        clientOutput,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
@@ -258,7 +258,7 @@ final class QUICTransfer {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverInputLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: serverQUICStreamListener),
+                    serverQUICStreamListener,
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
@@ -268,21 +268,21 @@ final class QUICTransfer {
                 if !quicOnly {
                     // Use QUIC -> UDP -> IP -> BridgeProtocol
                     try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                        TestOutboundDatagramLinkage(base: serverUDPLower),
+                        serverUDPLower,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
                         path: serverPath
                     )
                     try serverUDPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: serverIPLower),
+                        serverIPLower,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
                         path: serverPath
                     )
                     try serverIPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: serverOutput),
+                        serverOutput,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
@@ -291,7 +291,7 @@ final class QUICTransfer {
                 } else {
                     // Use only QUIC -> Bridge Protocol
                     try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                        TestOutboundDatagramLinkage(base: serverOutput),
+                        serverOutput,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,

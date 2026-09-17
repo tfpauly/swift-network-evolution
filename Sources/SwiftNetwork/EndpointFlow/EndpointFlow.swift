@@ -108,7 +108,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
     let connectionID: SystemUUID
     #if !NETWORK_NO_SWIFT_QUIC
     var quicConnectionReference: ProtocolInstanceReference? = nil
-    var quicStreamListenerLinkage: BaseStreamListenerLinkage<BaseLinkageFamilyGroup>? = nil
+    var quicStreamListenerLinkage: BaseStreamListener? = nil
     #endif
 
     var privateStorage = EndpointFlowPrivateStorage()

@@ -71,7 +71,7 @@ final class QUICStreamLoad {
         var streamRoundTripDurations = [NetworkDuration]()
 
         var clientInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
-        var clientQUICStreamListenerLinkage: BaseStreamListenerLinkage<TestLinkageFamilyGroup>? = nil
+        var clientQUICStreamListenerLinkage: TestStreamListenerLinkage? = nil
         var serverInput: NewStreamFlowHarness<TestStreamLinkageFamily>? = nil
 
         group.enter()
@@ -147,7 +147,7 @@ final class QUICStreamLoad {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try clientInputLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: clientQUICStreamListener),
+                    clientQUICStreamListener,
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
@@ -155,21 +155,21 @@ final class QUICStreamLoad {
                 )
                 // QUIC -> UDP -> IP -> BridgeProtocol
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    TestOutboundDatagramLinkage(base: clientUDPLower),
+                    clientUDPLower,
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
                     path: path
                 )
                 try clientUDPUpper.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: clientIPLower),
+                    clientIPLower,
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
                     path: path
                 )
                 try clientIPUpper.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: clientOutput),
+                    clientOutput,
                     remote: ipv4Server,
                     local: ipv4Client,
                     parameters: clientParameters,
@@ -232,7 +232,7 @@ final class QUICStreamLoad {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverInputLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: serverQUICStreamListener),
+                    serverQUICStreamListener,
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
@@ -240,21 +240,21 @@ final class QUICStreamLoad {
                 )
                 // QUIC -> UDP -> IP -> BridgeProtocol
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    TestOutboundDatagramLinkage(base: serverUDPLower),
+                    serverUDPLower,
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
                     path: serverPath
                 )
                 try serverUDPUpper.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: serverIPLower),
+                    serverIPLower,
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,
                     path: serverPath
                 )
                 try serverIPUpper.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: serverOutput),
+                    serverOutput,
                     remote: ipv4Client,
                     local: ipv4Server,
                     parameters: serverParameters,

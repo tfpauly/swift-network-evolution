@@ -70,4 +70,19 @@ public protocol LinkageFamilyGroup: Sendable {
 
     /// Lifts a framework stream inbound-flow linkage into this group's family.
     static func family(for linkage: BaseInboundStreamFlowLinkage<Self>) -> StreamFamily.InboundFlow
+
+    /// Lifts a framework datagram lower linkage into this group's family.
+    static func family(for linkage: BaseOutboundDatagramLinkage<Self>) -> DatagramFamily.Lower
+
+    /// Lifts a framework datagram listener linkage into this group's family.
+    static func family(for linkage: BaseDatagramListenerLinkage<Self>) -> DatagramFamily.Listener
+
+    /// Lifts a framework datagram multipath linkage into this group's family.
+    static func family(for linkage: BaseDatagramMultipathLinkage<Self>) -> MultipathLinkageType
+
+    /// Lifts a framework stream lower linkage into this group's family.
+    static func family(for linkage: BaseOutboundStreamLinkage<Self>) -> StreamFamily.Lower
+
+    /// Lifts a framework stream listener linkage into this group's family.
+    static func family(for linkage: BaseStreamListenerLinkage<Self>) -> StreamFamily.Listener
 }

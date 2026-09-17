@@ -152,7 +152,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             )
             do {
                 try upperHarnessLinkage.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: demuxLower),
+                    demuxLower,
                     remote: remoteEndpoint,
                     local: localEndpoint,
                     parameters: parameters,
@@ -166,7 +166,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
             // Stack below the demux: demux -> UDP -> lower harness.
             do {
                 try demuxUpper.invokeAttachLowerProtocol(
-                    TestOutboundDatagramLinkage(base: udpLower),
+                    udpLower,
                     remote: remoteEndpoint,
                     local: localEndpoint,
                     parameters: parameters,
@@ -228,7 +228,7 @@ final class SwiftNetworkDemuxTests: NetTestCase {
                 )
                 do {
                     try demuxUpperHarnessLinkage.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: demuxLower),
+                        demuxLower,
                         remote: remoteEndpoint,
                         local: localEndpoint,
                         parameters: demuxParameters,

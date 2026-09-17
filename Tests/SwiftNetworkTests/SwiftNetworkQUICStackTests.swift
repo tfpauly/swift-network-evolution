@@ -134,7 +134,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             maximumDatagramSize: Int = 1500
         ) {
             let (clientUDPUpper, clientUDPLower) = storage.createUDPInstance()
-            clientTop = TestOutboundDatagramLinkage(base: clientUDPLower)
+            clientTop = clientUDPLower
 
             let clientUDPOptions = UDPProtocol.options()
             clientUDPOptions.noMetadata = true
@@ -149,7 +149,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
 
             let (serverUDPUpper, serverUDPLower) = storage.createUDPInstance()
 
-            serverTop = TestOutboundDatagramLinkage(base: serverUDPLower)
+            serverTop = serverUDPLower
             let serverUDPOptions = UDPProtocol.options()
             serverUDPOptions.noMetadata = true
             serverUDPOptions.setLogID(prefix: "L", parent: identifier, protocolLogIDNumber: 2)
@@ -195,7 +195,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             // Attach from the upper linkage so both directions are bound: the upper protocol's
             // `lower` is set, and `invokeAttachLowerProtocol` calls back into
             // `invokeAttachUpperProtocol` on the lower protocol.
-            try! clientUDPUpper.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: clientIPLower),
+            try! clientUDPUpper.invokeAttachLowerProtocol(clientIPLower,
                                                           remote: serverEndpoint,
                                                           local: clientEndpoint,
                                                           parameters: clientParameters,
@@ -206,7 +206,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                                                          parameters: clientParameters,
                                                          path: clientPath)
 
-            try! serverUDPUpper.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: serverIPLower),
+            try! serverUDPUpper.invokeAttachLowerProtocol(serverIPLower,
                                                           remote: clientEndpoint,
                                                           local: serverEndpoint,
                                                           parameters: serverParameters,
@@ -260,8 +260,8 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
         var serverConnected = false
         var clientUpperHarness: StreamUpperHarness<TestStreamLinkageFamily>?
         var serverUpperHarness: NewStreamFlowHarness<TestStreamLinkageFamily>?
-        var clientQUICMultipathLinkage: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>?
-        var serverQUICMultipathLinkage: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>?
+        var clientQUICMultipathLinkage: TestDatagramMultipathLinkage?
+        var serverQUICMultipathLinkage: TestDatagramMultipathLinkage?
 
         var pairedPathsArray = [PairedUDPIPPaths]()
 
@@ -313,7 +313,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
-                let clientQUICMultipath = clientQUICMultipath
+                                var clientQUICMultipath = clientQUICMultipath
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.clientTop, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach client stack")
@@ -344,13 +344,13 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
 
             do {
                 // Attach from the upper linkage so both directions are bound.
-                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(TestStreamListenerLinkage(base: serverQUICStreamListener), remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverQUICStreamListener, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach server upper harness to QUIC")
             }
 
             do {
-                let serverQUICMultipath = serverQUICMultipath
+                                var serverQUICMultipath = serverQUICMultipath
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.serverTop, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach server stack")
@@ -430,7 +430,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                     let serverParameters = Parameters()
                     let severPath = PathProperties(parameters: Parameters())
 
-                    let clientQUICMultipathLinkage = clientQUICMultipathLinkage
+                                        var clientQUICMultipathLinkage = clientQUICMultipathLinkage
                     try clientQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.clientTop,
                         remote: serverEndpoint,
@@ -438,7 +438,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                         parameters: clientParameters,
                         path: clientPath
                     )
-                    let serverQUICMultipathLinkage = serverQUICMultipathLinkage
+                                        var serverQUICMultipathLinkage = serverQUICMultipathLinkage
                     try serverQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.serverTop,
                         remote: clientEndpoint,
@@ -465,7 +465,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                 // Currently we only keep the current path object and remove all the
                 // other path objects we are migrating away from, so the number of
                 // multiplexing paths should be one.
-                if let clientConnection = storage.quicInstance(for: clientQUICMultipathLinkage) {
+                if let clientConnection = storage.quicInstance(for: clientQUICMultipathLinkage.base) {
                     XCTAssertEqual(
                         clientConnection.multiplexingPaths.count,
                         1,

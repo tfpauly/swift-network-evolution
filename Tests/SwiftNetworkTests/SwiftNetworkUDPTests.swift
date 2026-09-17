@@ -108,7 +108,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: path,
                 context: context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: udpLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to upper harness")
             }
@@ -243,7 +243,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: path,
                 context: context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: udpLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(udpLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach UDP to upper harness")
                 return
@@ -382,7 +382,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: clientPath,
                 context: clientParameters.context)
             do {
-                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: clientUDPLower), remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(clientUDPLower, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to client upper harness")
             }
@@ -414,7 +414,7 @@ final class SwiftNetworkUDPTests: NetTestCase {
                 path: serverPath,
                 context: serverParameters.context)
             do {
-                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: serverUDPLower), remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverUDPLower, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach UDP to server upper harness")
             }

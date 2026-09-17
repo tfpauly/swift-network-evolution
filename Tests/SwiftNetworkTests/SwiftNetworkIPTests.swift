@@ -507,7 +507,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 context: parameters.context)
 
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to upper harness")
             }
@@ -958,7 +958,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1077,7 +1077,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1185,7 +1185,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: path,
                 context: parameters.context)
             do {
-                try upperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: ipLower), remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
+                try upperHarnessLinkage.invokeAttachLowerProtocol(ipLower, remote: remoteEndpoint, local: localEndpoint, parameters: parameters, path: path)
             } catch {
                 XCTFail("Failed to attach IP to upper harness")
                 return
@@ -1241,7 +1241,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: clientPath,
                 context: clientParameters.context)
             do {
-                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: clientIPLower), remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
+                try clientUpperHarnessLinkage.invokeAttachLowerProtocol(clientIPLower, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to client upper harness")
             }
@@ -1273,7 +1273,7 @@ final class SwiftNetworkIPTests: NetTestCase {
                 path: serverPath,
                 context: serverParameters.context)
             do {
-                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(TestOutboundDatagramLinkage(base: serverIPLower), remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
+                try serverUpperHarnessLinkage.invokeAttachLowerProtocol(serverIPLower, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach IP to server upper harness")
             }

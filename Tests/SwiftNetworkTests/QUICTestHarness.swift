@@ -81,10 +81,10 @@ class QUICTestHarness {
 
         // The QUIC listener linkages, kept so later calls (new streams, new datagram flows) can
         // attach more upper protocols to the same connections.
-        let clientQUICStreamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>
-        let serverQUICStreamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>
-        let clientQUICDatagramListener: BaseDatagramListenerLinkage<TestLinkageFamilyGroup>
-        let serverQUICDatagramListener: BaseDatagramListenerLinkage<TestLinkageFamilyGroup>
+        let clientQUICStreamListener: TestStreamListenerLinkage
+        let serverQUICStreamListener: TestStreamListenerLinkage
+        let clientQUICDatagramListener: TestDatagramListenerLinkage
+        let serverQUICDatagramListener: TestDatagramListenerLinkage
     }
     var state: QUICHarnessState? = nil
 
@@ -168,9 +168,9 @@ class QUICTestHarness {
 
             // Build the QUIC connection through storage so its listener/multipath linkages are
             // storage-backed and can dispatch calls back into the instance.
-            let (clientQUICStreamListener, clientQUICDatagramListener, clientQUICMultipath) =
+            var (clientQUICStreamListener, clientQUICDatagramListener, clientQUICMultipath) =
                 self.storage.createQUICInstance()
-            guard let clientInstance = self.storage.quicInstance(for: clientQUICStreamListener) else {
+            guard let clientInstance = self.storage.quicInstance(for: clientQUICStreamListener.base) else {
                 XCTFail("Failed to create client QUIC instance")
                 handshakeExpectation.fulfill()
                 return
@@ -201,9 +201,9 @@ class QUICTestHarness {
             serverParameters.context = self.context
             serverParameters.isServer = true
 
-            let (serverQUICStreamListener, serverQUICDatagramListener, serverQUICMultipath) =
+            var (serverQUICStreamListener, serverQUICDatagramListener, serverQUICMultipath) =
                 self.storage.createQUICInstance()
-            guard let serverInstance = self.storage.quicInstance(for: serverQUICStreamListener) else {
+            guard let serverInstance = self.storage.quicInstance(for: serverQUICStreamListener.base) else {
                 XCTFail("Failed to create server QUIC instance")
                 handshakeExpectation.fulfill()
                 return
@@ -242,7 +242,7 @@ class QUICTestHarness {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try clientHarnessLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: clientQUICStreamListener),
+                    clientQUICStreamListener,
                     remote: self.serverEndpoint,
                     local: self.clientEndpoint,
                     parameters: clientParameters,
@@ -254,7 +254,7 @@ class QUICTestHarness {
 
             do {
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    TestOutboundDatagramLinkage(base: clientBridge),
+                    clientBridge,
                     remote: self.serverEndpoint,
                     local: self.clientEndpoint,
                     parameters: clientParameters,
@@ -277,7 +277,7 @@ class QUICTestHarness {
             do {
                 // Attach from the upper linkage so both directions are bound.
                 try serverHarnessLinkage.invokeAttachLowerProtocol(
-                    TestStreamListenerLinkage(base: serverQUICStreamListener),
+                    serverQUICStreamListener,
                     remote: self.clientEndpoint,
                     local: self.serverEndpoint,
                     parameters: serverParameters,
@@ -289,7 +289,7 @@ class QUICTestHarness {
 
             do {
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(
-                    TestOutboundDatagramLinkage(base: serverBridge),
+                    serverBridge,
                     remote: self.clientEndpoint,
                     local: self.serverEndpoint,
                     parameters: serverParameters,
@@ -317,7 +317,7 @@ class QUICTestHarness {
 
                 do {
                     try clientDatagramHarnessLinkage.invokeAttachLowerProtocol(
-                        TestDatagramListenerLinkage(base: clientQUICDatagramListener),
+                        clientQUICDatagramListener,
                         remote: self.serverEndpoint,
                         local: self.clientEndpoint,
                         parameters: clientParameters,
@@ -340,7 +340,7 @@ class QUICTestHarness {
 
                 do {
                     try serverDatagramHarnessLinkage.invokeAttachLowerProtocol(
-                        TestDatagramListenerLinkage(base: serverQUICDatagramListener),
+                        serverQUICDatagramListener,
                         remote: self.clientEndpoint,
                         local: self.serverEndpoint,
                         parameters: serverParameters,
@@ -435,7 +435,7 @@ class QUICTestHarness {
         serverInitiated: Bool = false
     ) -> StreamUpperHarness<TestStreamLinkageFamily>? {
         var handlerInstance: QUICConnection<TestLinkageFamilyGroup>?
-        var handlerListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>?
+        var handlerListener: TestStreamListenerLinkage?
         if serverInitiated {
             handlerInstance = state?.serverInstance
             handlerListener = state?.serverQUICStreamListener

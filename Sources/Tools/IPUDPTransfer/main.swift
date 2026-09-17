@@ -90,14 +90,14 @@ final class IPUDPTransfer {
 
                 do {
                     try clientInputLinkage.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: clientUDPLower),
+                        clientUDPLower,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
                         path: path
                     )
                     try clientUDPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: clientIPLower),
+                        clientIPLower,
                         remote: ipv4Server,
                         local: ipv4Client,
                         parameters: clientParameters,
@@ -146,14 +146,14 @@ final class IPUDPTransfer {
 
                 do {
                     try serverInputLinkage.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: serverUDPLower),
+                        serverUDPLower,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,
                         path: serverPath
                     )
                     try serverUDPUpper.invokeAttachLowerProtocol(
-                        TestOutboundDatagramLinkage(base: serverIPLower),
+                        serverIPLower,
                         remote: ipv4Client,
                         local: ipv4Server,
                         parameters: serverParameters,

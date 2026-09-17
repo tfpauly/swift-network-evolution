@@ -25,19 +25,19 @@ internal import os
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct BaseDatagramLinkageFamily: DatagramLinkageFamily {
-    public typealias Upper = BaseInboundDatagramLinkage<BaseLinkageFamilyGroup>
-    public typealias Lower = BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup>
-    public typealias Listener = BaseDatagramListenerLinkage<BaseLinkageFamilyGroup>
-    public typealias InboundFlow = BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup>
+    public typealias Upper = BaseDatagramUpper
+    public typealias Lower = BaseDatagramLower
+    public typealias Listener = BaseDatagramListener
+    public typealias InboundFlow = BaseDatagramInboundFlow
 }
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public struct BaseStreamLinkageFamily: StreamLinkageFamily {
-    public typealias Upper = BaseInboundStreamLinkage<BaseLinkageFamilyGroup>
-    public typealias Lower = BaseOutboundStreamLinkage<BaseLinkageFamilyGroup>
-    public typealias Listener = BaseStreamListenerLinkage<BaseLinkageFamilyGroup>
-    public typealias InboundFlow = BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup>
+    public typealias Upper = BaseStreamUpper
+    public typealias Lower = BaseStreamLower
+    public typealias Listener = BaseStreamListener
+    public typealias InboundFlow = BaseStreamInboundFlow
 }
 
 @_spi(ProtocolProvider)
@@ -1354,42 +1354,42 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
 
     internal var udpInstances = NetworkGappyArray<UDPProtocol.UDPInstance<Group.DatagramFamily>>()
 
-    public func createUDPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
+    public func createUDPInstance() -> (Group.DatagramFamily.Upper, Group.DatagramFamily.Lower) {
         let instance = UDPProtocol.UDPInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = udpInstances.insert(instance)
 
         let reference = udpInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex))
+        let inbound = Group.family(for: BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex)))
+        let outbound = Group.family(for: BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .udp(instanceIndex)))
 
         return (inbound, outbound)
     }
 
     internal var demuxInstances = NetworkGappyArray<DemuxProtocol.DemuxInstance<Group.DatagramFamily>>()
 
-    public func createDemuxInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
+    public func createDemuxInstance() -> (Group.DatagramFamily.Upper, Group.DatagramFamily.Lower) {
         let instance = DemuxProtocol.DemuxInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = demuxInstances.insert(instance)
 
         let reference = demuxInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex))
+        let inbound = Group.family(for: BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex)))
+        let outbound = Group.family(for: BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .demux(instanceIndex)))
 
         return (inbound, outbound)
     }
 
     internal var ipInstances = NetworkGappyArray<IPProtocol.IPInstance<Group.DatagramFamily>>()
 
-    public func createIPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundDatagramLinkage<Group>) {
+    public func createIPInstance() -> (Group.DatagramFamily.Upper, Group.DatagramFamily.Lower) {
         let instance = IPProtocol.IPInstance<Group.DatagramFamily>(context: context)
 
         let instanceIndex = ipInstances.insert(instance)
 
         let reference = ipInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
-        let outbound = BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex))
+        let inbound = Group.family(for: BaseInboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex)))
+        let outbound = Group.family(for: BaseOutboundDatagramLinkage<Group>(reference: reference, storage: self, protocolType: .ip(instanceIndex)))
 
         return (inbound, outbound)
     }
@@ -1397,27 +1397,27 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
 
     internal var socketDatagramInstances = NetworkGappyArray<SocketDatagramProtocol<Group.DatagramFamily>>()
 
-    public func createSocketDatagramInstance() -> BaseOutboundDatagramLinkage<Group> {
+    public func createSocketDatagramInstance() -> Group.DatagramFamily.Lower {
         let instance = SocketDatagramProtocol<Group.DatagramFamily>(context: context)
         let instanceIndex = socketDatagramInstances.insert(instance)
-        return BaseOutboundDatagramLinkage<Group>(
+        return Group.family(for: BaseOutboundDatagramLinkage<Group>(
             reference: socketDatagramInstances[instanceIndex].reference,
             storage: self,
             protocolType: .socketDatagram(instanceIndex)
-        )
+        ))
     }
 
     internal var bridgeDatagramInstances = NetworkGappyArray< BridgeDatagramProtocol.BridgeInstance<Group.DatagramFamily>>()
 
-    public func createBridgeDatagramInstance() -> BaseOutboundDatagramLinkage<Group> {
+    public func createBridgeDatagramInstance() -> Group.DatagramFamily.Lower {
         let instance = BridgeDatagramProtocol.BridgeInstance<Group.DatagramFamily>(context: context)
         let instanceIndex = bridgeDatagramInstances.insert(instance)
 
-        return BaseOutboundDatagramLinkage<Group>(
+        return Group.family(for: BaseOutboundDatagramLinkage<Group>(
             reference: instance.reference,
             storage: self,
             protocolType: .bridgeDatagram(instanceIndex)
-        )
+        ))
     }
 
 
@@ -1426,12 +1426,12 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
     // flow owns its own lifetime, so there is nothing for the storage to keep track of.
     internal static func linkage(
         for flow: DatagramEndpointFlowProtocol<Group.DatagramFamily>
-    ) -> BaseInboundDatagramLinkage<Group> {
-        BaseInboundDatagramLinkage<Group>(
+    ) -> Group.DatagramFamily.Upper {
+        Group.family(for: BaseInboundDatagramLinkage<Group>(
             reference: flow.reference,
             storage: nil,
             protocolType: .datagramEndpointFlow(.init(flow))
-        )
+        ))
     }
 
     // MARK: - Stream Protocol Instances
@@ -1444,7 +1444,7 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
     // inbound linkage is therefore a *datagram* linkage, for lower protocols to attach
     // below TCP, while the outbound linkage is a *stream* linkage, for upper protocols
     // to attach above it.
-    public func createTCPInstance() -> (BaseInboundDatagramLinkage<Group>, BaseOutboundStreamLinkage<Group>) {
+    public func createTCPInstance() -> (Group.DatagramFamily.Upper, Group.StreamFamily.Lower) {
         let instance = TCPProtocol.TCPInstance<Group.StreamFamily, Group.DatagramFamily>(
             context: context
         )
@@ -1452,12 +1452,12 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
         let instanceIndex = tcpInstances.insert(instance)
 
         let reference = tcpInstances[instanceIndex].reference
-        let inbound = BaseInboundDatagramLinkage<Group>(
+        let inbound = Group.family(for: BaseInboundDatagramLinkage<Group>(
             reference: reference,
             storage: self,
             protocolType: .tcp(instanceIndex)
-        )
-        let outbound = BaseOutboundStreamLinkage<Group>(reference: reference, storage: self, protocolType: .tcp(instanceIndex))
+        ))
+        let outbound = Group.family(for: BaseOutboundStreamLinkage<Group>(reference: reference, storage: self, protocolType: .tcp(instanceIndex)))
 
         return (inbound, outbound)
     }
@@ -1465,27 +1465,27 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
 
     internal var socketStreamInstances = NetworkGappyArray<SocketStreamProtocol<Group.StreamFamily>>()
 
-    public func createSocketStreamInstance() -> BaseOutboundStreamLinkage<Group> {
+    public func createSocketStreamInstance() -> Group.StreamFamily.Lower {
         let instance = SocketStreamProtocol<Group.StreamFamily>(context: context)
         let instanceIndex = socketStreamInstances.insert(instance)
-        return BaseOutboundStreamLinkage<Group>(
+        return Group.family(for: BaseOutboundStreamLinkage<Group>(
             reference: socketStreamInstances[instanceIndex].reference,
             storage: self,
             protocolType: .socketStream(instanceIndex)
-        )
+        ))
     }
 
     internal var bridgeStreamInstances = NetworkGappyArray<BridgeStreamProtocol.BridgeInstance<Group.StreamFamily>>()
 
-    public func createBridgeStreamInstance() -> BaseOutboundStreamLinkage<Group> {
+    public func createBridgeStreamInstance() -> Group.StreamFamily.Lower {
         let instance = BridgeStreamProtocol.BridgeInstance<Group.StreamFamily>(context: context)
         let instanceIndex = bridgeStreamInstances.insert(instance)
 
-        return BaseOutboundStreamLinkage<Group>(
+        return Group.family(for: BaseOutboundStreamLinkage<Group>(
             reference: instance.reference,
             storage: self,
             protocolType: .bridgeStream(instanceIndex)
-        )
+        ))
     }
 
 
@@ -1495,25 +1495,25 @@ open class BaseNetworkProtocolStorageParent<Group: LinkageFamilyGroup> {
     // flow owns its own lifetime, so there is nothing for the storage to keep track of.
     internal static func linkage(
         for flow: StreamEndpointFlowProtocol<Group.StreamFamily>
-    ) -> BaseInboundStreamLinkage<Group> {
-        BaseInboundStreamLinkage<Group>(
+    ) -> Group.StreamFamily.Upper {
+        Group.family(for: BaseInboundStreamLinkage<Group>(
             reference: flow.reference,
             storage: nil,
             protocolType: .streamEndpointFlow(.init(flow))
-        )
+        ))
     }
 
     internal var quicInstances = NetworkGappyArray<QUICConnection<Group>>()
 
-    public func createQUICInstance() -> (BaseStreamListenerLinkage<Group>, BaseDatagramListenerLinkage<Group>, BaseDatagramMultipathLinkage<Group>) {
+    public func createQUICInstance() -> (Group.StreamFamily.Listener, Group.DatagramFamily.Listener, Group.MultipathLinkageType) {
         let instance = QUICConnection<Group>(context: context)
 
         let instanceIndex = quicInstances.insert(instance)
 
         let reference = instance.reference
-        let stream = BaseStreamListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
-        let datagram = BaseDatagramListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
-        let multipath = BaseDatagramMultipathLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex))
+        let stream = Group.family(for: BaseStreamListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex)))
+        let datagram = Group.family(for: BaseDatagramListenerLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex)))
+        let multipath = Group.family(for: BaseDatagramMultipathLinkage<Group>(reference: reference, storage: self, protocolType: .quic(instanceIndex)))
 
         return (stream, datagram, multipath)
     }
@@ -1576,43 +1576,60 @@ public func baseLinkage<Group: LinkageFamilyGroup>(
 public struct BaseLinkageFamilyGroup: LinkageFamilyGroup {
     public typealias StreamFamily = BaseStreamLinkageFamily
     public typealias DatagramFamily = BaseDatagramLinkageFamily
-    public typealias MultipathLinkageType = BaseDatagramMultipathLinkage<BaseLinkageFamilyGroup>
+    public typealias MultipathLinkageType = BaseDatagramMultipath
 
-    // A QUIC stream, datagram flow, or path carried directly in the linkage's protocol type. These
-    // replace the old `QUIC*Linkage` conformances, whose `QUICFamilies == Self` requirement pointed
-    // back at this group and could not be resolved.
+
     public static func linkage(
         for quicStream: QUICStreamInstance<BaseLinkageFamilyGroup>
-    ) -> BaseOutboundStreamLinkage<BaseLinkageFamilyGroup> {
-        baseLinkage(forQUICStream: quicStream)
+    ) -> BaseStreamLower {
+        .init(base: baseLinkage(forQUICStream: quicStream))
     }
 
     public static func linkage(
         for quicDatagramFlow: QUICDatagramFlow<BaseLinkageFamilyGroup>
-    ) -> BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup> {
-        baseLinkage(forQUICDatagramFlow: quicDatagramFlow)
+    ) -> BaseDatagramLower {
+        .init(base: baseLinkage(forQUICDatagramFlow: quicDatagramFlow))
     }
 
     public static func linkage(
         for quicPath: QUICPath<BaseLinkageFamilyGroup>
-    ) -> BaseInboundDatagramLinkage<BaseLinkageFamilyGroup> {
-        baseLinkage(forQUICPath: quicPath)
+    ) -> BaseDatagramUpper {
+        .init(base: baseLinkage(forQUICPath: quicPath))
     }
 
-    // This group's families *are* the framework's linkages, so lifting is the identity.
     public static func family(
         for linkage: BaseInboundDatagramLinkage<BaseLinkageFamilyGroup>
-    ) -> BaseInboundDatagramLinkage<BaseLinkageFamilyGroup> { linkage }
+    ) -> BaseDatagramUpper { .init(base: linkage) }
 
     public static func family(
         for linkage: BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup>
-    ) -> BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup> { linkage }
+    ) -> BaseDatagramInboundFlow { .init(base: linkage) }
 
     public static func family(
         for linkage: BaseInboundStreamLinkage<BaseLinkageFamilyGroup>
-    ) -> BaseInboundStreamLinkage<BaseLinkageFamilyGroup> { linkage }
+    ) -> BaseStreamUpper { .init(base: linkage) }
 
     public static func family(
         for linkage: BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup>
-    ) -> BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup> { linkage }
+    ) -> BaseStreamInboundFlow { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseOutboundDatagramLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseDatagramLower { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseDatagramListenerLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseDatagramListener { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseDatagramMultipathLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseDatagramMultipath { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseOutboundStreamLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseStreamLower { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseStreamListenerLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseStreamListener { .init(base: linkage) }
 }

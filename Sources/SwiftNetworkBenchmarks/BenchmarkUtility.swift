@@ -145,8 +145,8 @@ public final class QUICBenchmarkUtility {
     /// caller creates the instance first via `createQUICInstance()`.
     public func createClientEndpoint(
         storage: TestNetworkProtocolStorage,
-        streamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>,
-        multipath: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>,
+        streamListener: TestStreamListenerLinkage,
+        multipath: TestDatagramMultipathLinkage,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -161,7 +161,7 @@ public final class QUICBenchmarkUtility {
         parameters.defaultStack.transport = .quic(options)
         let path = PathProperties(parameters: parameters)
 
-        guard let instance = storage.quicInstance(for: streamListener) else {
+        guard let instance = storage.quicInstance(for: streamListener.base) else {
             logger.log("Failed to look up the client QUIC instance")
             throw BenchmarkError.setupError
         }
@@ -216,8 +216,8 @@ public final class QUICBenchmarkUtility {
     /// Builds the server half of a loopback QUIC stack. See `createClientEndpoint`.
     public func createServerEndpoint(
         storage: TestNetworkProtocolStorage,
-        streamListener: BaseStreamListenerLinkage<TestLinkageFamilyGroup>,
-        multipath: BaseDatagramMultipathLinkage<TestLinkageFamilyGroup>,
+        streamListener: TestStreamListenerLinkage,
+        multipath: TestDatagramMultipathLinkage,
         context: NetworkContext,
         options: ProtocolOptions<QUICProtocol>,
         localEndpoint: Endpoint,
@@ -230,7 +230,7 @@ public final class QUICBenchmarkUtility {
         serverParameters.isServer = true
         let serverPath = PathProperties(parameters: serverParameters)
 
-        guard let instance = storage.quicInstance(for: streamListener) else {
+        guard let instance = storage.quicInstance(for: streamListener.base) else {
             logger.log("Failed to look up the server QUIC instance")
             throw BenchmarkError.setupError
         }
@@ -248,7 +248,7 @@ public final class QUICBenchmarkUtility {
             try serverNewFlowHandlerLinkage.invokeAttachLowerProtocol(
                 // The inherited QUIC factory hands back the framework's listener; the harness's
                 // flow linkage pairs with the test family's wrapper around it.
-                TestStreamListenerLinkage(base: streamListener),
+                streamListener,
                 remote: remoteEndpoint,
                 local: localEndpoint,
                 parameters: serverParameters,

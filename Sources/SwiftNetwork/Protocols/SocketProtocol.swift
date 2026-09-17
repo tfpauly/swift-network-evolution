@@ -176,7 +176,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
         _ datagrams: consuming FrameArray
     ) throws(NetworkError) {
         pendingOutputFrames.add(frames: datagrams)
-        serviceWrites()
+        serviceWrites(state: &state)
     }
 
     #if !NETWORK_EMBEDDED
@@ -324,8 +324,12 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     private func triggerOutboundRoomAvailable() {
         // Notify upper protocol that output room is available
         fromExternal { state in
-            upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
+            triggerOutboundRoomAvailable(state: &state)
         }
+    }
+
+    private func triggerOutboundRoomAvailable(state: inout NetworkContext.State) {
+        upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
     }
 
     private func cancelWriteSource() {
@@ -344,7 +348,15 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     // Drains pendingOutputFrames synchronously. On EAGAIN/ENOBUFS,
     // stops draining, resumes the write source to retry when writable.
     // On fatal errors (EPIPE, etc.), delivers a disconnected event.
+    // Callers that already hold the context state must use `serviceWrites(state:)`. This variant is
+    // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
+        fromExternal { state in
+            serviceWrites(state: &state)
+        }
+    }
+
+    private func serviceWrites(state: inout NetworkContext.State) {
         var needsWriteSource = false
         var fatalError: NetworkError? = nil
 
@@ -388,7 +400,7 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
                 dispatchWriteSource?.suspend()
             }
             if let fatalError {
-                deliverDisconnectedEvent(error: fatalError)
+                deliverDisconnectedEvent(state: &state, error: fatalError)
             }
         }
     }
@@ -582,7 +594,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             return
         }
         pendingDisconnect = true
-        serviceWrites()
+        serviceWrites(state: &state)
     }
 
     // MARK: - BottomStreamProtocol
@@ -626,7 +638,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         _ streamData: consuming FrameArray
     ) throws(NetworkError) {
         pendingOutputFrames.add(frames: streamData)
-        serviceWrites()
+        serviceWrites(state: &state)
     }
 
     #if !NETWORK_EMBEDDED
@@ -885,8 +897,12 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
 
     private func triggerOutboundRoomAvailable() {
         fromExternal { state in
-            upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
+            triggerOutboundRoomAvailable(state: &state)
         }
+    }
+
+    private func triggerOutboundRoomAvailable(state: inout NetworkContext.State) {
+        upper.deliverOutboundRoomAvailableEvent(state: &state, reference)
     }
 
     private func cancelWriteSource() {
@@ -905,7 +921,15 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     // version). On EAGAIN, resumes the write source to retry when writable.
     // On fatal errors (EPIPE, ECONNRESET, etc.), delivers a disconnected event.
     // When a frame with connectionComplete is fully written, issues SHUT_WR.
+    // Callers that already hold the context state must use `serviceWrites(state:)`. This variant is
+    // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
+        fromExternal { state in
+            serviceWrites(state: &state)
+        }
+    }
+
+    private func serviceWrites(state: inout NetworkContext.State) {
         guard !isConnecting else { return }
 
         var shouldShutdownWrite = false
@@ -987,7 +1011,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
                 waitingForWritable = false
                 dispatchWriteSource?.suspend()
             }
-            deliverDisconnectedEvent(error: fatalError)
+            deliverDisconnectedEvent(state: &state, error: fatalError)
             return
         }
 
@@ -1009,7 +1033,7 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
         if pendingDisconnect {
             pendingDisconnect = false
             shutdownWrites()
-            deliverDisconnectedEvent(error: nil)
+            deliverDisconnectedEvent(state: &state, error: nil)
         }
     }
 
