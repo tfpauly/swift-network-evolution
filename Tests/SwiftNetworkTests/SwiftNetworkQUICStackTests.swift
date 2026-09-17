@@ -313,7 +313,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
-                var clientQUICMultipath = clientQUICMultipath
+                let clientQUICMultipath = clientQUICMultipath
                 try clientQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.clientTop, remote: serverEndpoint, local: clientEndpoint, parameters: clientParameters, path: clientPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach client stack")
@@ -350,7 +350,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             }
 
             do {
-                var serverQUICMultipath = serverQUICMultipath
+                let serverQUICMultipath = serverQUICMultipath
                 try serverQUICMultipath.invokeAttachLowerProtocolForNewPath(pairedPaths.serverTop, remote: clientEndpoint, local: serverEndpoint, parameters: serverParameters, path: serverPath)
             } catch {
                 XCTAssertTrue(false, "Failed to attach server stack")
@@ -430,7 +430,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                     let serverParameters = Parameters()
                     let severPath = PathProperties(parameters: Parameters())
 
-                    var clientQUICMultipathLinkage = clientQUICMultipathLinkage
+                    let clientQUICMultipathLinkage = clientQUICMultipathLinkage
                     try clientQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.clientTop,
                         remote: serverEndpoint,
@@ -438,7 +438,7 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
                         parameters: clientParameters,
                         path: clientPath
                     )
-                    var serverQUICMultipathLinkage = serverQUICMultipathLinkage
+                    let serverQUICMultipathLinkage = serverQUICMultipathLinkage
                     try serverQUICMultipathLinkage.invokeAttachLowerProtocolForNewPath(
                         pairedPaths.serverTop,
                         remote: clientEndpoint,

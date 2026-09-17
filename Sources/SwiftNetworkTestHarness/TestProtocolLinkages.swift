@@ -18,34 +18,43 @@
 @_spi(Essentials) @_spi(ProtocolProvider) import Network
 #endif
 
-// A linkage family defined outside the main package.
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#elseif canImport(Darwin)
+import Darwin
+#endif
+
+// A linkage family group defined outside the main package.
 //
-// This demonstrates the extension point the base linkages are designed for: a client of the
-// framework can define its own protocols and wire them into a stack without the framework
-// knowing about them. Each `Test*` linkage wraps the matching `Base*` linkage and adds cases
-// for the protocols only this module knows about. Anything the enum doesn't name falls through
-// to the wrapped base linkage, so all the protocols the framework provides keep working.
+// This is the extension point the base linkages are designed for: a client of the framework can
+// define its own protocols and wire them into a stack without the framework knowing about them.
 //
-// The storage subclasses `BaseNetworkProtocolStorageParent<TestLinkageFamilyGroup>`, so it owns the framework's protocol
-// instances as well as the test-only ones.
+// `TestLinkageFamilyGroup` is the single generic parameter the whole stack is built from. Its
+// datagram and stream families name the `Test*` linkages below, and each of those holds the
+// matching `Base*Linkage<TestLinkageFamilyGroup>` alongside cases for the protocols only this
+// module knows about -- the harnesses and the test multiplexing protocol. Anything a `Test*` enum
+// doesn't name falls through to the held base linkage, so every framework protocol keeps working.
+// Wrapping a struct in a struct is essentially free.
+//
+// `TestNetworkProtocolStorage` subclasses `BaseNetworkProtocolStorageParent`, so it inherits every
+// framework protocol factory and only adds the test-only ones.
 
 @_spi(TestHarness)
 @available(Network 0.1.0, *)
 public final class TestNetworkProtocolStorage:
     BaseNetworkProtocolStorageParent<TestLinkageFamilyGroup> {
 
-    // A true subclass: every framework protocol is inherited, so this only adds the factories for
-    // the test-only protocols -- the harnesses and the test multiplexing protocol.
+    // A true subclass: every framework protocol -- UDP, IP, demux, TCP, the sockets, the bridges,
+    // and QUIC -- is inherited, so this only adds factories for the protocols the framework does
+    // not know about.
 
-
-    // Test-only protocol instances. These are held by the storage the same way the base storage
-    // holds the framework's instances.
+    // Test-only protocol instances, held the same way the base storage holds the framework's.
     private var multiplexingInstances = [ObjectIdentifier: TestMultiplexingProtocol]()
 
-
-    // Harnesses for the test family. The base storage's factories are hard-coded to the base
-    // family, so these build the same harnesses against `TestDatagramLinkageFamily`. The
-    // instances are held here to keep them alive for the lifetime of the storage.
+    // The harnesses, built against the test families and held here to keep them alive for the
+    // lifetime of the storage.
     private var datagramUpperHarnessesForTest = [DatagramUpperHarness<TestDatagramLinkageFamily>]()
     private var datagramLowerHarnessesForTest = [DatagramLowerHarness<TestDatagramLinkageFamily>]()
     private var newDatagramFlowHarnessesForTest = [NewDatagramFlowHarness<TestDatagramLinkageFamily>]()
@@ -365,7 +374,7 @@ public struct TestInboundDatagramLinkage: InboundDatagramLinkage, @unchecked Sen
             var path = path
             path.handleNetworkProtocolEvent(state: &state, from, event: event)
         case .datagramUpperHarness(let harness):
-            _ = harness.handleNetworkProtocolEvent(state: &state, from, event: event)
+            harness.handleNetworkProtocolEvent(state: &state, from, event: event)
         default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
         }
     }
@@ -1232,3 +1241,768 @@ extension TestNetworkProtocolStorage {
     }
 }
 
+// MARK: - The test linkage family group
+
+// The one generic parameter the whole test stack is built from. It names the two families below
+// and, because `LinkageFamilyGroup` now subsumes what `QUICLinkageFamilies` used to express, says
+// how to wrap a QUIC stream, datagram flow, or path in one of this stack's linkages.
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestLinkageFamilyGroup: LinkageFamilyGroup {
+    public typealias StreamFamily = TestStreamLinkageFamily
+    public typealias DatagramFamily = TestDatagramLinkageFamily
+    public typealias MultipathLinkageType = TestDatagramMultipathLinkage
+
+    public static func linkage(
+        for quicStream: QUICStreamInstance<TestLinkageFamilyGroup>
+    ) -> TestOutboundStreamLinkage {
+        .init(base: baseLinkage(forQUICStream: quicStream))
+    }
+
+    public static func linkage(
+        for quicDatagramFlow: QUICDatagramFlow<TestLinkageFamilyGroup>
+    ) -> TestOutboundDatagramLinkage {
+        .init(base: baseLinkage(forQUICDatagramFlow: quicDatagramFlow))
+    }
+
+    public static func linkage(
+        for quicPath: QUICPath<TestLinkageFamilyGroup>
+    ) -> TestInboundDatagramLinkage {
+        .init(base: baseLinkage(forQUICPath: quicPath))
+    }
+
+    // This group's families are the `Test*` wrappers, so lifting puts the wrapper back on.
+    public static func family(
+        for linkage: BaseInboundDatagramLinkage<TestLinkageFamilyGroup>
+    ) -> TestInboundDatagramLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseInboundDatagramFlowLinkage<TestLinkageFamilyGroup>
+    ) -> TestInboundDatagramFlowLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseInboundStreamLinkage<TestLinkageFamilyGroup>
+    ) -> TestInboundStreamLinkage { .init(base: linkage) }
+
+    public static func family(
+        for linkage: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>
+    ) -> TestInboundStreamFlowLinkage { .init(base: linkage) }
+}
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestStreamLinkageFamily: StreamLinkageFamily {
+    public typealias Upper = TestInboundStreamLinkage
+    public typealias Lower = TestOutboundStreamLinkage
+    public typealias Listener = TestStreamListenerLinkage
+    public typealias InboundFlow = TestInboundStreamFlowLinkage
+}
+
+// MARK: - Inbound stream linkage
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestInboundStreamLinkage: InboundStreamLinkage, @unchecked Sendable {
+    public typealias PairedLowerLinkage = TestOutboundStreamLinkage
+
+    public enum ProtocolType {
+        case base
+        case streamUpperHarness(StreamUpperHarness<TestStreamLinkageFamily>)
+    }
+
+    public let base: BaseInboundStreamLinkage<TestLinkageFamilyGroup>
+    public let protocolType: ProtocolType
+    private let harnessReference: ProtocolInstanceReference?
+
+    public init() {
+        self.base = .init()
+        self.protocolType = .base
+        self.harnessReference = nil
+    }
+
+    public init(base: BaseInboundStreamLinkage<TestLinkageFamilyGroup>) {
+        self.base = base
+        self.protocolType = .base
+        self.harnessReference = nil
+    }
+
+    public init(harness: StreamUpperHarness<TestStreamLinkageFamily>) {
+        self.base = .init()
+        self.protocolType = .streamUpperHarness(harness)
+        self.harnessReference = harness.reference
+    }
+
+    public var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
+
+    public func invokeAttachLowerProtocol(
+        _ lowerProtocol: TestOutboundStreamLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            var harness = harness
+            let overrideUpper = try harness.attachLowerProtocol(lowerProtocol)
+            try lowerProtocol.invokeAttachUpperProtocol(
+                overrideUpper ?? self,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        default:
+            // The base linkage binds its own upper side, so the test linkage has to complete the
+            // pairing itself: it attaches the lower protocol, then hands this linkage back up.
+            try lowerProtocol.invokeAttachUpperProtocol(
+                self,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        }
+    }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        switch protocolType {
+        case .streamUpperHarness(let harness): harness.handleConnectedEvent(state: &state, from)
+        default: base.handleConnectedEvent(state: &state, from)
+        }
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleDisconnectedEvent(state: &state, from, error: error)
+        default: base.handleDisconnectedEvent(state: &state, from, error: error)
+        }
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleNetworkProtocolEvent(state: &state, from, event: event)
+        default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        }
+    }
+
+    public func handleInboundDataAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleInboundDataAvailableEvent(state: &state, from)
+        default: base.handleInboundDataAvailableEvent(state: &state, from)
+        }
+    }
+
+    public func handleOutboundRoomAvailableEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleOutboundRoomAvailableEvent(state: &state, from)
+        default: base.handleOutboundRoomAvailableEvent(state: &state, from)
+        }
+    }
+
+    public func handleInboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleInboundAbortedEvent(state: &state, from, error: error)
+        default: base.handleInboundAbortedEvent(state: &state, from, error: error)
+        }
+    }
+
+    public func handleOutboundAbortedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        case .streamUpperHarness(let harness):
+            harness.handleOutboundAbortedEvent(state: &state, from, error: error)
+        default: base.handleOutboundAbortedEvent(state: &state, from, error: error)
+        }
+    }
+
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+        lhs.reference == rhs.reference
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(reference)
+    }
+}
+
+// MARK: - Outbound stream linkage
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Sendable {
+    public typealias PairedUpperLinkage = TestInboundStreamLinkage
+
+    public enum ProtocolType {
+        case base
+        case streamLowerHarness(StreamLowerHarness<TestStreamLinkageFamily>)
+    }
+
+    public let base: BaseOutboundStreamLinkage<TestLinkageFamilyGroup>
+    public let protocolType: ProtocolType
+    private let localReference: ProtocolInstanceReference?
+
+    public init() {
+        self.base = .init()
+        self.protocolType = .base
+        self.localReference = nil
+    }
+
+    public init(base: BaseOutboundStreamLinkage<TestLinkageFamilyGroup>) {
+        self.base = base
+        self.protocolType = .base
+        self.localReference = nil
+    }
+
+    public init(harness: StreamLowerHarness<TestStreamLinkageFamily>) {
+        self.base = .init()
+        self.protocolType = .streamLowerHarness(harness)
+        self.localReference = harness.reference
+    }
+
+
+    public var reference: ProtocolInstanceReference { localReference ?? base.reference }
+
+    public func protocolIsConnected(state: inout NetworkContext.State) -> Bool {
+        switch protocolType {
+        case .streamLowerHarness: return reference.isConnected(state: &state)
+        default: return base.protocolIsConnected(state: &state)
+        }
+    }
+
+    public func invokeAttachUpperProtocol(
+        _ upperProtocol: TestInboundStreamLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            var harness = harness
+            try harness.attachUpperProtocol(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        default:
+            try base.invokeAttachUpperProtocol(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        }
+    }
+
+    public func receiveStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        minimumBytes: Int,
+        maximumBytes: Int
+    ) throws(NetworkError) -> FrameArray? {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            var harness = harness
+            return try harness.receiveStreamData(
+                state: &state,
+                from,
+                minimumBytes: minimumBytes,
+                maximumBytes: maximumBytes
+            )
+        default:
+            return try base.receiveStreamData(
+                state: &state,
+                from,
+                minimumBytes: minimumBytes,
+                maximumBytes: maximumBytes
+            )
+        }
+    }
+
+    public func getOutboundStreamDataRoomAvailable(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) -> Int {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            var harness = harness
+            return try harness.getOutboundStreamDataRoomAvailable(state: &state, from)
+        default:
+            return try base.getOutboundStreamDataRoomAvailable(state: &state, from)
+        }
+    }
+
+    public func sendStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            var harness = harness
+            try harness.sendStreamData(state: &state, from, streamData: streamData)
+        default: try base.sendStreamData(state: &state, from, streamData: streamData)
+        }
+    }
+
+    public func sendEarlyStreamData(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        streamData: consuming FrameArray
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness:
+            // The harness has no early-data path, matching what the framework's own linkage
+            // reported for every non-QUIC protocol.
+            throw NetworkError.posix(ENOTSUP)
+        default: try base.sendEarlyStreamData(state: &state, from, streamData: streamData)
+        }
+    }
+
+    public func abortInbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness:
+            // Not supported by the harness, matching the framework's own linkage.
+            throw NetworkError.posix(ENOTSUP)
+        default: try base.abortInbound(state: &state, from, error: error)
+        }
+    }
+
+    public func abortOutbound(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness:
+            // Not supported by the harness, matching the framework's own linkage.
+            throw NetworkError.posix(ENOTSUP)
+        default: try base.abortOutbound(state: &state, from, error: error)
+        }
+    }
+
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        switch protocolType {
+        case .streamLowerHarness(let harness): harness.connect(state: &state, from)
+        default: base.connect(state: &state, from)
+        }
+    }
+
+    public func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            harness.disconnect(state: &state, from, error: error)
+        default: base.disconnect(state: &state, from, error: error)
+        }
+    }
+
+    public func detach(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            var harness = harness
+            try harness.detach(state: &state, from)
+        default: try base.detach(state: &state, from)
+        }
+    }
+
+    public func teardown(state: inout NetworkContext.State) {
+        switch protocolType {
+        case .streamLowerHarness: break
+        default: base.teardown(state: &state)
+        }
+    }
+
+    public func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+        switch protocolType {
+        case .streamLowerHarness(let harness):
+            harness.handleApplicationEvent(state: &state, from, event: event)
+        default: base.handleApplicationEvent(state: &state, from, event: event)
+        }
+    }
+
+    public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        switch protocolType {
+        case .streamLowerHarness(let harness): return harness.getMetadata(state: &state, from)
+        default: return base.getMetadata(state: &state, from)
+        }
+    }
+
+    public func getMetrics(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        requestedNetworkMetric: RequestedNetworkMetrics
+    ) -> NetworkMetrics? {
+        switch protocolType {
+        case .streamLowerHarness:
+            // Held here rather than in `base`, whose linkage is empty; see the datagram
+            // equivalent. Falling through would force-unwrap a nil storage.
+            return nil
+        default:
+            return base.getMetrics(
+                state: &state,
+                from,
+                requestedNetworkMetric: requestedNetworkMetric
+            )
+        }
+    }
+
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+        lhs.reference == rhs.reference
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(reference)
+    }
+}
+
+// MARK: - Inbound stream flow linkage
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestInboundStreamFlowLinkage: InboundStreamFlowLinkage, @unchecked Sendable {
+    public typealias PairedLowerLinkage = TestStreamListenerLinkage
+    public typealias DataLinkage = TestOutboundStreamLinkage
+
+    public enum ProtocolType {
+        case base
+        case newStreamFlowHarness(NewStreamFlowHarness<TestStreamLinkageFamily>)
+    }
+
+    public let base: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>
+    public let protocolType: ProtocolType
+    private let harnessReference: ProtocolInstanceReference?
+
+    public init() {
+        self.base = .init()
+        self.protocolType = .base
+        self.harnessReference = nil
+    }
+
+    public init(base: BaseInboundStreamFlowLinkage<TestLinkageFamilyGroup>) {
+        self.base = base
+        self.protocolType = .base
+        self.harnessReference = nil
+    }
+
+    public init(harness: NewStreamFlowHarness<TestStreamLinkageFamily>) {
+        self.base = .init()
+        self.protocolType = .newStreamFlowHarness(harness)
+        self.harnessReference = harness.reference
+    }
+
+    public var reference: ProtocolInstanceReference { harnessReference ?? base.reference }
+
+    public func invokeAttachLowerProtocol(
+        _ lowerProtocol: TestStreamListenerLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        switch protocolType {
+        case .newStreamFlowHarness(let harness):
+            let harness = harness
+            _ = try harness.attachLowerProtocol(lowerProtocol)
+            try lowerProtocol.attachInboundFlow(
+                self,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        default:
+            try lowerProtocol.attachInboundFlow(
+                self,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        }
+    }
+
+    public func handleConnectedEvent(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        switch protocolType {
+        case .newStreamFlowHarness(let harness): harness.handleConnectedEvent(state: &state, from)
+        default: base.handleConnectedEvent(state: &state, from)
+        }
+    }
+
+    public func handleDisconnectedEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        case .newStreamFlowHarness(let harness):
+            harness.handleDisconnectedEvent(state: &state, from, error: error)
+        default: base.handleDisconnectedEvent(state: &state, from, error: error)
+        }
+    }
+
+    public func handleNetworkProtocolEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: NetworkProtocolEvent
+    ) {
+        switch protocolType {
+        case .newStreamFlowHarness(let harness):
+            harness.handleNetworkProtocolEvent(state: &state, from, event: event)
+        default: base.handleNetworkProtocolEvent(state: &state, from, event: event)
+        }
+    }
+
+    public func handleNewInboundFlowEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        flowReference: ProtocolInstanceReference,
+        flowMetadata: AbstractProtocolMetadata?
+    ) {
+        switch protocolType {
+        case .newStreamFlowHarness(let harness):
+            harness.handleNewInboundFlowEvent(
+                state: &state,
+                from,
+                flowReference: flowReference,
+                flowMetadata: flowMetadata
+            )
+        default:
+            base.handleNewInboundFlowEvent(
+                state: &state,
+                from,
+                flowReference: flowReference,
+                flowMetadata: flowMetadata
+            )
+        }
+    }
+
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+        lhs.reference == rhs.reference
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(reference)
+    }
+}
+
+// MARK: - Stream listener linkage
+
+@_spi(TestHarness)
+@available(Network 0.1.0, *)
+public struct TestStreamListenerLinkage: StreamListenerLinkage, @unchecked Sendable {
+    public typealias PairedUpperLinkage = TestInboundStreamFlowLinkage
+
+    public enum ProtocolType {
+        case base
+    }
+
+    public let base: BaseStreamListenerLinkage<TestLinkageFamilyGroup>
+    public let protocolType: ProtocolType
+    private let localReference: ProtocolInstanceReference?
+
+    public init() {
+        self.base = .init()
+        self.protocolType = .base
+        self.localReference = nil
+    }
+
+    public init(base: BaseStreamListenerLinkage<TestLinkageFamilyGroup>) {
+        self.base = base
+        self.protocolType = .base
+        self.localReference = nil
+    }
+
+    public var reference: ProtocolInstanceReference { localReference ?? base.reference }
+
+    // Binds an inbound-flow observer to the listener. Called from the upper linkage so both
+    // directions end up bound.
+    public func attachInboundFlow(
+        _ upperProtocol: TestInboundStreamFlowLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        switch protocolType {
+        default:
+            try base.invokeAttachUpperProtocol(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+        }
+    }
+
+    public func invokeAttachUpperProtocol(
+        _ upperProtocol: TestInboundStreamFlowLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        try attachInboundFlow(
+            upperProtocol,
+            remote: remote,
+            local: local,
+            parameters: parameters,
+            path: path
+        )
+    }
+
+    public func invokeAttachUpperProtocolToNewFlow(
+        _ upperProtocol: TestInboundStreamLinkage,
+        remote: Endpoint?,
+        local: Endpoint?,
+        parameters: Parameters?,
+        path: PathProperties?
+    ) throws(NetworkError) {
+        switch protocolType {
+        default:
+            try base.invokeAttachUpperProtocolToNewFlow(
+                upperProtocol,
+                remote: remote,
+                local: local,
+                parameters: parameters,
+                path: path
+            )
+            return
+        }
+    }
+
+    public func invokeAttachUpperProtocolToExistingFlow(
+        _ upperProtocol: TestInboundStreamLinkage,
+        existingFlowReference: ProtocolInstanceReference
+    ) throws(NetworkError) -> TestOutboundStreamLinkage {
+        switch protocolType {
+        default:
+            // The wrapped base linkage is specialized on this group, so it already hands back the
+            // test family's own linkage -- no re-wrapping needed.
+            return try base.invokeAttachUpperProtocolToExistingFlow(
+                upperProtocol,
+                existingFlowReference: existingFlowReference
+            )
+        }
+    }
+
+    public func connect(state: inout NetworkContext.State, _ from: ProtocolInstanceReference) {
+        switch protocolType {
+        default: base.connect(state: &state, from)
+        }
+    }
+
+    public func disconnect(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        error: NetworkError?
+    ) {
+        switch protocolType {
+        default: base.disconnect(state: &state, from, error: error)
+        }
+    }
+
+    public func detach(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) throws(NetworkError) {
+        switch protocolType {
+        default: try base.detach(state: &state, from)
+        }
+    }
+
+    public func teardown(state: inout NetworkContext.State) {
+        switch protocolType {
+        default: base.teardown(state: &state)
+        }
+    }
+
+    public func handleApplicationEvent(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        event: ApplicationEvent
+    ) {
+        switch protocolType {
+        default: base.handleApplicationEvent(state: &state, from, event: event)
+        }
+    }
+
+    public func getMetadata<P: NetworkProtocol>(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference
+    ) -> ProtocolMetadata<P>? {
+        switch protocolType {
+        default: return base.getMetadata(state: &state, from)
+        }
+    }
+
+    public func getMetrics(
+        state: inout NetworkContext.State,
+        _ from: ProtocolInstanceReference,
+        requestedNetworkMetric: RequestedNetworkMetrics
+    ) -> NetworkMetrics? {
+        switch protocolType {
+        default:
+            return base.getMetrics(
+                state: &state,
+                from,
+                requestedNetworkMetric: requestedNetworkMetric
+            )
+        }
+    }
+
+    public static func == (lhs: borrowing Self, rhs: borrowing Self) -> Bool {
+        lhs.reference == rhs.reference
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(reference)
+    }
+}

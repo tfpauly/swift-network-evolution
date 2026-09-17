@@ -445,7 +445,10 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         public typealias UpperProtocol = LinkageFamily.Upper
 
         var maximumOutputSize = 1500
-        public var upper = UpperProtocol()
+        // Spelled through the family rather than the `UpperProtocol` typealias: going through the
+        // typealias sends the runtime around the `Lower.PairedUpper -> Upper.PairedLower` cycle
+        // when it resolves the conformance, which recurses until the stack runs out.
+        public var upper = LinkageFamily.Upper()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {

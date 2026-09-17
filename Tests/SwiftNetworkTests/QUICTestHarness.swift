@@ -168,7 +168,7 @@ class QUICTestHarness {
 
             // Build the QUIC connection through storage so its listener/multipath linkages are
             // storage-backed and can dispatch calls back into the instance.
-            var (clientQUICStreamListener, clientQUICDatagramListener, clientQUICMultipath) =
+            let (clientQUICStreamListener, clientQUICDatagramListener, clientQUICMultipath) =
                 self.storage.createQUICInstance()
             guard let clientInstance = self.storage.quicInstance(for: clientQUICStreamListener) else {
                 XCTFail("Failed to create client QUIC instance")
@@ -201,7 +201,7 @@ class QUICTestHarness {
             serverParameters.context = self.context
             serverParameters.isServer = true
 
-            var (serverQUICStreamListener, serverQUICDatagramListener, serverQUICMultipath) =
+            let (serverQUICStreamListener, serverQUICDatagramListener, serverQUICMultipath) =
                 self.storage.createQUICInstance()
             guard let serverInstance = self.storage.quicInstance(for: serverQUICStreamListener) else {
                 XCTFail("Failed to create server QUIC instance")

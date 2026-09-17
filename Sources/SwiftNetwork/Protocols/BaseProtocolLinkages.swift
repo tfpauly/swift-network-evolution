@@ -68,7 +68,7 @@ public struct BaseInboundDatagramLinkage<Group: LinkageFamilyGroup>: InboundData
             overrideUpperLinkage = try path.attachLowerProtocol(lowerProtocol)
         default: fatalError("Protocol cannot accept attachUpperProtocol call")
         }
-        let upperLinkage = overrideUpperLinkage ?? (self as! Group.DatagramFamily.Upper)
+        let upperLinkage = overrideUpperLinkage ?? Group.family(for: self)
         try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
     }
 
@@ -588,7 +588,7 @@ public struct BaseInboundDatagramFlowLinkage<Group: LinkageFamilyGroup>: Inbound
         switch protocolType {
         default: fatalError("Protocol cannot accept invokeAttachLowerProtocol call")
         }
-        let upperLinkage = overrideUpperLinkage ?? (self as! Group.DatagramFamily.InboundFlow)
+        let upperLinkage = overrideUpperLinkage ?? Group.family(for: self)
         try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
     }
 
@@ -727,7 +727,7 @@ public struct BaseInboundStreamLinkage<Group: LinkageFamilyGroup>: InboundStream
             overrideUpperLinkage = try flow.attachLowerProtocol(lowerProtocol)
         default: fatalError("Protocol cannot accept attachLowerProtocol call")
         }
-        let upperLinkage = overrideUpperLinkage ?? (self as! Group.StreamFamily.Upper)
+        let upperLinkage = overrideUpperLinkage ?? Group.family(for: self)
         try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
     }
 
@@ -1271,7 +1271,7 @@ public struct BaseInboundStreamFlowLinkage<Group: LinkageFamilyGroup>: InboundSt
         switch protocolType {
         default: fatalError("Protocol cannot accept invokeAttachLowerProtocol call")
         }
-        let upperLinkage = overrideUpperLinkage ?? (self as! Group.StreamFamily.InboundFlow)
+        let upperLinkage = overrideUpperLinkage ?? Group.family(for: self)
         try lowerProtocol.invokeAttachUpperProtocol(upperLinkage, remote: remote, local: local, parameters: parameters, path: path)
     }
 
@@ -1598,4 +1598,21 @@ public struct BaseLinkageFamilyGroup: LinkageFamilyGroup {
     ) -> BaseInboundDatagramLinkage<BaseLinkageFamilyGroup> {
         baseLinkage(forQUICPath: quicPath)
     }
+
+    // This group's families *are* the framework's linkages, so lifting is the identity.
+    public static func family(
+        for linkage: BaseInboundDatagramLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseInboundDatagramLinkage<BaseLinkageFamilyGroup> { linkage }
+
+    public static func family(
+        for linkage: BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseInboundDatagramFlowLinkage<BaseLinkageFamilyGroup> { linkage }
+
+    public static func family(
+        for linkage: BaseInboundStreamLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseInboundStreamLinkage<BaseLinkageFamilyGroup> { linkage }
+
+    public static func family(
+        for linkage: BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup>
+    ) -> BaseInboundStreamFlowLinkage<BaseLinkageFamilyGroup> { linkage }
 }
