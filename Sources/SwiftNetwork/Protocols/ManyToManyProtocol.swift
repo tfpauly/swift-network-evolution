@@ -165,17 +165,26 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-@frozen public enum MultiplexedFlowIdentifier: Hashable, CustomDebugStringConvertible {
-    case allFlows
+public struct MultiplexedFlowIdentifier: Hashable, Sendable, CustomDebugStringConvertible {
 
-    case someFlow(identifier: UInt64)
+    fileprivate var identifier: UInt64
+
+    public static let allFlows = MultiplexedFlowIdentifier(0)
+
+    private init(_ identifier: UInt64) {
+        self.identifier = identifier
+    }
+
+    public init(testValue identifier: UInt64) {
+        self.identifier = identifier
+    }
 
     fileprivate init(_ identifier: InstanceIdentifier) {
         guard let index = identifier.protocolEventStateIndex else {
             self = .allFlows
             return
         }
-        self = .someFlow(identifier: index.rawGeneration)
+        self.identifier = index.rawGeneration
     }
 
     fileprivate init(inboundInstance: InstanceIdentifier) {
@@ -186,37 +195,20 @@ where Path.LowerProtocol: OutboundDatagramLinkage {
             self = .allFlows
             return
         }
-        self = .someFlow(identifier: index.rawGeneration)
-    }
-
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(self.rawHashKey)
-    }
-
-    private var rawHashKey: UInt64 {
-        // Use the bottom two bits as a discriminator for the different cases. The generation is
-        // mixed in so that two flows sharing a reused slot hash differently.
-        switch self {
-        case .allFlows:
-            return 0
-        case .someFlow(let identifier):
-            return identifier
-        }
+        self.identifier = index.rawGeneration
     }
 
     public func _rawHashValue(seed: Int) -> Int {
-        self.rawHashKey._rawHashValue(seed: seed)
+        self.identifier._rawHashValue(seed: seed)
     }
 
     public var debugDescription: String {
-        switch self {
-        case .allFlows: return "All Flows"
+        guard identifier != 0 else { return "All Flows" }
         #if !NETWORK_EMBEDDED
-        case .someFlow(let identifier): return "\(identifier)"
+        return "\(identifier)"
         #else
-        case .someFlow: return "Some Flow"
+        return "Some Flow"
         #endif
-        }
     }
 }
 
@@ -1860,7 +1852,7 @@ extension ManyToManyProtocolHandler {
                     connect(flow: flow.flowIdentifier, in: &eventContext)
                 }
             }
-        case .someFlow:
+        default:
             guard let flow = self.flow(for: flowID) else { return }
             flow.deliverConnectedEvent(in: &eventContext)
         }
@@ -1877,7 +1869,7 @@ extension ManyToManyProtocolHandler {
             applyToAllFlows { flow in
                 flow.deliverDisconnectedEvent(error: error, in: &eventContext)
             }
-        case .someFlow:
+        default:
             guard let flow = self.flow(for: flowID) else { return }
             flow.deliverDisconnectedEvent(error: error, in: &eventContext)
         }
@@ -1904,7 +1896,7 @@ extension ManyToManyProtocolHandler {
                     in: &eventContext
                 )
             }
-        case .someFlow:
+        default:
             guard let flow = self.flow(for: flowID) else { return }
             flow.upper.deliverNetworkProtocolEvent(
                 originalInstance: flow.identifier,
@@ -1932,7 +1924,7 @@ extension HeterogeneousManyToManyProtocolHandler {
                     connect(flow: flow.flowIdentifier, in: &eventContext)
                 }
             }
-        case .someFlow:
+        default:
             if let flow = self.flow(for: flowID) {
                 flow.deliverConnectedEvent(in: &eventContext)
             }
@@ -1952,7 +1944,7 @@ extension HeterogeneousManyToManyProtocolHandler {
             applyToAllSecondaryFlows { flow in
                 flow.deliverDisconnectedEvent(error: error)
             }
-        case .someFlow:
+        default:
             if let flow = self.flow(for: flowID) {
                 flow.deliverDisconnectedEvent(error: error)
             }
@@ -1976,7 +1968,7 @@ extension HeterogeneousManyToManyProtocolHandler {
             applyToAllSecondaryFlows { flow in
                 flow.deliverDisconnectedEvent(error: error, in: &eventContext)
             }
-        case .someFlow:
+        default:
             if let flow = self.flow(for: flowID) {
                 flow.deliverDisconnectedEvent(error: error, in: &eventContext)
             }
@@ -2012,7 +2004,7 @@ extension HeterogeneousManyToManyProtocolHandler {
                     in: &eventContext
                 )
             }
-        case .someFlow:
+        default:
             if let flow = self.flow(for: flowID) {
                 flow.upper.deliverNetworkProtocolEvent(
                     originalInstance: flow.identifier,
