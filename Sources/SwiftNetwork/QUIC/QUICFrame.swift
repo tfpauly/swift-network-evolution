@@ -142,11 +142,11 @@ enum QUICFrame: ~Copyable {
         }
     }
 
-    static func parse<Families: LinkageFamilyGroup>(
+    static func parse(
         type: FrameType,
         frame: inout Frame,
         packet: inout Packet,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         isLastPacketInFrame: Bool = true,
         in eventContext: inout NetworkContext.EventContext
     ) throws(QUICError) -> QUICFrame {
@@ -1091,8 +1091,8 @@ struct FrameResetStream: ~Copyable, QUICFrameProtocol {
         stats.increment(.txStreamResetFrames)
     }
 
-    func process<Families: LinkageFamilyGroup>(
-        connection: QUICConnection<Families>,
+    func process(
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         guard let streamID = QUICStreamID(self.id) else {
@@ -1111,14 +1111,14 @@ struct FrameResetStream: ~Copyable, QUICFrameProtocol {
             return false
         }
 
-        let stream: QUICStreamInstance<Families>
+        let stream: QUICStreamInstance
         if let flowID = connection.knownFlows[streamID] {
             // The stream id is known. The flow object may still be missing
             // if the stream was torn down without clearing `knownFlows`; in
             // that case there is no one to deliver the reset to, so drop it.
             guard let existing = connection.flow(for: flowID) else {
                 Logger.proto.error(
-                    "stream \(streamID.value) has known flow but no QUICStreamInstance<Families>; dropping RESET_STREAM"
+                    "stream \(streamID.value) has known flow but no QUICStreamInstance; dropping RESET_STREAM"
                 )
                 return true
             }
@@ -1146,7 +1146,7 @@ struct FrameResetStream: ~Copyable, QUICFrameProtocol {
                 let created = connection.flow(for: flowID)
             else {
                 Logger.proto.error(
-                    "Stream \(streamID.value) is not a QUICStreamInstance<Families> after createInboundStreams"
+                    "Stream \(streamID.value) is not a QUICStreamInstance after createInboundStreams"
                 )
                 return true
             }
@@ -1281,8 +1281,8 @@ struct FrameStopSending: ~Copyable, QUICFrameProtocol {
         stats.increment(.txStreamStopSendingFrames)
     }
 
-    func process<Families: LinkageFamilyGroup>(
-        connection: QUICConnection<Families>,
+    func process(
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         guard let streamID = QUICStreamID(self.id) else {
@@ -1497,11 +1497,11 @@ struct FrameCrypto: ~Copyable, QUICFrameProtocol {
         }
     }
 
-    static func write<Families: LinkageFamilyGroup>(
+    static func write(
         frame: inout Frame,
         stats: inout Statistics,
         packetNumberSpace: PacketNumberSpace,
-        crypto: QUICCrypto<Families>,
+        crypto: QUICCrypto,
         offset: UInt64,
         length: UInt64
     ) throws(QUICError) -> Int {
@@ -1714,10 +1714,10 @@ struct FrameStreamSendMetadata: QUICFrameProtocol {
     // the STREAM frame.
     // Returns the stream data length actually written
     // Only marks FIN if the entire length is written
-    static func write<Families: LinkageFamilyGroup>(
+    static func write(
         into frame: inout Frame,
         stats: inout Statistics,
-        stream: QUICStreamInstance<Families>,
+        stream: QUICStreamInstance,
         offset: UInt64,
         length: UInt64,
         isFinal: Bool
@@ -2944,8 +2944,8 @@ struct FrameHandshakeDone: ~Copyable, QUICFrameProtocol {
         try validateSerializationResult(result)
     }
 
-    func process<Families: LinkageFamilyGroup>(
-        connection: QUICConnection<Families>,
+    func process(
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         if connection.isServer {
@@ -2989,11 +2989,11 @@ struct FrameDatagram: ~Copyable, QUICFrameProtocol {
         type == .datagram(hasLength: true)
     }
 
-    static func parse<Families: LinkageFamilyGroup>(
+    static func parse(
         frame: inout Frame,
         useFlowID: Bool,
         useContextID: Bool,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         shorthandFrames: inout [QUICShorthandFrame]?,
         in eventContext: inout NetworkContext.EventContext
     ) throws(QUICError) -> QUICFrame {
@@ -3029,11 +3029,11 @@ struct FrameDatagram: ~Copyable, QUICFrameProtocol {
         }
     }
 
-    init<Families: LinkageFamilyGroup>(
+    init(
         frame: inout Frame,
         useFlowID: Bool,
         useContextID: Bool,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) throws(QUICError) {
         var rawType: UInt64 = 0

@@ -28,7 +28,7 @@ import XCTest
 final class FlowControlTests: XCTestCase {
     func testOutboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<TestLinkageFamilyGroup>(
+        let connection = QUICConnection(
             context: NetworkContext(identifier: "test context")
         )
         defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
@@ -68,7 +68,7 @@ final class FlowControlTests: XCTestCase {
 
     func testInboundFlowControl() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<TestLinkageFamilyGroup>(
+        let connection = QUICConnection(
             context: NetworkContext(identifier: "test context")
         )
         defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
@@ -112,7 +112,7 @@ final class FlowControlTests: XCTestCase {
 
     func testDuplicateResetStreamOverflow() {
         let logPrefixer = LogPrefixer("[FlowControlTests]")
-        let connection = QUICConnection<TestLinkageFamilyGroup>(
+        let connection = QUICConnection(
             context: NetworkContext(identifier: "test context")
         )
         defer { connection.context.onQueue { connection.destroyFromExternalTest() } }

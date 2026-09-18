@@ -32,7 +32,7 @@ internal import os
 // MARK: QUIC StreamID state
 // Keeps track of the QUICStreamID state for local and remote uni/bidi streams
 @available(Network 0.1.0, *)
-struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
+struct QUICStreamIDState: ~Copyable {
     let logContext: String
     let streamType: QUICStreamType
     var remoteMaxStreams: Int = 0
@@ -44,7 +44,7 @@ struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
     var remoteMaxStreamID: QUICStreamID?
     var localMaxStreamID: QUICStreamID?
     private(set) var activeStreams: Int = 0
-    private(set) var pendingStartStreams: [QUICStreamInstance<Families>] = []
+    private(set) var pendingStartStreams: [QUICStreamInstance] = []
 
     init(_ type: QUICStreamType) {
         self.streamType = type
@@ -63,7 +63,7 @@ struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
         activeStreams
     }
 
-    mutating func addPending(_ stream: QUICStreamInstance<Families>) {
+    mutating func addPending(_ stream: QUICStreamInstance) {
         guard !stream.pendingStart else {
             stream.log.error("Stream is already marked pendingStart \(logContext)")
             return
@@ -79,7 +79,7 @@ struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
         stream.log.debug("Is pending \(logContext)")
     }
 
-    mutating func removePending(_ stream: QUICStreamInstance<Families>) {
+    mutating func removePending(_ stream: QUICStreamInstance) {
         guard stream.pendingStart else {
             stream.log.error("Stream is not marked pendingStart \(logContext)")
             return
@@ -144,7 +144,7 @@ struct QUICStreamIDState<Families: LinkageFamilyGroup>: ~Copyable {
     func checkInboundStreamID(
         _ streamID: QUICStreamID,
         server isServer: Bool,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> (valid: Bool, checkZombie: Bool) {
 
@@ -389,7 +389,7 @@ struct QUICStreamList: ~Copyable {
         list.count
     }
 
-    mutating func append<Families: LinkageFamilyGroup>(_ stream: QUICStreamInstance<Families>) {
+    mutating func append(_ stream: QUICStreamInstance) {
         guard !stream.listMembership.contains(listType) else {
             return
         }
@@ -397,9 +397,9 @@ struct QUICStreamList: ~Copyable {
         stream.listMembership.insert(listType)
     }
 
-    mutating func removeFirst<Families: LinkageFamilyGroup>(
-        connection: QUICConnection<Families>
-    ) -> QUICStreamInstance<Families>? {
+    mutating func removeFirst(
+        connection: QUICConnection
+    ) -> QUICStreamInstance? {
         guard !list.isEmpty else {
             return nil
         }
@@ -411,7 +411,7 @@ struct QUICStreamList: ~Copyable {
         return stream
     }
 
-    mutating func remove<Families: LinkageFamilyGroup>(_ stream: QUICStreamInstance<Families>) {
+    mutating func remove(_ stream: QUICStreamInstance) {
         let name = self.name
         guard stream.listMembership.contains(listType) else {
             stream.log.error(
@@ -430,7 +430,7 @@ struct QUICStreamList: ~Copyable {
         stream.log.debug("Removed from \(name)")
     }
 
-    mutating func removeAll<Families: LinkageFamilyGroup>(connection: QUICConnection<Families>) {
+    mutating func removeAll(connection: QUICConnection) {
         while !list.isEmpty {
             guard let identifier = list.popLast() else {
                 break
@@ -449,7 +449,7 @@ struct QUICStreamList: ~Copyable {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICStreamInstance<Families: LinkageFamilyGroup>: MultiplexedStreamFlow<QUICConnection<Families>, Families.StreamFamily.Upper>,
+public final class QUICStreamInstance: MultiplexedStreamFlow<QUICConnection, BaseInboundStreamLinkage>,
     UnidirectionalAbortingStreamFlow, EarlyDataStreamFlow
 {
     private(set) var streamID: QUICStreamID?
@@ -473,7 +473,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
     private var flags = QUICStreamFlags()
 
     override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
-        Families.linkage(for: self)
+        BaseOutboundStreamLinkage(quicStream: self)
     }
 
     // Have sent DATA_BLOCKED for the stream without an increase
@@ -656,14 +656,14 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
         parentProtocol.sendFrames(in: &eventContext)
     }
 
-    func emptyPendingData(connection: QUICConnection<Families>) {
+    func emptyPendingData(connection: QUICConnection) {
         removePendingOutboundBytesFromFlowControl(connection: connection)
         sendBuffer.empty()
     }
 
     // This processes an incoming STREAM frame belonging to a QUICStream
     func processIncomingStream(
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         frame: consuming FrameStreamReceived,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
@@ -689,7 +689,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
     }
 
     private func processIncomingStreamData(
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         frame: consuming FrameStreamReceived,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
@@ -817,7 +817,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
     // the `lastOffset` was incremented.
     @_optimize(speed)
     func updateLastOffset(
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         newLastOffset: UInt64,
         newFinalSize: UInt64?,
         in eventContext: inout NetworkContext.EventContext
@@ -883,7 +883,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
     }
 
     // Called when read data has left stream and being delivered to application
-    func deliveredInboundBytes(consumedLength: Int, connection: QUICConnection<Families>) {
+    func deliveredInboundBytes(consumedLength: Int, connection: QUICConnection) {
         updateFlowControlWithInboundBytesDelivered(UInt64(consumedLength), connection: connection)
 
         // If a RESET_STREAM has been received, the flow control state
@@ -901,7 +901,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
     }
 
     @_optimize(speed)
-    func dequeueReassembledData(connection: QUICConnection<Families>) -> FrameArray? {
+    func dequeueReassembledData(connection: QUICConnection) -> FrameArray? {
         let totalLength = reassemblyQueue.availableToDequeue
         log.datapath("total available reassembled data \(totalLength)")
         guard totalLength >= 0 else {
@@ -1033,7 +1033,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
 
     func outboundStreamPending(
         connected: Bool,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         if connected {
@@ -1075,7 +1075,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
         // Don't send this frame during 0-RTT as we'll revisit once connected.
     }
 
-    func addStreamData(frame: consuming Frame, isLast: Bool, connection: QUICConnection<Families>) {
+    func addStreamData(frame: consuming Frame, isLast: Bool, connection: QUICConnection) {
         if sendState == .ready {
             sendState.change(logIDString: logPrefix, to: .send)
         }
@@ -1106,7 +1106,7 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
         writtenLength: UInt64,
         isFinal: Bool,
         pendingItems: inout PendingItems,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         if isFinal {
             if self.sendState == .send {

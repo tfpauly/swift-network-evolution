@@ -132,14 +132,12 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance<
-        LinkageFamily: DatagramLinkageFamily
-    >: BottomDatagramProtocol, TimerSchedulable {
-        public typealias LinkageType = LinkageFamily.Lower
-        public typealias UpperProtocol = LinkageFamily.Upper
+    public final class BridgeInstance: BottomDatagramProtocol, TimerSchedulable {
+        public typealias LinkageType = BaseOutboundDatagramLinkage
+        public typealias UpperProtocol = BaseInboundDatagramLinkage
 
         var maximumOutputSize = 1500
-        public var upper = LinkageFamily.Upper()
+        public var upper = UpperProtocol()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -303,7 +301,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeDatagramRegistry.instances[remotePort]
-                as? BridgeInstance<LinkageFamily>
+                as? BridgeInstance
             else {
                 log.error("Unable to find instance for port: \(remotePort)")
                 datagrams.finalizeAllFramesAsFailed()
@@ -338,7 +336,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
 
         public static func injectDatagram(_ datagram: consuming Frame, to remotePort: UInt16) {
             guard let remoteInstance = BridgeDatagramRegistry.instances[remotePort]
-                as? BridgeInstance<LinkageFamily>
+                as? BridgeInstance
             else {
                 return
             }
@@ -427,15 +425,12 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         }
     }
 
-    public final class BridgeInstance<LinkageFamily: StreamLinkageFamily>: BottomStreamProtocol {
-        public typealias LinkageType = LinkageFamily.Lower
-        public typealias UpperProtocol = LinkageFamily.Upper
+    public final class BridgeInstance: BottomStreamProtocol {
+        public typealias LinkageType = BaseOutboundStreamLinkage
+        public typealias UpperProtocol = BaseInboundStreamLinkage
 
         var maximumOutputSize = 1500
-        // Spelled through the family rather than the `UpperProtocol` typealias: going through the
-        // typealias sends the runtime around the `Lower.PairedUpper -> Upper.PairedLower` cycle
-        // when it resolves the conformance, which recurses until the stack runs out.
-        public var upper = LinkageFamily.Upper()
+        public var upper = UpperProtocol()
 
         public private(set) var context: NetworkContext
         init(context: NetworkContext) {
@@ -504,7 +499,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         ) throws(NetworkError) {
             let remotePort = remoteEndpoint!.port
             guard let remoteInstance = BridgeStreamRegistry.instances[remotePort]
-                as? BridgeInstance<LinkageFamily>
+                as? BridgeInstance
             else {
                 log.error("Unable to find instance for port: \(remotePort)")
                 streamData.finalizeAllFramesAsFailed()

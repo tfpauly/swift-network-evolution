@@ -508,7 +508,7 @@ enum AckConstants {
 }
 
 @available(Network 0.1.0, *)
-final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
+final class Ack: PrefixedLoggable, TimerUser {
     var log: LogPrefixer
 
     private var initialAckSpace: AckSpace
@@ -521,7 +521,7 @@ final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     var unackedPacketCount = 0
     var lastSentTime: NetworkClock.Instant = .zero
     var timerID: Timer.TimerID? = nil
-    var connection: QUICConnection<Families>?
+    var connection: QUICConnection?
     var disableAckCompression: Bool = false
 
     var flags: AckFlags = AckFlags()
@@ -546,7 +546,7 @@ final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     // Sequence number of the last received ACK_FREQUENCY frame.
     var receivedFrequencySequence = 0
 
-    init(connection: QUICConnection<Families>? = nil, timerID: Timer.TimerID? = 0, logPrefixer: LogPrefixer) {
+    init(connection: QUICConnection? = nil, timerID: Timer.TimerID? = 0, logPrefixer: LogPrefixer) {
         self.connection = connection
         self.timerID = timerID
         self.log = logPrefixer
@@ -671,7 +671,7 @@ final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     }
 
     func assemble(
-        for path: QUICPath<Families>,
+        for path: QUICPath,
         delayExponent: Int,
         isAckSet: (PacketNumberSpace) -> Bool,
         setAckFrame: (PacketNumberSpace, consuming QUICFrame, Bool) -> Void,
@@ -723,7 +723,7 @@ final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     }
 
     private func schedulePending(
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         isAckSet: (PacketNumberSpace) -> Bool,
         setAckFrame: (PacketNumberSpace, consuming QUICFrame, Bool) -> Void,
         ecn: borrowing ECN
@@ -824,7 +824,7 @@ final class Ack<Families: LinkageFamilyGroup>: PrefixedLoggable, TimerUser {
     }
 
     private func processPending(
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         connectionWindow: Int,
         isAckSet: (PacketNumberSpace) -> Bool,
         setAckFrame: (PacketNumberSpace, consuming QUICFrame, Bool) -> Void,

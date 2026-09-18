@@ -159,9 +159,9 @@ struct QUICPathFlags: OptionSet {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramPath<
-    QUICConnection<Families>,
-    Families.DatagramFamily.Lower
+public final class QUICPath: MultiplexingDatagramPath<
+    QUICConnection,
+    BaseOutboundDatagramLinkage
 >, Equatable, PrefixedLoggable {
     private(set) var state: QUICPathState = QUICPathState()
     var priority: Int = 0  // Relative priority to other paths, used to gate migration decisions
@@ -253,10 +253,10 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     }
 
     override public func asUpperLinkage() -> LowerProtocol.PairedUpperLinkage {
-        Families.linkage(for: self)
+        BaseInboundDatagramLinkage(quicPath: self)
     }
 
-    public static func == (lhs: QUICPath<Families>, rhs: QUICPath<Families>) -> Bool {
+    public static func == (lhs: QUICPath, rhs: QUICPath) -> Bool {
         lhs.identifier == rhs.identifier
     }
 
@@ -320,7 +320,7 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     ///
     /// A path built this way isn't in the parent's `multiplexingPaths`, so nothing tears it down.
     /// Pair it with `destroyFromExternalTest()` before letting it go.
-    static func makeFromExternalTest(parent: QUICConnection<Families>) -> Self {
+    static func makeFromExternalTest(parent: QUICConnection) -> Self {
         parent.fromExternal { eventContext in
             Self(parent: parent, in: &eventContext)
         }
@@ -337,7 +337,7 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
         }
     }
 
-    required init(parent: QUICConnection<Families>, in eventContext: inout NetworkContext.EventContext) {
+    required init(parent: QUICConnection, in eventContext: inout NetworkContext.EventContext) {
         self.rtt = RTT(logPrefixer: parent.logPrefixer)
         self.pacer = Pacer()
         super.init(parent: parent, in: &eventContext)
@@ -694,7 +694,7 @@ extension QUICPath {
     }
 
     @inline(__always)
-    func congestionControlAckEnd(rtt: borrowing RTT, path: QUICPath<Families>?, mss: Int, packetsLost: Bool, qlog: QLog? = nil) {
+    func congestionControlAckEnd(rtt: borrowing RTT, path: QUICPath?, mss: Int, packetsLost: Bool, qlog: QLog? = nil) {
         congestionControl?.ackEnd(rtt: rtt, path: self, mss: mss, packetsLost: packetsLost, qlog: qlog)
     }
 
@@ -716,7 +716,7 @@ extension QUICPath {
         smoothedRTT: NetworkDuration
     ) -> Bool {
         // Loss accounting doesn't repace this path, so there is no path to hand down.
-        let unpacedPath: QUICPath<Families>? = nil
+        let unpacedPath: QUICPath? = nil
         return congestionControl?.packetsLost(
             path: unpacedPath,
             bytesLost: bytesLost,
@@ -774,7 +774,7 @@ extension QUICPath {
     ) {
         guard congestionControl != nil else { return }
         // ECN accounting doesn't repace this path, so there is no path to hand down.
-        let unpacedPath: QUICPath<Families>? = nil
+        let unpacedPath: QUICPath? = nil
         switch congestionControl! {
         case .cubic(var cubic):
             cubic.processECN(

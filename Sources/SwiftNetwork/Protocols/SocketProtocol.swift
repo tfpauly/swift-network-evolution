@@ -29,14 +29,14 @@ import Dispatch
 
 @_spi(Essentials)
 @available(Network 0.1.0, *)
-public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>: BottomDatagramProtocol {
-    public typealias UpperProtocol = LinkageFamily.Upper
-    public typealias LinkageType = LinkageFamily.Lower
+public final class SocketDatagramProtocol: BottomDatagramProtocol {
+    public typealias UpperProtocol = BaseInboundDatagramLinkage
+    public typealias LinkageType = BaseOutboundDatagramLinkage
 
     public private(set) var context: NetworkContext
     public var identifier: InstanceIdentifier
     public var eventManager = ProtocolEventManager()
-    public var upper = LinkageFamily.Upper()
+    public var upper = UpperProtocol()
     var log = NetworkLoggerState()
 
     private var socket: SystemSocket? = nil
@@ -444,14 +444,14 @@ fileprivate struct SocketStreamDefaults {
 
 @_spi(Essentials)
 @available(Network 0.1.0, *)
-public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: BottomStreamProtocol {
-    public typealias UpperProtocol = LinkageFamily.Upper
-    public typealias LinkageType = LinkageFamily.Lower
+public final class SocketStreamProtocol: BottomStreamProtocol {
+    public typealias UpperProtocol = BaseInboundStreamLinkage
+    public typealias LinkageType = BaseOutboundStreamLinkage
 
     public private(set) var context: NetworkContext
     public var identifier: InstanceIdentifier
     public var eventManager = ProtocolEventManager()
-    public var upper = LinkageFamily.Upper()
+    public var upper = UpperProtocol()
     var log = NetworkLoggerState()
 
     private var socket: SystemSocket? = nil

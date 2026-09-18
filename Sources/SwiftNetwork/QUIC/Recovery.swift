@@ -158,7 +158,7 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         access(&outstandingPackets[index])
     }
 
-    mutating func reset<Families: LinkageFamilyGroup>(connection: QUICConnection<Families>?) {
+    mutating func reset(connection: QUICConnection?) {
         iterateSentPacketEntries { entry in
             guard entry.packet.isInFlightEligible, entry.lostTime == .zero else {
                 return true
@@ -200,11 +200,11 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         timeThreshold = Constants.timeReorderThreshold
     }
 
-    func notifyLossToPath<Families: LinkageFamilyGroup>(
+    func notifyLossToPath(
         packetNumber: PacketNumber,
         pathID: MultiplexingPathIdentifier,
         bytesLost: Int,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) -> Bool {
         guard let path = connection.path(for: pathID) else {
             return false
@@ -227,9 +227,9 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         return reducedCongestionWindow
     }
 
-    mutating func updateCongestionOnPath<Families: LinkageFamilyGroup>(
+    mutating func updateCongestionOnPath(
         _ pathID: MultiplexingPathIdentifier,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         guard let path = connection.path(for: pathID) else {
             return
@@ -281,9 +281,9 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    mutating func declarePacketLost<Families: LinkageFamilyGroup>(
+    mutating func declarePacketLost(
         _ lostPackets: [PacketIdentifier],
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         // We assume that the packets are in packet-number order. Verify that
         // the sent time of each packet is after that of the earlier packet.
@@ -357,10 +357,10 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    mutating func packetAcked<Families: LinkageFamilyGroup>(
-        sentPath: QUICPath<Families>,
+    mutating func packetAcked(
+        sentPath: QUICPath,
         sentEntry: borrowing PacketContainerEntry,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         if sentEntry.lostTime == .zero && sentEntry.packet.isInFlightEligible {
@@ -400,15 +400,15 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         )
     }
 
-    mutating func spuriousLoss<Families: LinkageFamilyGroup>(
+    mutating func spuriousLoss(
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
         packetSentTime: NetworkClock.Instant,
         ackedTime: NetworkClock.Instant,
         sRTT: NetworkDuration,
         latestRTT: NetworkDuration,
-        path: QUICPath<Families>,
-        connection: QUICConnection<Families>
+        path: QUICPath,
+        connection: QUICConnection
     ) {
         if RecoveryConstants.adaptiveTimeThreshold {
             let timeNeeded = packetSentTime.duration(to: ackedTime)
@@ -441,9 +441,9 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    private mutating func findNewlyAckedPackets<Families: LinkageFamilyGroup>(
+    private mutating func findNewlyAckedPackets(
         ackFrame: FrameAck,
-        path: QUICPath<Families>
+        path: QUICPath
     ) -> AckBitstringSequence {
         var oldestSentPacketNumber: PacketNumber? = nil
         if !outstandingPackets.isEmpty {
@@ -475,11 +475,11 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
     }
 
     @inline(__always)
-    mutating func findNewlyAckedPackets<Families: LinkageFamilyGroup>(
+    mutating func findNewlyAckedPackets(
         ackFrame: FrameAck,
-        path: QUICPath<Families>,
+        path: QUICPath,
         now: NetworkClock.Instant,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         let packetNumberSpace = ackFrame.packetNumberSpace
@@ -579,10 +579,10 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
     }
 
     @_optimize(speed)
-    mutating func sentPacket<Families: LinkageFamilyGroup>(
+    mutating func sentPacket(
         _ sentPacket: consuming SentPacketRecord,
         time: NetworkClock.Instant,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         guard let sentPath = connection.path(for: sentPacket.sentPath) else {
             log.fault("Sent packet with no valid path")
@@ -652,18 +652,18 @@ struct RecoveryInnerState: ~Copyable, PrefixedLoggable {
         }
     }
 
-    func removeStalePackets<Families: LinkageFamilyGroup>(
+    func removeStalePackets(
         packetNumberSpace: PacketNumberSpace,
-        path: QUICPath<Families>?,
+        path: QUICPath?,
         time: NetworkClock.Instant
     ) {
         // To be handled for L4S
     }
 
     @discardableResult
-    mutating func recordSentPackets<Families: LinkageFamilyGroup>(
+    mutating func recordSentPackets(
         _ packets: consuming NetworkUniqueDeque<SentPacketRecord>,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) -> Bool {
         if packets.isEmpty {
             return false
@@ -761,9 +761,9 @@ enum RecoveryConstants {
 }
 
 @available(Network 0.1.0, *)
-struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
+struct Recovery: ~Copyable, PrefixedLoggable, NonCopyableTimerUser {
     var log: LogPrefixer
-    var connection: QUICConnection<Families>?
+    var connection: QUICConnection?
     private var initialInnerState: RecoveryInnerState
     private var handshakeInnerState: RecoveryInnerState
     private var applicationDataInnerState: RecoveryInnerState
@@ -773,7 +773,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     private(set) var computedTimeout: NetworkDuration = .zero
 
 
-    init(connection: QUICConnection<Families>? = nil, timerID: Timer.TimerID? = nil, logPrefixer: LogPrefixer) {
+    init(connection: QUICConnection? = nil, timerID: Timer.TimerID? = nil, logPrefixer: LogPrefixer) {
         self.connection = connection
         self.timerID = timerID
         self.log = logPrefixer
@@ -785,7 +785,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     fileprivate mutating func sentPacket(
         _ sentPacket: consuming SentPacketRecord,
         time: NetworkClock.Instant,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         let packetNumberSpace = sentPacket.numberSpace
         withMutableInnerState(packetNumberSpace: packetNumberSpace, packet: sentPacket) {
@@ -803,7 +803,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
         shouldResetTimer = false
     }
     mutating func endBatch(
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         inBatch = false
@@ -816,7 +816,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     // Note: drains 'sentPackets', leaving the caller's storage empty and reusable.
     mutating func recordSentPackets(
         _ sentPackets: inout NetworkUniqueDeque<SentPacketRecord>,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         while let packet = sentPackets.popFirst() {
@@ -892,7 +892,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
         }
     }
 
-    static func logAckElicitingPacketsInFlight(packetCount: Int, connection: QUICConnection<Families>) {
+    static func logAckElicitingPacketsInFlight(packetCount: Int, connection: QUICConnection) {
         #if QlogOutput
         if let qLog = connection.qLog {
             qLog.congestionControlUpdated(packetsInFlight: UInt64(packetCount))
@@ -903,7 +903,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     static func logPacketLost(
         packet: borrowing SentPacketRecord,
         trigger: QLogPacketLostTrigger,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         #if QlogOutput
         if let qLog = connection.qLog {
@@ -918,7 +918,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     mutating func findLostPacketInner(
         pnSpace: PacketNumberSpace,
         timeNow: NetworkClock.Instant,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         connection.applyToAllPaths { path in
@@ -1016,7 +1016,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
 
     mutating func retransmitPackets(
         _ lostPackets: [PacketIdentifier],
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         for identifier in lostPackets {
@@ -1052,9 +1052,9 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     @discardableResult
     mutating func findLostPacket(
         pnSpace: PacketNumberSpace? = nil,
-        path: QUICPath<Families>? = nil,
+        path: QUICPath? = nil,
         timeNow: NetworkClock.Instant = NetworkClock.Instant.now,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         var packetLost = false
@@ -1104,7 +1104,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
         return packetLost
     }
 
-    mutating func removeLostPackets(ackedPath: QUICPath<Families>, now: NetworkClock.Instant) {
+    mutating func removeLostPackets(ackedPath: QUICPath, now: NetworkClock.Instant) {
         applyToAllInnerStatesMutable { innerState, pnSpace in
             var index = 0
             while index < innerState.outstandingPackets.count {
@@ -1125,7 +1125,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
         }
     }
 
-    func peerCompletedValidation(connection: QUICConnection<Families>) -> Bool {
+    func peerCompletedValidation(connection: QUICConnection) -> Bool {
         connection.isServer || connection.isHandshakeConfirmed || receivedHandshakeAck
             || received1RTTAck
     }
@@ -1155,7 +1155,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
 
     func getEarliestTime(
         earliestTimeType: RecoveryEarliestTimeType,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) -> (NetworkClock.Instant, PacketNumberSpace) {
         var earliestTime: NetworkClock.Instant = .zero
         var pnSpace: PacketNumberSpace = .initial
@@ -1175,7 +1175,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
 
     func setTimer(
         delay: NetworkDuration,
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         guard let timerID = timerID else {
@@ -1190,14 +1190,14 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
         log.datapath("Reset loss recovery timer [T\(timerID)] to \(delay)")
     }
 
-    func resetPTOCount(path: QUICPath<Families>) {
+    func resetPTOCount(path: QUICPath) {
         path.recoveryState.PTOCount = 0
         log.datapath("PTO count reset to 0")
     }
 
     mutating func sendPTO(
-        connection: QUICConnection<Families>,
-        path: QUICPath<Families>,
+        connection: QUICConnection,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) {
         var sentPTO = false
@@ -1378,7 +1378,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
     }
 
     mutating func resetTimer(
-        connection: QUICConnection<Families>,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         // if there are ack eliciting packets on any of the innerStates, the L4S error should not be emitted
@@ -1476,7 +1476,7 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
 
     mutating func resetPNSpace(
         packetNumberSpace: PacketNumberSpace,
-        connection: QUICConnection<Families>
+        connection: QUICConnection
     ) {
         withMutableInnerState(packetNumberSpace: packetNumberSpace) {
             innerState in
@@ -1490,8 +1490,8 @@ struct Recovery<Families: LinkageFamilyGroup>: ~Copyable, PrefixedLoggable, NonC
 
     mutating func receivedAck(
         ack: consuming FrameAck,
-        ackedPath: QUICPath<Families>,
-        connection: QUICConnection<Families>,
+        ackedPath: QUICPath,
+        connection: QUICConnection,
         in eventContext: inout NetworkContext.EventContext
     ) {
         let packetNumberSpace = ack.packetNumberSpace

@@ -180,7 +180,7 @@ public struct MultiplexedFlowIdentifier: Hashable, Sendable, CustomDebugStringCo
     }
 
     fileprivate init(_ identifier: InstanceIdentifier) {
-        guard let index = identifier.protocolEventStateIndex else {
+        guard let index = identifier.protocolEventStateIndex(allowParent: false) else {
             self = .allFlows
             return
         }
@@ -188,14 +188,7 @@ public struct MultiplexedFlowIdentifier: Hashable, Sendable, CustomDebugStringCo
     }
 
     fileprivate init(inboundInstance: InstanceIdentifier) {
-        // Identify the flow by its own event state, not its parent's: every inbound flow on a
-        // connection shares that parent, so allowing the parent index here would collapse them
-        // all onto one identifier.
-        guard let index = inboundInstance.protocolEventStateIndex(allowParent: false) else {
-            self = .allFlows
-            return
-        }
-        self.identifier = index.rawGeneration
+        self.init(inboundInstance)
     }
 
     public func _rawHashValue(seed: Int) -> Int {

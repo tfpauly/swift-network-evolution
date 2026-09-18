@@ -159,7 +159,7 @@ public enum QUICConnectionState: CustomStringConvertible {
 
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
-public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyApplicationStreamProtocol,
+public final class QUICConnection: ManyToManyApplicationStreamProtocol,
     ManyToManyApplicationDatagramProtocol, ManyToManyOutboundDatagramProtocol,
     StreamListenerHandler, HeterogeneousManyToManyProtocolHandler, TimerSchedulable
 {
@@ -170,16 +170,16 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     public var multiplexedSecondaryFlows = [MultiplexedFlowIdentifier: SecondaryFlow]()
     public var multiplexingPaths = [MultiplexingPathIdentifier: Path]()
 
-    public typealias StreamFamily = Families.StreamFamily
-    public typealias DatagramFamily = Families.DatagramFamily
+    public typealias StreamFamily = BaseStreamLinkageFamily
+    public typealias DatagramFamily = BaseDatagramLinkageFamily
 
-    public typealias Flow = QUICStreamInstance<Families>
+    public typealias Flow = QUICStreamInstance
     public typealias UpperProtocol = StreamFamily.InboundFlow
 
-    public typealias SecondaryFlow = QUICDatagramFlow<Families>
+    public typealias SecondaryFlow = QUICDatagramFlow
     public typealias SecondaryUpperProtocol = DatagramFamily.InboundFlow
 
-    public typealias Path = QUICPath<Families>
+    public typealias Path = QUICPath
 
     public var identifier: InstanceIdentifier
 
@@ -217,11 +217,11 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     var remoteMaximumUDPPayloadSize = 0
 
     var timer: Timer
-    private(set) var ack: Ack<Families>
+    private(set) var ack: Ack
     private(set) var ecn: ECN
-    var recovery: Recovery<Families>
+    var recovery: Recovery
     private(set) var migration = Migration()
-    private(set) var crypto: QUICCrypto<Families>
+    private(set) var crypto: QUICCrypto
 
     var protector: Protector
 
@@ -294,8 +294,8 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     // MARK: Streams
 
-    var unidirectionalStreams = QUICStreamIDState<Families>(.unidirectional)
-    var bidirectionalStreams = QUICStreamIDState<Families>(.bidirectional)
+    var unidirectionalStreams = QUICStreamIDState(.unidirectional)
+    var bidirectionalStreams = QUICStreamIDState(.bidirectional)
 
     private(set) var zombieStreamList = QUICStreamZombieList()
 
@@ -321,7 +321,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     // MARK: Path
 
-    var currentPath: QUICPath<Families>?
+    var currentPath: QUICPath?
 
     private(set) var initialMSS = Constants.initialMSS
     private(set) var pathPropertiesMTU = 0
@@ -402,12 +402,12 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     // closing the connection.
     var errorToReport: NetworkError?
 
-    func withCurrentPath(_ block: (borrowing QUICPath<Families>) -> Void) {
+    func withCurrentPath(_ block: (borrowing QUICPath) -> Void) {
         guard let currentPath else { return }
         block(currentPath)
     }
 
-    func withCurrentPath(_ block: (borrowing QUICPath<Families>) -> Bool) -> Bool {
+    func withCurrentPath(_ block: (borrowing QUICPath) -> Bool) -> Bool {
         guard let currentPath else { return false }
         return block(currentPath)
     }
@@ -416,16 +416,16 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         self.context = context
         self.logPrefixer = LogPrefixer("[C?]")
         self.packetParser = PacketParser(logPrefixer: self.logPrefixer)
-        ack = Ack<Families>(logPrefixer: self.logPrefixer)
+        ack = Ack(logPrefixer: self.logPrefixer)
 
         let defaultServerCIDLength = 8
 
         let dcid = QUICConnectionID(defaultServerCIDLength)
         originalDCID = dcid
         protector = Protector(isClient: true, destinationCID: dcid, logPrefixer: self.logPrefixer)
-        crypto = QUICCrypto<Families>(context: context)
+        crypto = QUICCrypto(context: context)
 
-        self.recovery = Recovery<Families>(logPrefixer: self.logPrefixer)
+        self.recovery = Recovery(logPrefixer: self.logPrefixer)
         self.localTransportParameters = TransportParameters(logPrefixer: self.logPrefixer)
         self.timer = Timer(timerReference: timerReference, logPrefixer: self.logPrefixer)
         self.ecn = ECN()
@@ -461,7 +461,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
             let ackTimerID = timer.insert(description: "ACK", in: &eventContext) { timerState in
                 self.ack.timerFired(timeNow: .now, in: &timerState)
             }
-            self.ack = Ack<Families>(connection: self, timerID: ackTimerID, logPrefixer: logPrefixer)
+            self.ack = Ack(connection: self, timerID: ackTimerID, logPrefixer: logPrefixer)
 
             let recoveryTimerID = timer.insert(
                 description: "Recovery",
@@ -469,7 +469,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
             ) { timerState in
                 self.recovery.timerFired(timeNow: .now, in: &timerState)
             }
-            self.recovery = Recovery<Families>(
+            self.recovery = Recovery(
                 connection: self,
                 timerID: recoveryTimerID,
                 logPrefixer: logPrefixer
@@ -643,7 +643,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         self.qLog = nil
     }
 
-    func setMSS(_ newMSS: Int, on path: QUICPath<Families>) {
+    func setMSS(_ newMSS: Int, on path: QUICPath) {
         if _slowPath(newMSS < Constants.initialMSS) {
             path.mss = Constants.initialMSS
         } else if path.maximumMSS > Constants.initialMSS && newMSS > path.maximumMSS {
@@ -661,7 +661,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         }
     }
 
-    func setInitialMSS(on path: QUICPath<Families>) {
+    func setInitialMSS(on path: QUICPath) {
         setMSS(initialMSS, on: path)
     }
 
@@ -1078,7 +1078,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         }
     }
 
-    func setCIDsOnLocalTransportParameters(path: QUICPath<Families>) {
+    func setCIDsOnLocalTransportParameters(path: QUICPath) {
         if let scid = path.scid {
             let initialSCIDParam = TransportParameter.initialSCID(connectionID: scid)
             localTransportParameters.append(initialSCIDParam)
@@ -1652,7 +1652,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     func handleInbound(
         frame: consuming Frame,
-        from path: QUICPath<Families>,
+        from path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) {
         deferClosing = true
@@ -1758,7 +1758,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     private func handleInboundPacket(
         frame: inout Frame,
-        path: QUICPath<Families>,
+        path: QUICPath,
         ecnFlags: IPProtocol.ECN,
         unvalidatedPath: Bool,
         coalesced: Bool,
@@ -1971,7 +1971,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         log.info("Retransmitting INITIAL with version \(version.rawValue)")
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop(in: &eventContext)
-        crypto = QUICCrypto<Families>(context: context, in: &eventContext)
+        crypto = QUICCrypto(context: context, in: &eventContext)
         guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions, in: &eventContext) else {
             log.error("Failed to start TLS")
             return
@@ -2068,7 +2068,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         log.info("Retransmitting INITIAL with token len: \(packet.tokenLength)")
         // Resetting crypto here will guarantee the initial is sent again
         crypto.stop(in: &eventContext)
-        crypto = QUICCrypto<Families>(context: context, in: &eventContext)
+        crypto = QUICCrypto(context: context, in: &eventContext)
         guard let tlsOptions, crypto.start(with: self, tlsOptions: tlsOptions, in: &eventContext) else {
             log.error("Failed to start TLS")
             return
@@ -2265,7 +2265,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         let packetLength = packet.totalLength
         stats.increment(.rxPackets)
         stats.increment(.rxBytes, by: packetLength)
-        withCurrentPath { (path: borrowing QUICPath<Families>) -> Void in
+        withCurrentPath { (path: borrowing QUICPath) -> Void in
             path.pathStatistics[.rxPackets] += 1
             path.pathStatistics[.rxBytes] += Int(packetLength)
         }
@@ -2274,7 +2274,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     private func validateDCIDFromInboundPacket(
         _ packet: borrowing Packet,
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         let packetDCID = packet.destinationConnectionID
@@ -2327,7 +2327,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         return true
     }
 
-    func assignNewDCID(to path: QUICPath<Families>) -> Bool {
+    func assignNewDCID(to path: QUICPath) -> Bool {
         var eligibleCID: ManagedConnectionID?
 
         // Look for the preferred address CID if applicable
@@ -2363,7 +2363,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     private func handleInboundShortHeader(
         _ packet: borrowing Packet,
-        path: QUICPath<Families>,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         guard let packetKeyState = packet.keyState else {
@@ -2378,7 +2378,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         let packetLength = packet.totalLength
         stats.increment(.rxPackets)
         stats.increment(.rxBytes, by: packetLength)
-        withCurrentPath { (path: borrowing QUICPath<Families>) -> Void in
+        withCurrentPath { (path: borrowing QUICPath) -> Void in
             path.pathStatistics[.rxPackets] += 1
             path.pathStatistics[.rxBytes] += Int(packetLength)
         }
@@ -3173,7 +3173,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     /// Sends pending frames on a path using an event context the caller already holds.
     @discardableResult
     func sendFrames(
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         ignoreCongestionWindow: Bool = false,
         retransmission: Bool = false,
         in eventContext: inout NetworkContext.EventContext
@@ -3201,7 +3201,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     @discardableResult
     func sendFramesFromRecovery(
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         ignoreCongestionWindow: Bool = false,
         retransmission: Bool = false,
         discardInitialRecoveryState: inout Bool,
@@ -3281,7 +3281,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     private func sendOutboundFrames(
         _ outboundFrames: consuming FrameArray,
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) {
         guard !outboundFrames.isEmpty else { return }
@@ -3298,7 +3298,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     // Don't use directly, use above sendFrames*()
     private func sendFramesInternal(
-        path: QUICPath<Families>,
+        path: QUICPath,
         ignoreCongestionWindow: Bool = false,
         retransmission: Bool = false,
         sentPackets: inout NetworkUniqueDeque<SentPacketRecord>,
@@ -3532,7 +3532,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         _ keyState: PacketKeyState,
         pendingItems: inout PendingItems,
         sentPackets: inout NetworkUniqueDeque<SentPacketRecord>,
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         ignoreCongestionWindow: Bool,
         availableCongestionWindow: inout UInt64,
         totalSendBytes: inout UInt64,
@@ -3759,7 +3759,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
             }
             stats.increment(.txBytes, by: totalPacketLength)
             stats.increment(.txPackets)
-            withCurrentPath { (path: borrowing QUICPath<Families>) -> Void in
+            withCurrentPath { (path: borrowing QUICPath) -> Void in
                 path.pathStatistics[.txPackets] += 1
                 path.pathStatistics[.txBytes] += Int(totalPacketLength)
             }
@@ -3885,7 +3885,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     func retransmitOnePacketForced(
         packet: borrowing SentPacketRecord,
-        path: QUICPath<Families>,
+        path: QUICPath,
         discardInitialRecoveryState: inout Bool,
         in eventContext: inout NetworkContext.EventContext
     ) -> NetworkUniqueDeque<SentPacketRecord> {
@@ -4057,7 +4057,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     // return value indicates if processing should continue. False = stop processing and drop frame
     private func preDecryption(
         frame: inout Frame,
-        path: QUICPath<Families>,
+        path: QUICPath,
         packet: borrowing Packet,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
@@ -4191,7 +4191,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         return false
     }
 
-    private func canSendFrames(on path: QUICPath<Families>, drop: inout Bool) -> Bool {
+    private func canSendFrames(on path: QUICPath, drop: inout Bool) -> Bool {
         guard state != .draining else {
             log.debug("Not sending more frames, in draining state")
             drop = true
@@ -4654,7 +4654,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
             )
             return false
         }
-        if !QUICStreamInstance<Families>.isValid(isServer: isServer, streamID: streamID) {
+        if !QUICStreamInstance.isValid(isServer: isServer, streamID: streamID) {
             // We were unable to look up the stream ID and it's not
             // a stream ID that should have been opened by the peer.
             // Check if it's a stream that we already closed.
@@ -4913,7 +4913,7 @@ extension QUICConnection {
         // 4. Find stream
         guard let stream = flow(for: flowID) else {
             log.error(
-                "MAX_STREAM_DATA for client state on flow \(flowID.debugDescription) and [S\(streamID.value)] is not a QUICStreamInstance<Families>"
+                "MAX_STREAM_DATA for client state on flow \(flowID.debugDescription) and [S\(streamID.value)] is not a QUICStreamInstance"
             )
             return true
         }
@@ -4995,7 +4995,7 @@ extension QUICConnection {
             )
         }
         // NOTE: readyPendingStream will remove them from the pending streams list
-        var pendingStreams: [QUICStreamInstance<Families>] = []
+        var pendingStreams: [QUICStreamInstance] = []
         withMutableQUICStreams(unidirectional: unidirectional) { mutableStreamsState in
             for stream in mutableStreamsState.pendingStartStreams {
                 pendingStreams.append(stream)
@@ -5093,7 +5093,7 @@ extension QUICConnection {
     func processAckFrame(
         _ frame: FrameAck,
         packetNumberSpace: PacketNumberSpace,
-        path: QUICPath<Families>,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         // The loss recovery module only keeps track of ACK-eliciting packets,
@@ -5271,7 +5271,7 @@ extension QUICConnection {
 
     func sendVersionNegotiation(
         packet: borrowing Packet,
-        path: QUICPath<Families>,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) {
         guard let initialVersion = self.initialVersion else {
@@ -5343,7 +5343,7 @@ extension QUICConnection {
     }
 
     func sendRetry(
-        path: QUICPath<Families>,
+        path: QUICPath,
         packet: borrowing Packet,
         in eventContext: inout NetworkContext.EventContext
     ) {
@@ -5426,7 +5426,7 @@ extension QUICConnection {
 
 @available(Network 0.1.0, *)
 extension QUICConnection {
-    func withMutableQUICStreams(unidirectional: Bool, closure: (inout QUICStreamIDState<Families>) -> Void) {
+    func withMutableQUICStreams(unidirectional: Bool, closure: (inout QUICStreamIDState) -> Void) {
         if unidirectional {
             closure(&unidirectionalStreams)
         } else {
@@ -5541,7 +5541,7 @@ extension QUICConnection {
 @available(Network 0.1.0, *)
 extension QUICConnection {
 
-    // Support QUICStreamIDState<Families> being ~Copyable
+    // Support QUICStreamIDState being ~Copyable
     func checkInboundStreamID(
         _ streamID: QUICStreamID,
         server: Bool,
@@ -5566,14 +5566,14 @@ extension QUICConnection {
         }
     }
 
-    // Support QUICStreamIDState<Families> being ~Copyable
+    // Support QUICStreamIDState being ~Copyable
     func nextInboundStreamID(isBidirectional: Bool) -> QUICStreamID? {
         isBidirectional
             ? bidirectionalStreams.nextInboundStreamID
             : unidirectionalStreams.nextInboundStreamID
     }
 
-    // Support QUICStreamIDState<Families> being ~Copyable
+    // Support QUICStreamIDState being ~Copyable
     func largestOutboundStreamID(isBidirectional: Bool) -> QUICStreamID? {
         isBidirectional
             ? bidirectionalStreams.largestOutboundStreamID
@@ -5664,7 +5664,7 @@ extension QUICConnection {
         ) {
             // create all the missing streams and flows. All will be left invalid until payload or application
             // triggers a transition to active
-            let newStream = QUICStreamInstance<Families>(
+            let newStream = QUICStreamInstance(
                 parent: self,
                 inbound: true,
                 in: &eventContext
@@ -5763,14 +5763,14 @@ extension QUICConnection {
     }
 
     func setupNewDatagramFlow(
-        _ flow: QUICDatagramFlow<Families>,
+        _ flow: QUICDatagramFlow,
         with streamOptions: QUICStreamProtocol.Options
     ) {
         let datagramFlowID: UInt64?
         if datagramEnableFlowID, let associatedStreamID = streamOptions.associatedStreamID,
             datagramUseQuarterStreamID
         {
-            datagramFlowID = QUICDatagramFlow<Families>.generateFlowID(from: associatedStreamID)
+            datagramFlowID = QUICDatagramFlow.generateFlowID(from: associatedStreamID)
         } else {
             datagramFlowID = nil
         }
@@ -5821,7 +5821,7 @@ extension QUICConnection {
         })
 
         if matchingFlowIdentifier == nil {
-            let newFlow = QUICDatagramFlow<Families>(
+            let newFlow = QUICDatagramFlow(
                 parent: self,
                 inbound: true,
                 in: &eventContext
@@ -5868,7 +5868,7 @@ extension QUICConnection {
     func processFrame(
         _ frame: consuming QUICFrame,
         packetNumberSpace: PacketNumberSpace,
-        path: QUICPath<Families>,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         switch consume frame {
@@ -5933,7 +5933,7 @@ extension QUICConnection {
         _ packet: borrowing SentPacketRecord,
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
-        sentPath: QUICPath<Families>,
+        sentPath: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) {
         packet.transmittedItems.allAcknowledged(
@@ -5949,7 +5949,7 @@ extension QUICConnection {
         frame: TransmittedItems.TransmittedAckFrame,
         packetNumber: PacketNumber,
         packetNumberSpace: PacketNumberSpace,
-        sentPath: QUICPath<Families>
+        sentPath: QUICPath
     ) {
         for block in AckBlockSequence.blocks(frame: frame) {
             ack.acknowledged(
@@ -5961,7 +5961,7 @@ extension QUICConnection {
     }
 
     func acknowledgedPMTUDProbe(
-        on path: QUICPath<Families>,
+        on path: QUICPath,
         packetNumber: PacketNumber,
         mss: Int,
         in eventContext: inout NetworkContext.EventContext
@@ -6003,14 +6003,14 @@ extension QUICConnection {
         }
     }
 
-    func streamFromStreamID(_ id: UInt64) -> QUICStreamInstance<Families>? {
+    func streamFromStreamID(_ id: UInt64) -> QUICStreamInstance? {
         guard let streamID = QUICStreamID(id) else {
             return nil
         }
         return streamFromStreamID(streamID)
     }
 
-    func streamFromStreamID(_ streamID: QUICStreamID) -> QUICStreamInstance<Families>? {
+    func streamFromStreamID(_ streamID: QUICStreamID) -> QUICStreamInstance? {
         let knownFlowID = knownFlows[streamID]
         guard let flowID = knownFlowID else {
             return nil
@@ -6521,7 +6521,7 @@ extension QUICConnection {
     @discardableResult
     func handlePathChallengeFrame(
         _ frame: FramePathChallenge,
-        path: QUICPath<Families>
+        path: QUICPath
     ) -> Bool {
         path.handlePathChallenge(frame.data)
         return true
@@ -6530,7 +6530,7 @@ extension QUICConnection {
     @discardableResult
     func handlePathChallengeResponseFrame(
         _ frame: FramePathResponse,
-        path: QUICPath<Families>,
+        path: QUICPath,
         in eventContext: inout NetworkContext.EventContext
     ) -> Bool {
         path.handlePathChallengeResponse(frame.data, in: &eventContext)
