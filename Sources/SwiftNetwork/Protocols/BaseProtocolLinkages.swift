@@ -324,25 +324,25 @@ public struct BaseOutboundDatagramLinkage<Group: LinkageFamilyGroup>: OutboundDa
     public func teardown(in eventContext: inout NetworkContext.EventContext) {
         switch protocolType {
         case .udp(let index):
-            storage!.udpInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.udpInstances[index].unregisterEventManager(in: &eventContext)
             storage!.udpInstances.remove(index: index)
         case .demux(let index):
             // A demux instance is shared by its default upper and one upper per pattern set,
             // which detach separately. Only release the storage once the last one has gone.
             guard storage!.demuxInstances[index].isFullyDetached else { return }
-            storage!.demuxInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.demuxInstances[index].unregisterEventManager(in: &eventContext)
             storage!.demuxInstances.remove(index: index)
         case .ip(let index):
-            storage!.ipInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.ipInstances[index].unregisterEventManager(in: &eventContext)
             storage!.ipInstances.remove(index: index)
         case .bridgeDatagram(let index):
-            storage!.bridgeDatagramInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.bridgeDatagramInstances[index].unregisterEventManager(in: &eventContext)
             storage!.bridgeDatagramInstances.remove(index: index)
         case .socketDatagram(let index):
-            storage!.socketDatagramInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.socketDatagramInstances[index].unregisterEventManager(in: &eventContext)
             storage!.socketDatagramInstances.remove(index: index)
         case .quicDatagramFlow(let box):
-            box.instance.eventManager.unregister(in: &eventContext)
+            box.instance.unregisterEventManager(in: &eventContext)
         default: break
         }
     }
@@ -505,7 +505,7 @@ public struct BaseDatagramListenerLinkage<Group: LinkageFamilyGroup>: DatagramLi
         switch protocolType {
         case .quic(let index):
             guard storage!.quicInstances[index].isFullyDetached else { return }
-            storage!.quicInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.quicInstances[index].unregisterEventManager(in: &eventContext)
             storage!.quicInstances.remove(index: index)
         default: break
         }
@@ -996,16 +996,16 @@ public struct BaseOutboundStreamLinkage<Group: LinkageFamilyGroup>: OutboundStre
     public func teardown(in eventContext: inout NetworkContext.EventContext) {
         switch protocolType {
         case .tcp(let index):
-            storage!.tcpInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.tcpInstances[index].unregisterEventManager(in: &eventContext)
             storage!.tcpInstances.remove(index: index)
         case .bridgeStream(let index):
-            storage!.bridgeStreamInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.bridgeStreamInstances[index].unregisterEventManager(in: &eventContext)
             storage!.bridgeStreamInstances.remove(index: index)
         case .socketStream(let index):
-            storage!.socketStreamInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.socketStreamInstances[index].unregisterEventManager(in: &eventContext)
             storage!.socketStreamInstances.remove(index: index)
         case .quicStream(let box):
-            box.instance.eventManager.unregister(in: &eventContext)
+            box.instance.unregisterEventManager(in: &eventContext)
         default: break
         }
     }
@@ -1182,7 +1182,7 @@ public struct BaseStreamListenerLinkage<Group: LinkageFamilyGroup>: StreamListen
         switch protocolType {
         case .quic(let index):
             guard storage!.quicInstances[index].isFullyDetached else { return }
-            storage!.quicInstances[index].eventManager.unregister(in: &eventContext)
+            storage!.quicInstances[index].unregisterEventManager(in: &eventContext)
             storage!.quicInstances.remove(index: index)
         default: break
         }

@@ -666,7 +666,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
 
         func teardown(in eventContext: inout NetworkContext.EventContext) {
-            eventManager.unregister(in: &eventContext)
+            unregisterEventManager(in: &eventContext)
         }
 
         func teardown() {

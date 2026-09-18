@@ -52,7 +52,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
 
     fileprivate(set) var context: NetworkContext
 
-    let identifier: InstanceIdentifier
+    var identifier: InstanceIdentifier
     var lower = LowerProtocol()
 
     var eventManager = ProtocolEventManager()

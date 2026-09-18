@@ -44,7 +44,7 @@ public protocol ProtocolInstance: ~Copyable {
     var context: NetworkContext { get }
 
     /// A structure that identifies the protocol instance and holds a reference to its containing object.
-    var identifier: InstanceIdentifier { get }
+    var identifier: InstanceIdentifier { get set }
 
     /// An opaque structure that tracks the internal consistency of any protocol.
     var eventManager: ProtocolEventManager { get set }
@@ -68,6 +68,7 @@ extension ProtocolInstance where Self: ~Copyable {
     /// the work already in flight.
     public mutating func unregisterEventManager(in eventContext: inout NetworkContext.EventContext) {
         eventManager.unregister(in: &eventContext)
+        identifier = .init()
     }
 }
 
@@ -81,6 +82,7 @@ extension ProtocolInstance where Self: AnyObject {
     public func unregisterEventManager(in eventContext: inout NetworkContext.EventContext) {
         var mutableSelf = self
         mutableSelf.eventManager.unregister(in: &eventContext)
+        mutableSelf.identifier = .init()
     }
 }
 

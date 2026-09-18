@@ -146,7 +146,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             self.context = context
             self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
-        public let identifier: InstanceIdentifier
+        public var identifier: InstanceIdentifier
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         public let timerReference = TimerReference()
@@ -442,7 +442,7 @@ public struct BridgeStreamProtocol: NetworkProtocol {
             self.context = context
             self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
-        public let identifier: InstanceIdentifier
+        public var identifier: InstanceIdentifier
         var log = NetworkLoggerState()
         public var eventManager = ProtocolEventManager()
         var localEndpoint: Endpoint?

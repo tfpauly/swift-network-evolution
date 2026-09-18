@@ -532,6 +532,10 @@ extension NetworkContext.EventContext {
                 upperEvents = protocolEventStates[index].countPendingEventsToUpper()
             }
             protocolEventStates[index].drainingEvents = false
+            // Draining counts as holding this state, so it is the last holder when retirement was
+            // requested while the loop above was running. Calls that only drain on the way out —
+            // `handleCallFromUpperProtocol` and `fromExternal` — depend on this hook.
+            removeProtocolEventStateIfRetired(index)
         }
     }
 

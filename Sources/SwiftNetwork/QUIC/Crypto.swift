@@ -420,7 +420,7 @@ extension QUICCrypto: InboundStreamLinkage, OutboundStreamLinkage, ProtocolInsta
         guard initialLinkage == nil, earlyDataLinkage == nil, handshakeLinkage == nil,
             applicationLinkage == nil
         else { return }
-        eventManager.unregister(in: &eventContext)
+        unregisterEventManager(in: &eventContext)
     }
 }
 
