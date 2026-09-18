@@ -29,7 +29,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
 
     // Completions: called once!
     //
-    // These run inline while the delivering event holds the context state, so each one takes the
+    // These run inline while the delivering event holds the event context, so each one takes the
     // state and must thread it into any call back into the stack. Calling a state-free entry
     // point from inside one of these would re-derive the state and trip exclusivity.
     struct Completions {
@@ -152,12 +152,12 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
 
     public func teardown() {
         log.debug("Tearing down flow")
-        fromExternal { state in
-            teardown(in: &state)
+        fromExternal { eventContext in
+            teardown(in: &eventContext)
         }
     }
 
-    /// Tears down using a context state the caller already holds.
+    /// Tears down using an event context the caller already holds.
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `teardown()`.
@@ -203,7 +203,7 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
         completions.disconnected = completion
     }
 
-    /// Registers a completion that does not need the context state.
+    /// Registers a completion that does not need the event context.
     public func waitForDisconnected(completion: @escaping (NetworkError) -> Void) {
         completions.disconnected = { _, error in completion(error) }
     }
@@ -213,12 +213,12 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
 final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: EndpointFlowProtocol<LinkageFamily>, TopDatagramProtocol {
 
     func write(_ datagram: consuming Frame) -> Bool {
-        fromExternal(datagram) { state, datagram in
-            write(datagram, in: &state)
+        fromExternal(datagram) { eventContext, datagram in
+            write(datagram, in: &eventContext)
         }
     }
 
-    /// Writes using a context state the caller already holds.
+    /// Writes using an event context the caller already holds.
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `write(_:)`.
@@ -255,12 +255,12 @@ final class DatagramEndpointFlowProtocol<LinkageFamily: DatagramLinkageFamily>: 
     }
 
     func read() -> [UInt8]? {
-        fromExternal { state in
-            read(in: &state)
+        fromExternal { eventContext in
+            read(in: &eventContext)
         }
     }
 
-    /// Reads using a context state the caller already holds.
+    /// Reads using an event context the caller already holds.
     func read(in eventContext: inout NetworkContext.EventContext) -> [UInt8]? {
         do throws(NetworkError) {
             let frames = try lower.invokeReceiveDatagrams(
@@ -297,12 +297,12 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
 
     override public func abort(error: NetworkError? = nil) {
         log.debug("Aborting flow")
-        fromExternal { state in
-            abort(error: error, in: &state)
+        fromExternal { eventContext in
+            abort(error: error, in: &eventContext)
         }
     }
 
-    /// Aborts using a context state the caller already holds.
+    /// Aborts using an event context the caller already holds.
     func abort(error: NetworkError? = nil, in eventContext: inout NetworkContext.EventContext) {
         do throws(NetworkError) {
             try lower.invokeAbortOutbound(error: error, for: identifier, in: &eventContext)
@@ -314,12 +314,12 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
     }
 
     func getOutboundStreamDataRoomAvailable() throws(NetworkError) -> Int {
-        try fromExternal { state throws(NetworkError) in
-            try getOutboundStreamDataRoomAvailable(in: &state)
+        try fromExternal { eventContext throws(NetworkError) in
+            try getOutboundStreamDataRoomAvailable(in: &eventContext)
         }
     }
 
-    /// Queries outbound room using a context state the caller already holds.
+    /// Queries outbound room using an event context the caller already holds.
     func getOutboundStreamDataRoomAvailable(
         in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) -> Int {
@@ -327,12 +327,12 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
     }
 
     func write(_ frame: consuming Frame) -> Bool {
-        fromExternal(frame) { state, frame in
-            write(frame, in: &state)
+        fromExternal(frame) { eventContext, frame in
+            write(frame, in: &eventContext)
         }
     }
 
-    /// Writes using a context state the caller already holds.
+    /// Writes using an event context the caller already holds.
     ///
     /// Completions run inline while the delivering event holds the state, so they have to use
     /// this rather than `write(_:)`.
@@ -346,12 +346,12 @@ final class StreamEndpointFlowProtocol<LinkageFamily: StreamLinkageFamily>: Endp
     }
 
     func read(minimumBytes: Int, maximumBytes: Int) -> [UInt8]? {
-        fromExternal { state in
-            read(minimumBytes: minimumBytes, maximumBytes: maximumBytes, in: &state)
+        fromExternal { eventContext in
+            read(minimumBytes: minimumBytes, maximumBytes: maximumBytes, in: &eventContext)
         }
     }
 
-    /// Reads using a context state the caller already holds.
+    /// Reads using an event context the caller already holds.
     func read(
         minimumBytes: Int,
         maximumBytes: Int,

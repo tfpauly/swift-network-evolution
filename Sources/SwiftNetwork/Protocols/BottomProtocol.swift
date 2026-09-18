@@ -92,16 +92,16 @@ extension BottomProtocolHandler where Self: ~Copyable {
     /// Call this only if the protocol customizes `connect()`.
     ///
     /// This is an external entry point: call it from code outside the protocol stack, such as
-    /// a socket readiness callback. If you already hold the context state, call the
+    /// a socket readiness callback. If you already hold the event context, call the
     /// `in:`-taking variant instead so the state isn't re-derived from the context.
     public func deliverConnectedEvent() {
-        fromExternal { state in
-            deliverConnectedEvent(in: &state)
+        fromExternal { eventContext in
+            deliverConnectedEvent(in: &eventContext)
         }
     }
 
     /// Indicates to the upper protocol that this protocol is connected, using an
-    /// already-acquired context state.
+    /// already-acquired event context.
     public func deliverConnectedEvent(in eventContext: inout NetworkContext.EventContext) {
         upper.deliverConnectedEvent(from: self.identifier, in: &eventContext)
     }
@@ -110,13 +110,13 @@ extension BottomProtocolHandler where Self: ~Copyable {
     ///
     /// This is an external entry point; see `deliverConnectedEvent()`.
     public func deliverDisconnectedEvent(error: NetworkError?) {
-        fromExternal { state in
-            deliverDisconnectedEvent(error: error, in: &state)
+        fromExternal { eventContext in
+            deliverDisconnectedEvent(error: error, in: &eventContext)
         }
     }
 
     /// Indicates to the upper protocol that this protocol is disconnected, using an
-    /// already-acquired context state.
+    /// already-acquired event context.
     public func deliverDisconnectedEvent(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         upper.deliverDisconnectedEvent(error: error, from: self.identifier, in: &eventContext)
     }
@@ -129,13 +129,13 @@ extension BottomProtocolHandler where Self: ~Copyable, LinkageType.PairedUpperLi
     ///
     /// This is an external entry point; see `deliverConnectedEvent()`.
     public func deliverInboundDataAvailableEvent() {
-        fromExternal { state in
-            deliverInboundDataAvailableEvent(in: &state)
+        fromExternal { eventContext in
+            deliverInboundDataAvailableEvent(in: &eventContext)
         }
     }
 
     /// Indicates to the upper protocol that this protocol has data available to read, using an
-    /// already-acquired context state.
+    /// already-acquired event context.
     public func deliverInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
         guard isConnected(in: &eventContext) else { return }
         upper.deliverInboundDataAvailableEvent(from: self.identifier, in: &eventContext)
@@ -145,13 +145,13 @@ extension BottomProtocolHandler where Self: ~Copyable, LinkageType.PairedUpperLi
     ///
     /// This is an external entry point; see `deliverConnectedEvent()`.
     public func deliverOutboundRoomAvailableEvent() {
-        fromExternal { state in
-            deliverOutboundRoomAvailableEvent(in: &state)
+        fromExternal { eventContext in
+            deliverOutboundRoomAvailableEvent(in: &eventContext)
         }
     }
 
     /// Indicates to the upper protocol that this protocol has room available to send, using an
-    /// already-acquired context state.
+    /// already-acquired event context.
     public func deliverOutboundRoomAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
         guard isConnected(in: &eventContext) else { return }
         upper.deliverOutboundRoomAvailableEvent(from: self.identifier, in: &eventContext)
@@ -161,12 +161,12 @@ extension BottomProtocolHandler where Self: ~Copyable, LinkageType.PairedUpperLi
     ///
     /// This is an external entry point; see `deliverConnectedEvent()`.
     public func deliverNetworkProtocolEvent(_ event: NetworkProtocolEvent) {
-        fromExternal { state in
-            deliverNetworkProtocolEvent(event, in: &state)
+        fromExternal { eventContext in
+            deliverNetworkProtocolEvent(event, in: &eventContext)
         }
     }
 
-    /// Passes an event to the upper protocol, using an already-acquired context state.
+    /// Passes an event to the upper protocol, using an already-acquired event context.
     public func deliverNetworkProtocolEvent(
         _ event: NetworkProtocolEvent,
         in eventContext: inout NetworkContext.EventContext

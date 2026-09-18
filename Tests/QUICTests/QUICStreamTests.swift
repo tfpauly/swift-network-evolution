@@ -43,7 +43,7 @@ final class QUICStreamTests: XCTestCase {
     override func tearDown() {
         // The stream and the connection were both built outside a protocol stack, so nothing
         // else hands their event states back. The stream's `deinit` is an external entry point
-        // that acquires the context state, so release it on the queue too.
+        // that acquires the event context, so release it on the queue too.
         connection.context.onQueue {
             self.stream.destroyFromExternalTest()
             self.stream = nil
@@ -54,8 +54,8 @@ final class QUICStreamTests: XCTestCase {
     func testProcessIncomingStream() {
         connection.context.onQueue {
             let streamFrame = FrameStreamReceived(id: 0, offset: 0, data: [], isFinal: true)
-            let result = connection.fromExternal(streamFrame) { state, frame in
-                stream.processIncomingStream(connection: connection, frame: frame, in: &state)
+            let result = connection.fromExternal(streamFrame) { eventContext, frame in
+                stream.processIncomingStream(connection: connection, frame: frame, in: &eventContext)
             }
             XCTAssertTrue(result)
         }
@@ -67,10 +67,10 @@ final class QUICStreamTests: XCTestCase {
             let maxStreamDataFrame = FrameMaxStreamData(id: 0, max: newMaxData)
             stream.flowControlState.initializeMaxDataValues(remoteMaxData: 1024, localMaxData: 1024)
             XCTAssertTrue(stream.flowControlState.outboundMaxData == 1024)
-            connection.fromExternal { state in
+            connection.fromExternal { eventContext in
                 stream.processIncomingMaxStreamData(
                     remoteMaxStreamData: maxStreamDataFrame.max,
-                    in: &state
+                    in: &eventContext
                 )
             }
             XCTAssertTrue(stream.flowControlState.outboundMaxData == 2048)
@@ -97,7 +97,7 @@ final class QUICStreamIDStateTests: XCTestCase {
         streamsState.removeAllPending()
         // The stream and the connection were both built outside a protocol stack, so nothing
         // else hands their event states back. The stream's `deinit` is an external entry point
-        // that acquires the context state, so release it on the queue too.
+        // that acquires the event context, so release it on the queue too.
         connection.context.onQueue {
             self.stream.destroyFromExternalTest()
             self.stream = nil

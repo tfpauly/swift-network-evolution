@@ -383,7 +383,7 @@ final class QUICStreamLoad {
 
                         // Start the next stream on a fresh hop: it builds new protocol instances,
                         // which is an external entry point and cannot run while this event still
-                        // holds the context state.
+                        // holds the event context.
                         if index < streamCount, let testStreamBlock {
                             state.async {
                                 testStreamBlock()

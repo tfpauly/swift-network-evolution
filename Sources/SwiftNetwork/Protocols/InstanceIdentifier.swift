@@ -41,10 +41,10 @@ public struct InstanceIdentifier: Hashable {
     }
 
     public init(context: NetworkContext, eventManager: inout ProtocolEventManager) {
-        self.eventStateIndex = eventManager.register(with: context, in: &context.state)
+        self.eventStateIndex = eventManager.register(with: context, in: &context.eventContext)
     }
 
-    /// Registers using a context state the caller already holds.
+    /// Registers using an event context the caller already holds.
     ///
     /// Use this instead of `init(context:eventManager:)` when constructing an identifier from
     /// inside a call that already has the state, so the state isn't re-derived from the context.

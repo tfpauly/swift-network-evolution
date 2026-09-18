@@ -108,7 +108,7 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
         )
     }
 
-    /// Registers using a context state the caller already holds, so the state isn't re-derived
+    /// Registers using an event context the caller already holds, so the state isn't re-derived
     /// from the context. Use this when replacing the crypto instance from inside the stack, such
     /// as when restarting the handshake after version negotiation or a retry.
     init(context: NetworkContext, in eventContext: inout NetworkContext.EventContext) {
@@ -177,7 +177,7 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
         return true
     }
 
-    /// Stops using a context state the caller already holds.
+    /// Stops using an event context the caller already holds.
     func stop(in eventContext: inout NetworkContext.EventContext) {
         guard self.parentConnection != nil else {
             // Never started, or already stopped. Both this object and the TLS instance register
@@ -523,7 +523,7 @@ extension QUICCrypto: TopStreamProtocol {
         return true
     }
 
-    /// Appends crypto input using a context state the caller already holds.
+    /// Appends crypto input using an event context the caller already holds.
     ///
     /// Enters this instance's event scope with `handleCallFromUpperProtocol` so events queued
     /// while appending are delivered — without it the instance is still `idle` and queuing

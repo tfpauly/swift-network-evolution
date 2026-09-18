@@ -72,7 +72,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         public var disconnected: (() -> Void)?
 
         // true when inbound data is available, false when disconnected. The completion runs
-        // inline while the event's context state is held, so it receives that state and must
+        // inline while the event's event context is held, so it receives that state and must
         // thread it into any reads rather than re-deriving it.
         public var inboundDataAvailable: ((inout NetworkContext.EventContext, Bool) -> Void)?
 
@@ -124,7 +124,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         self.identifier = .init(context: context, eventManager: &self.eventManager)
     }
 
-    /// Creates a harness using a context state the caller already holds.
+    /// Creates a harness using an event context the caller already holds.
     ///
     /// Use this when building a harness from inside a call that carries the state, such as
     /// handling a new inbound flow, so registering the identifier doesn't re-derive it.
@@ -217,7 +217,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         start()
     }
 
-    /// Starts with a completion that does not need the context state.
+    /// Starts with a completion that does not need the event context.
     public func start(_ completion: @escaping (Bool) -> Void) {
         self.completions.connected = { _, connected in completion(connected) }
         start()
@@ -227,18 +227,18 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         invokeDisconnect(error: error)
     }
 
-    /// Stops using a context state the caller already holds.
+    /// Stops using an event context the caller already holds.
     public func stop(error: NetworkError? = nil, in eventContext: inout NetworkContext.EventContext) {
         invokeDisconnect(error: error, in: &eventContext)
     }
 
     public func teardown() {
-        fromExternal { state in
-            teardown(in: &state)
+        fromExternal { eventContext in
+            teardown(in: &eventContext)
         }
     }
 
-    /// Tears down using a context state the caller already holds.
+    /// Tears down using an event context the caller already holds.
     ///
     /// Completions that run inline while a delivering event holds the state have to use this
     /// rather than `teardown()`.
@@ -259,15 +259,15 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
             // Received inbound data available, but didn't deliver. Fire now. This is an
             // external entry point, so acquire the state for the completion.
             self.inboundDataAvailableReceived = false
-            fromExternal { state in
-                completion(&state, true)
+            fromExternal { eventContext in
+                completion(&eventContext, true)
             }
             return
         }
         completions.inboundDataAvailable = completion
     }
 
-    /// Registers an inbound-data completion using a context state the caller already holds.
+    /// Registers an inbound-data completion using an event context the caller already holds.
     ///
     /// Re-registering from inside a completion has to use this: the state is already held there,
     /// so `waitForInboundDataAvailable(completion:)` would re-enter it via `fromExternal` when
@@ -284,7 +284,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         completions.inboundDataAvailable = completion
     }
 
-    /// Registers a completion that does not need the context state.
+    /// Registers a completion that does not need the event context.
     public func waitForInboundDataAvailable(completion: @escaping (Bool) -> Void) {
         waitForInboundDataAvailable { _, available in completion(available) }
     }
@@ -302,12 +302,12 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal { state in
-            getMetadata(in: &state)
+        fromExternal { eventContext in
+            getMetadata(in: &eventContext)
         }
     }
 
-    /// Reads metadata using a context state the caller already holds.
+    /// Reads metadata using an event context the caller already holds.
     final public func getMetadata<P: NetworkProtocol>(
         in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
@@ -318,8 +318,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
-        fromExternal { state in
-            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &state)
+        fromExternal { eventContext in
+            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &eventContext)
         }
     }
 
@@ -336,12 +336,12 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal { state in
-            invokeApplicationEvent(event, in: &state)
+        fromExternal { eventContext in
+            invokeApplicationEvent(event, in: &eventContext)
         }
     }
 
-    /// Sends an application event using a context state the caller already holds.
+    /// Sends an application event using an event context the caller already holds.
     ///
     /// Completions such as `connected` run inline while the delivering event holds the state, so
     /// they have to use this rather than `invokeApplicationEvent(_:)`.
@@ -354,12 +354,12 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
 @available(Network 0.1.0, *)
 public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHarness<LinkageFamily>, TopDatagramProtocol {
     public func write(_ datagram: [UInt8]) -> Bool {
-        fromExternal { state in
-            write(datagram, in: &state)
+        fromExternal { eventContext in
+            write(datagram, in: &eventContext)
         }
     }
 
-    /// Writes using a context state the caller already holds.
+    /// Writes using an event context the caller already holds.
     public func write(_ datagram: [UInt8], in eventContext: inout NetworkContext.EventContext) -> Bool {
         do throws(NetworkError) {
             let frames = try invokeGetDatagramsToSend(
@@ -390,12 +390,12 @@ public class DatagramUpperHarness<LinkageFamily: DatagramLinkageFamily>: UpperHa
     }
 
     public func read() -> [UInt8]? {
-        fromExternal { state in
-            read(in: &state)
+        fromExternal { eventContext in
+            read(in: &eventContext)
         }
     }
 
-    /// Reads using a context state the caller already holds.
+    /// Reads using an event context the caller already holds.
     ///
     /// Inbound-data completions run inline while the delivering event holds the state, so they
     /// have to use this rather than `read()`.
@@ -459,15 +459,15 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     ) {
         if self.inboundAborted {
             // Already aborted, so this is an external entry point: acquire the state.
-            fromExternal { state in
-                completion(&state, self.inboundAbortError)
+            fromExternal { eventContext in
+                completion(&eventContext, self.inboundAbortError)
             }
             return
         }
         completions.inboundAborted = completion
     }
 
-    /// Registers a completion that does not need the context state.
+    /// Registers a completion that does not need the event context.
     public func waitForInboundAborted(completion: @escaping (NetworkError?) -> Void) {
         waitForInboundAborted { _, error in completion(error) }
     }
@@ -476,26 +476,26 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
         completion: @escaping (inout NetworkContext.EventContext, NetworkError?) -> Void
     ) {
         if self.outboundAborted {
-            fromExternal { state in
-                completion(&state, self.outboundAbortError)
+            fromExternal { eventContext in
+                completion(&eventContext, self.outboundAbortError)
             }
             return
         }
         completions.outboundAborted = completion
     }
 
-    /// Registers a completion that does not need the context state.
+    /// Registers a completion that does not need the event context.
     public func waitForOutboundAborted(completion: @escaping (NetworkError?) -> Void) {
         waitForOutboundAborted { _, error in completion(error) }
     }
 
     public func write(_ bytes: [UInt8], sendFIN: Bool = false, earlyData: Bool = false) -> Bool {
-        fromExternal { state in
-            write(bytes, sendFIN: sendFIN, earlyData: earlyData, in: &state)
+        fromExternal { eventContext in
+            write(bytes, sendFIN: sendFIN, earlyData: earlyData, in: &eventContext)
         }
     }
 
-    /// Writes using a context state the caller already holds.
+    /// Writes using an event context the caller already holds.
     public func write(
         _ bytes: [UInt8],
         sendFIN: Bool = false,
@@ -529,12 +529,12 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     public var receivedFIN: Bool = false
 
     public func readAndDrop(upTo maximumBytes: Int = Int.max) -> Int {
-        fromExternal { state in
-            readAndDrop(upTo: maximumBytes, in: &state)
+        fromExternal { eventContext in
+            readAndDrop(upTo: maximumBytes, in: &eventContext)
         }
     }
 
-    /// Reads and discards inbound data, using a context state the caller already holds.
+    /// Reads and discards inbound data, using an event context the caller already holds.
     ///
     /// Inbound-data and new-flow completions run inline while the delivering event holds the
     /// state, so they have to use this rather than `readAndDrop(upTo:)`.
@@ -567,12 +567,12 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func read(upTo maximumBytes: Int = Int.max) -> [UInt8]? {
-        fromExternal { state in
-            read(upTo: maximumBytes, in: &state)
+        fromExternal { eventContext in
+            read(upTo: maximumBytes, in: &eventContext)
         }
     }
 
-    /// Reads using a context state the caller already holds.
+    /// Reads using an event context the caller already holds.
     ///
     /// Inbound-data completions run inline while the delivering event holds the state, so they
     /// have to use this rather than `read(upTo:)`.
@@ -615,9 +615,9 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func abortInbound(error: NetworkError?) {
-        fromExternal { state in
+        fromExternal { eventContext in
             do throws(NetworkError) {
-                try lower.invokeAbortInbound(error: error, for: identifier, in: &state)
+                try lower.invokeAbortInbound(error: error, for: identifier, in: &eventContext)
             } catch {
                 log.error("Failed to abort inbound: \(error)")
             }
@@ -625,9 +625,9 @@ public class StreamUpperHarness<LinkageFamily: StreamLinkageFamily>: UpperHarnes
     }
 
     public func abortOutbound(error: NetworkError?) {
-        fromExternal { state in
+        fromExternal { eventContext in
             do throws(NetworkError) {
-                try lower.invokeAbortOutbound(error: error, for: identifier, in: &state)
+                try lower.invokeAbortOutbound(error: error, for: identifier, in: &eventContext)
             } catch {
                 log.error("Failed to abort outbound: \(error)")
             }
@@ -820,11 +820,11 @@ where
 
     public struct Completions {
         var createNewFlowHandler: ((inout NetworkContext.EventContext) -> (HarnessType, HarnessType.LinkageType))?
-        // Runs inline while the delivering event holds the context state, so it takes the
+        // Runs inline while the delivering event holds the event context, so it takes the
         // state and must thread it into any call back into the stack.
         public var connected: ((inout NetworkContext.EventContext, Bool) -> Void)?
         public var disconnected: (() -> Void)?
-        // Runs inline while the new-inbound-flow event holds the context state, so the
+        // Runs inline while the new-inbound-flow event holds the event context, so the
         // completion receives it and must thread it into any calls on the new flow.
         var newFlow = Deque<((inout NetworkContext.EventContext) -> Void)>()
         public var error: ((NetworkError) -> Void)?  // invoked when error detected
@@ -928,9 +928,9 @@ where
             upperHarness.teardown()
         }
         upperHarnesses.removeAll()
-        fromExternal { state in
+        fromExternal { eventContext in
             do throws(NetworkError) {
-                try lower.invokeDetach(for: identifier, in: &state)
+                try lower.invokeDetach(for: identifier, in: &eventContext)
                 lower = .init()
             } catch {
                 log.error("Failed to detach lower protocol: \(error)")
@@ -970,8 +970,8 @@ where
     }
 
     public func start() {
-        fromExternal { state in
-            lower.invokeConnect(for: identifier, in: &state)
+        fromExternal { eventContext in
+            lower.invokeConnect(for: identifier, in: &eventContext)
         }
     }
 
@@ -980,15 +980,15 @@ where
         start()
     }
 
-    /// Starts with a completion that does not need the context state.
+    /// Starts with a completion that does not need the event context.
     public func start(_ completion: @escaping (Bool) -> Void) {
         completions.connected = { _, connected in completion(connected) }
         start()
     }
 
     public func stop(error: NetworkError? = nil) {
-        fromExternal { state in
-            lower.invokeDisconnect(error: error, for: identifier, in: &state)
+        fromExternal { eventContext in
+            lower.invokeDisconnect(error: error, for: identifier, in: &eventContext)
         }
     }
 
@@ -998,24 +998,24 @@ where
         completions.newFlow.append(completion)
     }
 
-    /// Registers a completion that does not need the context state.
+    /// Registers a completion that does not need the event context.
     public func waitForNewFlow(completion: @escaping () -> Void) {
         completions.newFlow.append { _ in completion() }
     }
 
     public func invokeApplicationEvent(_ event: ApplicationEvent) {
-        fromExternal { state in
-            lower.invokeApplicationEvent(event: event, for: identifier, in: &state)
+        fromExternal { eventContext in
+            lower.invokeApplicationEvent(event: event, for: identifier, in: &eventContext)
         }
     }
 
     final public func getMetadata<P: NetworkProtocol>() -> ProtocolMetadata<P>? {
-        fromExternal { state in
-            getMetadata(in: &state)
+        fromExternal { eventContext in
+            getMetadata(in: &eventContext)
         }
     }
 
-    /// Reads metadata using a context state the caller already holds.
+    /// Reads metadata using an event context the caller already holds.
     final public func getMetadata<P: NetworkProtocol>(
         in eventContext: inout NetworkContext.EventContext
     ) -> ProtocolMetadata<P>? {
@@ -1026,8 +1026,8 @@ where
     }
 
     final public func getMetrics(requestedNetworkMetric: RequestedNetworkMetrics) -> NetworkMetrics? {
-        fromExternal { state in
-            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &state)
+        fromExternal { eventContext in
+            lower.invokeGetMetrics(requestedNetworkMetric: requestedNetworkMetric, for: identifier, in: &eventContext)
         }
     }
 }

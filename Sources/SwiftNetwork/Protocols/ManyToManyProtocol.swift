@@ -241,7 +241,7 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
     ///
     /// Empty by default.
     func teardown(in eventContext: inout NetworkContext.EventContext)
-    /// Creates a flow using a context state the caller already holds.
+    /// Creates a flow using an event context the caller already holds.
     ///
     /// Prefer this over `init(parent:inbound:)` anywhere the state is already in scope, so
     /// registering the flow's identifier doesn't re-derive it from the context.
@@ -1156,8 +1156,8 @@ extension MultiplexedFlow {
     }
 
     fileprivate func deliverConnectedEvent() {
-        fromExternal { state in
-            deliverConnectedEvent(in: &state)
+        fromExternal { eventContext in
+            deliverConnectedEvent(in: &eventContext)
         }
     }
 
@@ -1205,8 +1205,8 @@ extension MultiplexedFlow {
     }
 
     fileprivate func deliverDisconnectedEvent(error: NetworkError?) {
-        fromExternal { state in
-            deliverDisconnectedEvent(error: error, in: &state)
+        fromExternal { eventContext in
+            deliverDisconnectedEvent(error: error, in: &eventContext)
         }
     }
 
@@ -1754,7 +1754,7 @@ extension MultiplexingPath {
     }
 
     fileprivate func invokeConnect() {
-        lower.invokeConnect(for: self.identifier, in: &context.state)
+        lower.invokeConnect(for: self.identifier, in: &context.eventContext)
     }
 
     fileprivate func invokeConnect(in eventContext: inout NetworkContext.EventContext) {
@@ -1762,11 +1762,11 @@ extension MultiplexingPath {
     }
 
     fileprivate func invokeDisconnect(error: NetworkError?) {
-        lower.invokeDisconnect(error: error, for: self.identifier, in: &context.state)
+        lower.invokeDisconnect(error: error, for: self.identifier, in: &context.eventContext)
     }
 
     fileprivate func invokeDetach() {
-        try? lower.invokeDetach(for: self.identifier, in: &context.state)
+        try? lower.invokeDetach(for: self.identifier, in: &context.eventContext)
     }
 
     fileprivate func invokeDetach(in eventContext: inout NetworkContext.EventContext) {
@@ -1868,7 +1868,7 @@ extension ManyToManyProtocolHandler {
 
     public func invokeDisconnect(path pathID: MultiplexingPathIdentifier, error: NetworkError? = nil) {
         guard let path = self.path(for: pathID) else { return }
-        path.lower.invokeDisconnect(error: error, for: path.identifier, in: &context.state)
+        path.lower.invokeDisconnect(error: error, for: path.identifier, in: &context.eventContext)
     }
 
     public func invokeEstablish(
@@ -1972,7 +1972,7 @@ extension HeterogeneousManyToManyProtocolHandler {
     public func deliverDisconnectedEvent(flow flowID: MultiplexedFlowIdentifier, error: NetworkError?) {
         switch flowID {
         case .allFlows:
-            inboundFlowLinkage.deliverDisconnectedEvent(error: error, from: identifier, in: &context.state)
+            inboundFlowLinkage.deliverDisconnectedEvent(error: error, from: identifier, in: &context.eventContext)
             applyToAllFlows { flow in
                 flow.deliverDisconnectedEvent(error: error)
             }
@@ -2013,7 +2013,7 @@ extension HeterogeneousManyToManyProtocolHandler {
         }
     }
 
-    /// Delivers a protocol event using a context state the caller already holds.
+    /// Delivers a protocol event using an event context the caller already holds.
     public func deliverNetworkProtocolEvent(flow flowID: MultiplexedFlowIdentifier, event: NetworkProtocolEvent, in eventContext: inout NetworkContext.EventContext) {
         switch flowID {
         case .allFlows:
@@ -2064,7 +2064,7 @@ extension HeterogeneousManyToManyProtocolHandler {
 extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramProcessing {
     public mutating func resumeReadingInboundDatagrams(path pathID: MultiplexingPathIdentifier) {
         guard var path = self.path(for: pathID) else { return }
-        path.resumeReadingInboundDatagrams(in: &context.state)
+        path.resumeReadingInboundDatagrams(in: &context.eventContext)
     }
 
     @inline(__always)
@@ -2073,17 +2073,17 @@ extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramP
         maximumDatagramCount: Int,
         minimumDatagramSize: Int
     ) throws(NetworkError) -> FrameArray? {
-        try fromExternal { state throws(NetworkError) in
+        try fromExternal { eventContext throws(NetworkError) in
             try getDatagramsToSend(
                 path: pathID,
                 maximumDatagramCount: maximumDatagramCount,
                 minimumDatagramSize: minimumDatagramSize,
-                in: &state
+                in: &eventContext
             )
         }
     }
 
-    /// Fetches datagrams to send using a context state the caller already holds.
+    /// Fetches datagrams to send using an event context the caller already holds.
     public func getDatagramsToSend(
         path pathID: MultiplexingPathIdentifier,
         maximumDatagramCount: Int,
@@ -2104,10 +2104,10 @@ extension ManyToManyOutboundDatagramProtocol where Path: AutomaticLowerDatagramP
 
     public func sendEnqueuedOutboundDatagrams(path pathID: MultiplexingPathIdentifier) throws(NetworkError) {
         guard var path = self.path(for: pathID) else { throw NetworkError.posix(EINVAL) }
-        path.serviceLowerSendQueue(in: &context.state)
+        path.serviceLowerSendQueue(in: &context.eventContext)
     }
 
-    /// Services a path's send queue using a context state the caller already holds.
+    /// Services a path's send queue using an event context the caller already holds.
     public func sendEnqueuedOutboundDatagrams(
         path pathID: MultiplexingPathIdentifier,
         in eventContext: inout NetworkContext.EventContext

@@ -75,7 +75,7 @@ public final class TestNetworkProtocolStorage:
         return instance
     }
 
-    /// Creates an upper harness using a context state the caller already holds. The new-inbound-
+    /// Creates an upper harness using an event context the caller already holds. The new-inbound-
     /// flow event runs inline with the state held, so registering there has to use this.
     public func createTestDatagramUpperHarness(
         identifier: String = "",
@@ -176,7 +176,7 @@ public final class TestNetworkProtocolStorage:
         return instance
     }
 
-    /// Creates an upper harness using a context state the caller already holds. The new-inbound-
+    /// Creates an upper harness using an event context the caller already holds. The new-inbound-
     /// flow event runs inline with the state held, so registering there has to use this.
     public func createTestStreamUpperHarness(
         identifier: String = "",
@@ -1082,14 +1082,14 @@ public struct TestDatagramMultipathLinkage: DatagramMultipathLinkage, @unchecked
             // The handler creates the path and returns the linkage representing it, which is then
             // bound as the lower protocol's upper side so both directions are connected.
             var instance = instance
-            let pathUpper = try instance.fromExternal { state throws(NetworkError) in
+            let pathUpper = try instance.fromExternal { eventContext throws(NetworkError) in
                 try instance.attachLowerProtocolForNewPath(
                     lowerProtocol,
                     remote: remote,
                     local: local,
                     parameters: parameters,
                     path: path,
-                    in: &state
+                    in: &eventContext
                 )
             }
             try lowerProtocol.invokeAttachUpperProtocol(

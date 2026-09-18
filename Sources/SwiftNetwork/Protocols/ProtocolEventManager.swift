@@ -807,7 +807,7 @@ extension NetworkContext.EventContext {
         // The queued block holds `index` until it runs, so keep the event state alive until then.
         protocolEventStates[index].addOutstandingWakeup()
         self.async {
-            context.state.runAsync(index: index, block)
+            context.eventContext.runAsync(index: index, block)
         }
     }
 
@@ -828,7 +828,7 @@ extension NetworkContext.EventContext {
                 {
                     // The scheduler hands back no state, so this is where the timer re-enters
                     // the stack: acquire the state once and thread it into `wakeup`.
-                    context.state.runTimerWakeup(index: index, wakeup)
+                    context.eventContext.runTimerWakeup(index: index, wakeup)
                 }
             )
         )
@@ -849,9 +849,9 @@ extension NetworkContext {
         _ block: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
         softAssert()
-        self.state.protocolEventStates[index].addOutstandingWakeup()
+        self.eventContext.protocolEventStates[index].addOutstandingWakeup()
         self.async {
-            self.state.runAsync(index: index, block)
+            self.eventContext.runAsync(index: index, block)
         }
     }
 
@@ -862,13 +862,13 @@ extension NetworkContext {
         _ wakeup: @escaping (inout NetworkContext.EventContext) -> Void
     ) {
         softAssert()
-        self.state.protocolEventStates[index].addScheduledTimer()
+        self.eventContext.protocolEventStates[index].addScheduledTimer()
         resetTimer(
             for: timerReference,
             to: .milliseconds(
                 milliseconds,
                 {
-                    self.state.runTimerWakeup(index: index, wakeup)
+                    self.eventContext.runTimerWakeup(index: index, wakeup)
                 }
             )
         )
@@ -1032,7 +1032,7 @@ extension InstanceIdentifier {
         eventContext.async(context: context, index: protocolEventStateIndex, block)
     }
 
-    /// Schedules a timer wakeup, running `wakeup` with the context state once the timer fires.
+    /// Schedules a timer wakeup, running `wakeup` with the event context once the timer fires.
     ///
     /// The scheduler hands back no state, so the timer is an entry point into the stack: the
     /// state is acquired when the timer fires and threaded into `wakeup`.

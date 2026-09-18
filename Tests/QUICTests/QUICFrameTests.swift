@@ -2688,7 +2688,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2708,7 +2708,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2730,7 +2730,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2751,7 +2751,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2773,7 +2773,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2794,7 +2794,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2817,7 +2817,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2839,7 +2839,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2861,7 +2861,7 @@ class QUICFrameTests: XCTestCase {
                 useFlowID: true,
                 useContextID: true,
                 connection: connection,
-                in: &connection.context.state
+                in: &connection.context.eventContext
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3103,7 +3103,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3124,7 +3124,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3147,7 +3147,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3169,7 +3169,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: false,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3192,7 +3192,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3214,7 +3214,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: false,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3238,7 +3238,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3261,7 +3261,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3284,7 +3284,7 @@ class QUICFrameTests: XCTestCase {
                 useFlowID: true,
                 useContextID: true,
                 connection: connection,
-                in: &connection.context.state
+                in: &connection.context.eventContext
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3536,7 +3536,7 @@ class QUICFrameTests: XCTestCase {
             useFlowID: true,
             useContextID: true,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
 
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3569,7 +3569,7 @@ class QUICFrameTests: XCTestCase {
                 useFlowID: true,
                 useContextID: false,
                 connection: connection,
-                in: &connection.context.state
+                in: &connection.context.eventContext
             )
 
             quicFrame.frame.finalize(success: true)

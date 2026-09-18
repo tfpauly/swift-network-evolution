@@ -314,15 +314,15 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
 
     /// Creates a path from outside the protocol stack, for tests only.
     ///
-    /// Path creation registers an event state, which needs the context state. Code already
+    /// Path creation registers an event state, which needs the event context. Code already
     /// running inside the stack should use `init(state:parent:)` and thread its own state in;
     /// this convenience is for external entry points such as tests.
     ///
     /// A path built this way isn't in the parent's `multiplexingPaths`, so nothing tears it down.
     /// Pair it with `destroyFromExternalTest()` before letting it go.
     static func makeFromExternalTest(parent: QUICConnection<Families>) -> Self {
-        parent.fromExternal { state in
-            Self(parent: parent, in: &state)
+        parent.fromExternal { eventContext in
+            Self(parent: parent, in: &eventContext)
         }
     }
 
@@ -331,9 +331,9 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     /// This is an external entry point; code inside the stack calls `destroy(in:)` with the
     /// state it already holds.
     func destroyFromExternalTest() {
-        fromExternal { state in
+        fromExternal { eventContext in
             var selfVar = self
-            selfVar.destroy(in: &state)
+            selfVar.destroy(in: &eventContext)
         }
     }
 

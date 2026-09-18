@@ -91,17 +91,17 @@ extension ProtocolInstance where Self: ~Copyable {
 
     /// Schedules an asynchronous block from within a protocol implementation.
     ///
-    /// The block runs later as a fresh entry into the stack, so it receives the context state
+    /// The block runs later as a fresh entry into the stack, so it receives the event context
     /// and must thread it into any calls made to other protocols.
     ///
     /// This is an external entry point: call it from code outside the protocol stack. If you
-    /// already hold the context state, call the `in:`-taking variant instead so the state
+    /// already hold the event context, call the `in:`-taking variant instead so the state
     /// isn't re-derived from the context.
     public func async(_ block: @escaping (inout NetworkContext.EventContext) -> Void) {
-        identifier.async(context: context, in: &context.state, block)
+        identifier.async(context: context, in: &context.eventContext, block)
     }
 
-    /// Schedules an asynchronous block, using an already-acquired context state.
+    /// Schedules an asynchronous block, using an already-acquired event context.
     ///
     /// The block still receives the state that is current when it runs; see `async(_:)`.
     public func async(
@@ -114,23 +114,23 @@ extension ProtocolInstance where Self: ~Copyable {
     /// Enters a protocol's execution state from an external source.
     ///
     /// Call this on the context, and call it before the protocol invokes any calls to other protocols.
-    /// The block receives the context state, which must be threaded into any calls made to other
+    /// The block receives the event context, which must be threaded into any calls made to other
     /// protocols so that the state is never re-derived from the context class.
     public func fromExternal<R, E: Error>(
         _ block: (inout NetworkContext.EventContext) throws(E) -> R
     ) throws(E) -> R {
-        try identifier.fromExternal(in: &context.state, block)
+        try identifier.fromExternal(in: &context.eventContext, block)
     }
     public func fromExternal<R: ~Copyable, E: Error>(
         _ block: (inout NetworkContext.EventContext) throws(E) -> R
     ) throws(E) -> R {
-        try identifier.fromExternal(in: &context.state, block)
+        try identifier.fromExternal(in: &context.eventContext, block)
     }
     public func fromExternal<R, T: ~Copyable, E: Error>(
         _ value: consuming T,
         _ block: (inout NetworkContext.EventContext, consuming T) throws(E) -> R
     ) throws(E) -> R {
-        try identifier.fromExternal(value, in: &context.state, block)
+        try identifier.fromExternal(value, in: &context.eventContext, block)
     }
 }
 
@@ -142,7 +142,7 @@ extension ProtocolInstance where Self: ~Copyable {
 public protocol TimerSchedulable: ~Copyable, ProtocolInstance {
     /// Handles a wakeup from a timer.
     ///
-    /// The timer is an entry point into the stack, so the framework acquires the context state
+    /// The timer is an entry point into the stack, so the framework acquires the event context
     /// and hands it in. Thread it into any calls made to other protocols.
     func wakeup(in eventContext: inout NetworkContext.EventContext)
 
@@ -156,12 +156,12 @@ extension TimerSchedulable {
     ///
     /// This is an external entry point; see `async(_:)`.
     public func scheduleWakeup(milliseconds: UInt64) {
-        fromExternal { state in
-            scheduleWakeup(milliseconds: milliseconds, in: &state)
+        fromExternal { eventContext in
+            scheduleWakeup(milliseconds: milliseconds, in: &eventContext)
         }
     }
 
-    /// Schedules a timer wakeup, using an already-acquired context state.
+    /// Schedules a timer wakeup, using an already-acquired event context.
     public func scheduleWakeup(milliseconds: UInt64, in eventContext: inout NetworkContext.EventContext) {
         identifier.scheduleWakeup(
             context: context,
@@ -177,10 +177,10 @@ extension TimerSchedulable {
     ///
     /// This is an external entry point; see `async(_:)`.
     public func unscheduleWakeup() {
-        identifier.unscheduleWakeup(timerReference: timerReference, in: &context.state)
+        identifier.unscheduleWakeup(timerReference: timerReference, in: &context.eventContext)
     }
 
-    /// Unschedules a timer wakeup, using an already-acquired context state.
+    /// Unschedules a timer wakeup, using an already-acquired event context.
     public func unscheduleWakeup(in eventContext: inout NetworkContext.EventContext) {
         identifier.unscheduleWakeup(timerReference: timerReference, in: &eventContext)
     }

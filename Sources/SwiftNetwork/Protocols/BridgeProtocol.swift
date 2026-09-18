@@ -177,7 +177,7 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         /// Notifies the upper protocol that inbound data is ready.
         ///
         /// This runs from inside `sendDatagrams` on the peer bridge, which already holds the
-        /// context state, so the state is threaded in rather than re-derived.
+        /// event context, so the state is threaded in rather than re-derived.
         func deliverInboundDataAvailableEvent(in eventContext: inout NetworkContext.EventContext) {
             if linkDelay == .zero {
                 self.async(in: &eventContext) { eventContext in
@@ -190,10 +190,10 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
             }
         }
 
-        /// Entry point for callers with no context state, such as tests injecting a datagram.
+        /// Entry point for callers with no event context, such as tests injecting a datagram.
         func deliverInboundDataAvailableEventFromExternal() {
-            fromExternal { state in
-                deliverInboundDataAvailableEvent(in: &state)
+            fromExternal { eventContext in
+                deliverInboundDataAvailableEvent(in: &eventContext)
             }
         }
 

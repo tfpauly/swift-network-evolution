@@ -50,8 +50,8 @@ final class RecoveryTests: XCTestCase {
                 identifier: "Client",
                 context: .implicitContext
             )
-            lowerHarness.fromExternal { state in
-                lowerHarness.connect(in: &state)
+            lowerHarness.fromExternal { eventContext in
+                lowerHarness.connect(in: &eventContext)
             }
             var newPath = QUICTestPath.makeFromExternalTest(parent: self.connection)
             newPath.set(interface: nil, priority: 1, isInitial: true)
@@ -93,7 +93,7 @@ final class RecoveryTests: XCTestCase {
         connection.recovery.recordSentPackets(
             &packets,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
     }
 
@@ -397,7 +397,7 @@ final class RecoveryTests: XCTestCase {
             ack: ackFrame,
             ackedPath: connection.currentPath!,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
 
         // Validate that the congestion window has grown after the packet is acked
@@ -453,7 +453,7 @@ final class RecoveryTests: XCTestCase {
             ack: ackFrame,
             ackedPath: connection.currentPath!,
             connection: connection,
-            in: &connection.context.state
+            in: &connection.context.eventContext
         )
 
         XCTAssertEqual(
@@ -504,8 +504,8 @@ final class RecoveryTests: XCTestCase {
         }
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.fromExternal { state in
-                self.connection.recovery.resetAll(in: &state)
+            self.connection.fromExternal { eventContext in
+                self.connection.recovery.resetAll(in: &eventContext)
             }
             expectation.fulfill()
         }
@@ -618,8 +618,8 @@ final class RecoveryTests: XCTestCase {
         var expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(1))
-            self.connection.fromExternal { state in
-                self.connection.recovery.timerFired(timeNow: timeNow, in: &state)
+            self.connection.fromExternal { eventContext in
+                self.connection.recovery.timerFired(timeNow: timeNow, in: &eventContext)
             }
             expectation.fulfill()
         }
@@ -641,8 +641,8 @@ final class RecoveryTests: XCTestCase {
         expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(2))
-            self.connection.fromExternal { state in
-                self.connection.recovery.timerFired(timeNow: timeNow, in: &state)
+            self.connection.fromExternal { eventContext in
+                self.connection.recovery.timerFired(timeNow: timeNow, in: &eventContext)
             }
             expectation.fulfill()
         }
@@ -664,8 +664,8 @@ final class RecoveryTests: XCTestCase {
         expectation = XCTestExpectation()
         self.connection.context.async {
             timeNow = timeNow.advanced(by: .seconds(4))
-            self.connection.fromExternal { state in
-                self.connection.recovery.timerFired(timeNow: timeNow, in: &state)
+            self.connection.fromExternal { eventContext in
+                self.connection.recovery.timerFired(timeNow: timeNow, in: &eventContext)
             }
             expectation.fulfill()
         }
@@ -739,12 +739,12 @@ final class RecoveryTests: XCTestCase {
         // Fire the PTO with no new ack-eliciting data pending.
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.fromExternal { state in
+            self.connection.fromExternal { eventContext in
                 self.connection.withCurrentPath { path in
                     self.connection.recovery.sendPTO(
                         connection: self.connection,
                         path: path,
-                        in: &state
+                        in: &eventContext
                     )
                 }
             }
@@ -804,12 +804,12 @@ final class RecoveryTests: XCTestCase {
 
         let expectation = XCTestExpectation()
         self.connection.context.async {
-            self.connection.fromExternal { state in
+            self.connection.fromExternal { eventContext in
                 self.connection.withCurrentPath { path in
                     self.connection.recovery.sendPTO(
                         connection: self.connection,
                         path: path,
-                        in: &state
+                        in: &eventContext
                     )
                 }
             }

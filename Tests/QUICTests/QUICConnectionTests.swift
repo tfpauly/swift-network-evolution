@@ -42,10 +42,10 @@ final class QUICConnectionTests: XCTestCase {
         try self.connection.context.onQueue {
             let zeroStreamID: QUICStreamID = QUICStreamID(0)
             NetworkContext.implicitContext.async {
-                self.connection.fromExternal { state in
+                self.connection.fromExternal { eventContext in
                     let _ = self.connection.createInboundStreams(
                         streamID: zeroStreamID,
-                        in: &state
+                        in: &eventContext
                     )
                 }
             }

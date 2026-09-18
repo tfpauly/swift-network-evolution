@@ -70,7 +70,7 @@ private struct ContextBound<Value>: @unchecked Sendable {
         self._value = value
     }
 
-    /// Builds a context-bound value using a context state the caller already holds, so the
+    /// Builds a context-bound value using an event context the caller already holds, so the
     /// queue assertion doesn't re-derive the state from the context.
     @inlinable
     init(_ value: Value, context: NetworkContext, in eventContext: inout NetworkContext.EventContext) {
@@ -387,7 +387,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             self.identifier = InstanceIdentifier(context: context, eventManager: &self.eventManager)
         }
 
-        /// Registers using a context state the caller already holds, so the state isn't
+        /// Registers using an event context the caller already holds, so the state isn't
         /// re-derived from the context.
         init(
             context: NetworkContext,
@@ -433,7 +433,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
 
             /// Assigns the parent and registers this handler's event state.
             ///
-            /// Registration needs the context state, so it takes the state the caller already
+            /// Registration needs the event context, so it takes the state the caller already
             /// holds rather than re-deriving it from the context (which would trip Swift's
             /// exclusivity checking). The context itself comes from the parent, so the identifier
             /// can only be built once a parent has been assigned.
@@ -464,12 +464,12 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                 // `context` comes from the parent, and `setParent` is also what registers the
                 // event state, so an unparented handler has nothing to release.
                 guard parentInstance != nil else { return }
-                fromExternal { state in
-                    destroy(in: &state)
+                fromExternal { eventContext in
+                    destroy(in: &eventContext)
                 }
             }
 
-            /// Destroys using a context state the caller already holds.
+            /// Destroys using an event context the caller already holds.
             func destroy(in eventContext: inout NetworkContext.EventContext) {
                 if !lower.isDetached {
                     try? lower.invokeDetach(for: identifier, in: &eventContext)
@@ -680,7 +680,7 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             quicCrypto = nil
         }
 
-        /// Tears down the handshake state using a context state the caller already holds.
+        /// Tears down the handshake state using an event context the caller already holds.
         ///
         /// Named distinctly from `teardown(state:)`, which is the linkage-storage-release hook
         /// from `LowerProtocolLinkage`.

@@ -147,7 +147,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
             protocolEventStates.remove(index: index)
         }
     }
-    var state: EventContext
+    var eventContext: EventContext
 
     internal init(
         identifier: String,
@@ -158,7 +158,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         self.scheduler = scheduler
         self.globals = globals
         self.identifier = identifier
-        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: schedulerIsDefault)
+        eventContext = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: schedulerIsDefault)
     }
 
     public static let implicitContext: NetworkContext = NetworkContext(identifier: "context")
@@ -197,7 +197,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         self.scheduler = scheduler
         self.globals = globals
         self.identifier = identifier
-        state = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: true)
+        eventContext = .init(globals: globals, scheduler: scheduler, schedulerIsDefault: true)
     }
 
     public init(identifier: String, externalScheduler: any Scheduler) {
@@ -205,7 +205,7 @@ public final class NetworkContext: NetworkContextProtocol, @unchecked Sendable {
         self.scheduler = externalScheduler
         self.globals = globals
         self.identifier = identifier
-        state = .init(globals: globals, scheduler: externalScheduler, schedulerIsDefault: false)
+        eventContext = .init(globals: globals, scheduler: externalScheduler, schedulerIsDefault: false)
     }
     #endif
 
@@ -401,7 +401,7 @@ extension NetworkContext {
     }
 
     func assert() {
-        state.assert()
+        eventContext.assert()
     }
 }
 
@@ -449,7 +449,7 @@ extension NetworkContext {
 
     #if !NETWORK_PRIVATE || NETWORK_STANDALONE
     func resetTimer(for reference: TimerReference, to time: FutureTime) {
-        state.resetTimer(for: reference, to: time)
+        eventContext.resetTimer(for: reference, to: time)
     }
     #endif
 }

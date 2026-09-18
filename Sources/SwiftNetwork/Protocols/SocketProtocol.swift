@@ -281,8 +281,8 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
 
             if receivedAny {
                 inputUnacknowledged = true
-                fromExternal { state in
-                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &state)
+                fromExternal { eventContext in
+                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &eventContext)
                 }
                 // If the upper protocol consumed data synchronously during the
                 // notification (via receiveDatagrams clearing inputUnacknowledged),
@@ -323,8 +323,8 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
 
     private func triggerOutboundRoomAvailable() {
         // Notify upper protocol that output room is available
-        fromExternal { state in
-            triggerOutboundRoomAvailable(in: &state)
+        fromExternal { eventContext in
+            triggerOutboundRoomAvailable(in: &eventContext)
         }
     }
 
@@ -348,11 +348,11 @@ public final class SocketDatagramProtocol<LinkageFamily: DatagramLinkageFamily>:
     // Drains pendingOutputFrames synchronously. On EAGAIN/ENOBUFS,
     // stops draining, resumes the write source to retry when writable.
     // On fatal errors (EPIPE, etc.), delivers a disconnected event.
-    // Callers that already hold the context state must use `serviceWrites(state:)`. This variant is
+    // Callers that already hold the event context must use `serviceWrites(state:)`. This variant is
     // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
-        fromExternal { state in
-            serviceWrites(in: &state)
+        fromExternal { eventContext in
+            serviceWrites(in: &eventContext)
         }
     }
 
@@ -828,8 +828,8 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
             }
 
             if receivedAny {
-                fromExternal { state in
-                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &state)
+                fromExternal { eventContext in
+                    upper.deliverInboundDataAvailableEvent(from: identifier, in: &eventContext)
                 }
             }
             // Backpressure on buffered volume: suspend whenever we're over the
@@ -896,8 +896,8 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     }
 
     private func triggerOutboundRoomAvailable() {
-        fromExternal { state in
-            triggerOutboundRoomAvailable(in: &state)
+        fromExternal { eventContext in
+            triggerOutboundRoomAvailable(in: &eventContext)
         }
     }
 
@@ -921,11 +921,11 @@ public final class SocketStreamProtocol<LinkageFamily: StreamLinkageFamily>: Bot
     // version). On EAGAIN, resumes the write source to retry when writable.
     // On fatal errors (EPIPE, ECONNRESET, etc.), delivers a disconnected event.
     // When a frame with connectionComplete is fully written, issues SHUT_WR.
-    // Callers that already hold the context state must use `serviceWrites(state:)`. This variant is
+    // Callers that already hold the event context must use `serviceWrites(state:)`. This variant is
     // for the external entry points -- the write source -- which have no state yet.
     private func serviceWrites() {
-        fromExternal { state in
-            serviceWrites(in: &state)
+        fromExternal { eventContext in
+            serviceWrites(in: &eventContext)
         }
     }
 

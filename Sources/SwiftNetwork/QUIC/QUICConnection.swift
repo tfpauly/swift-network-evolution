@@ -457,15 +457,15 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         )
         // `setup` runs on the attach path, which deliberately does not carry the context
         // state, so acquire it here to register the connection's timers.
-        fromExternal { contextState in
-            let ackTimerID = timer.insert(description: "ACK", in: &contextState) { timerState in
+        fromExternal { eventContext in
+            let ackTimerID = timer.insert(description: "ACK", in: &eventContext) { timerState in
                 self.ack.timerFired(timeNow: .now, in: &timerState)
             }
             self.ack = Ack<Families>(connection: self, timerID: ackTimerID, logPrefixer: logPrefixer)
 
             let recoveryTimerID = timer.insert(
                 description: "Recovery",
-                in: &contextState
+                in: &eventContext
             ) { timerState in
                 self.recovery.timerFired(timeNow: .now, in: &timerState)
             }
@@ -477,7 +477,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
             migration.timerID = timer.insert(
                 description: "Migration",
-                in: &contextState
+                in: &eventContext
             ) { timerState in
                 self.migration.timerFired(connection: self, in: &timerState)
             }
@@ -720,30 +720,30 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         #if !NETWORK_EMBEDDED
         // Setup the local_max_streams_bidirectional_handler
         // These metadata handlers are invoked by the application, so they are genuine entry
-        // points into the stack and acquire the context state here.
+        // points into the stack and acquire the event context here.
         self.connectionMetadata.setLocalMaxStreamsBidirectional { maxStreams in
-            self.fromExternal { contextState in
-                self.updateMaxBidirectionalStreamsFromApplication(Int(maxStreams), in: &contextState)
+            self.fromExternal { eventContext in
+                self.updateMaxBidirectionalStreamsFromApplication(Int(maxStreams), in: &eventContext)
             }
         }
 
         self.connectionMetadata.setLocalMaxStreamsUnidirectional { (maxStreams: UInt64) in
-            self.fromExternal { contextState in
-                self.updateMaxUnidirectionalStreamsFromApplication(Int(maxStreams), in: &contextState)
+            self.fromExternal { eventContext in
+                self.updateMaxUnidirectionalStreamsFromApplication(Int(maxStreams), in: &eventContext)
             }
         }
 
         self.connectionMetadata.setKeepalive { (keepaliveSeconds: UInt16) in
-            self.fromExternal { contextState in
+            self.fromExternal { eventContext in
                 if keepaliveSeconds == Constants.defaultKeepaliveValue {
                     self.keepaliveConfigure(
                         duration: Constants.defaultKeepaliveDuration,
-                        in: &contextState
+                        in: &eventContext
                     )
                 } else {
                     self.keepaliveConfigure(
                         duration: .seconds(keepaliveSeconds),
-                        in: &contextState
+                        in: &eventContext
                     )
                 }
             }
@@ -1509,14 +1509,14 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     /// Tears down a connection built outside a protocol stack, for tests only.
     public func destroyFromExternalTest() {
-        fromExternal { state in
-            teardown(in: &state)
+        fromExternal { eventContext in
+            teardown(in: &eventContext)
             for path in multiplexingPaths.values {
                 var path = path
-                path.destroy(in: &state)
+                path.destroy(in: &eventContext)
             }
             multiplexingPaths.removeAll()
-            unregisterEventManager(in: &state)
+            unregisterEventManager(in: &eventContext)
         }
     }
 
@@ -2727,11 +2727,11 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
             if self.state == .connected && streamBlocked {
                 // Send the STREAMS_*_BLOCKED frame if we are connected.
                 log.debug("Marked stream (flow \(flowID.debugDescription)) as pending")
-                fromExternal { contextState in
+                fromExternal { eventContext in
                     stream.outboundStreamPending(
                         connected: (self.state == .connected),
                         connection: self,
-                        in: &contextState
+                        in: &eventContext
                     )
                 }
             }
@@ -2747,8 +2747,8 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         //
         // `setup(flow:)` runs on the attach path, which deliberately does not carry the context
         // state, so this is a genuine entry point into the stack.
-        fromExternal { contextState in
-            serviceStreamDataToSend(flow: flowID, in: &contextState)
+        fromExternal { eventContext in
+            serviceStreamDataToSend(flow: flowID, in: &eventContext)
         }
     }
 
@@ -2786,8 +2786,8 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     /// `close(state:sendCloseFrame:)`. This entry point is for callers that are genuinely
     /// external to the stack and therefore have to acquire the state themselves.
     public func closeFromExternal() {
-        fromExternal { contextState in
-            close(sendCloseFrame: true, in: &contextState)
+        fromExternal { eventContext in
+            close(sendCloseFrame: true, in: &eventContext)
         }
     }
 
@@ -3119,7 +3119,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
     }
 
     @discardableResult
-    /// Sends pending frames using a context state the caller already holds.
+    /// Sends pending frames using an event context the caller already holds.
     func sendFrames(
         ignoreCongestionWindow: Bool = false,
         delayedACK: Bool = false,
@@ -3170,7 +3170,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         }
     }
 
-    /// Sends pending frames on a path using a context state the caller already holds.
+    /// Sends pending frames on a path using an event context the caller already holds.
     @discardableResult
     func sendFrames(
         on path: QUICPath<Families>,

@@ -189,7 +189,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
     }
 
     // The flow's connected/inbound/outbound completions all run inline while the delivering event
-    // holds the context state, so each of these takes the state and threads it back into the
+    // holds the event context, so each of these takes the state and threads it back into the
     // stack. The state-free `read()`/`write()` wrappers below are for external entry points.
     internal func startCompleted(_ connectedError: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         if let connectedError {
@@ -213,8 +213,8 @@ final class EndpointFlow: CustomDebugStringConvertible {
     private func write() {
         precondition(self.state == .ready)
         parameters.context.assert()
-        fromExternalOnFlow { state in
-            self.write(in: &state)
+        fromExternalOnFlow { eventContext in
+            self.write(in: &eventContext)
         }
     }
 
@@ -257,8 +257,8 @@ final class EndpointFlow: CustomDebugStringConvertible {
     private func read() {
         precondition(self.state == .ready)
         parameters.context.assert()
-        fromExternalOnFlow { state in
-            self.read(in: &state)
+        fromExternalOnFlow { eventContext in
+            self.read(in: &eventContext)
         }
     }
 
@@ -314,7 +314,7 @@ final class EndpointFlow: CustomDebugStringConvertible {
         }
     }
 
-    // Runs an application completion after the context state has been released.
+    // Runs an application completion after the event context has been released.
     //
     // Application callbacks are the boundary into user code and may call straight back into any
     // public API, which acquires the state itself. Invoking them while a delivering event still
@@ -328,12 +328,12 @@ final class EndpointFlow: CustomDebugStringConvertible {
         eventContext.async(completion)
     }
 
-    // Acquires the context state through whichever flow protocol is active, so the state-free
+    // Acquires the event context through whichever flow protocol is active, so the state-free
     // entry points above can reach the state-taking implementations.
     private func fromExternalOnFlow(_ body: (inout NetworkContext.EventContext) -> Void) {
         switch self.flowProtocol {
-        case .stream(let flow): flow.fromExternal { state in body(&state) }
-        case .datagram(let flow): flow.fromExternal { state in body(&state) }
+        case .stream(let flow): flow.fromExternal { eventContext in body(&eventContext) }
+        case .datagram(let flow): flow.fromExternal { eventContext in body(&eventContext) }
         case .none: fatalError("No current flow")
         }
     }
@@ -472,8 +472,8 @@ final class EndpointFlow: CustomDebugStringConvertible {
     private func completeTeardown() {
         guard !self.teardownComplete else { return }
         switch self.flowProtocol {
-        case .stream(let flow): flow.fromExternal { state in completeTeardown(in: &state) }
-        case .datagram(let flow): flow.fromExternal { state in completeTeardown(in: &state) }
+        case .stream(let flow): flow.fromExternal { eventContext in completeTeardown(in: &eventContext) }
+        case .datagram(let flow): flow.fromExternal { eventContext in completeTeardown(in: &eventContext) }
         case .none: finishTeardownBookkeeping()
         }
     }

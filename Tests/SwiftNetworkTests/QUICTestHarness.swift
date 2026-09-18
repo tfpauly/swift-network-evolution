@@ -548,7 +548,7 @@ class QUICTestHarness {
             var path = PathProperties(parameters: parameters)
             path.effectiveMTU = 1500
 
-            let (datagramUpperHarness, datagramUpperHarnessLinkage) = instance.fromExternal { state in
+            let (datagramUpperHarness, datagramUpperHarnessLinkage) = instance.fromExternal { eventContext in
                 self.storage.createDatagramUpperHarness(
                     identifier: identifier,
                     local: self.clientEndpoint,
@@ -556,7 +556,7 @@ class QUICTestHarness {
                     parameters: parameters,
                     path: path,
                     context: parameters.context,
-                    in: &state
+                    in: &eventContext
                 )
             }
 
@@ -785,11 +785,11 @@ class QUICTestHarness {
         }
 
         context.async {
-            serverStreamHarness.fromExternal { state in
-                serverReadHandler?(&state, true)
+            serverStreamHarness.fromExternal { eventContext in
+                serverReadHandler?(&eventContext, true)
             }
-            clientStreamHarness.fromExternal { state in
-                clientReadHandler?(&state, true)
+            clientStreamHarness.fromExternal { eventContext in
+                clientReadHandler?(&eventContext, true)
             }
         }
 
@@ -932,11 +932,11 @@ class QUICTestHarness {
         }
 
         context.async {
-            serverDatagramFlow.fromExternal { state in
-                serverReadHandler?(&state, true)
+            serverDatagramFlow.fromExternal { eventContext in
+                serverReadHandler?(&eventContext, true)
             }
-            clientDatagramFlow.fromExternal { state in
-                clientReadHandler?(&state, true)
+            clientDatagramFlow.fromExternal { eventContext in
+                clientReadHandler?(&eventContext, true)
             }
         }
 
@@ -1631,8 +1631,8 @@ class QUICTestHarness {
         context.async {
             let wrote = clientStream.write(Array("ping".utf8), sendFIN: true)
             XCTAssertTrue(wrote, "Client failed to write ping")
-            clientStream.fromExternal { state in
-                clientReadHandler?(&state, true)
+            clientStream.fromExternal { eventContext in
+                clientReadHandler?(&eventContext, true)
             }
         }
 

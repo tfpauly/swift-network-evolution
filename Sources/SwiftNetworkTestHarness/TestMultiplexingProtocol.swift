@@ -169,18 +169,18 @@ public final class TestMultiplexingProtocol: ManyToManyApplicationDatagramProtoc
 
     public func triggerNewFlowCreation() {
         log.debug("Multiplexing protocol creating a new inbound flow")
-        fromExternal { state in
-            let newFlow = Flow(parent: self, inbound: true, in: &state)
+        fromExternal { eventContext in
+            let newFlow = Flow(parent: self, inbound: true, in: &eventContext)
             multiplexedFlows[newFlow.flowIdentifier] = newFlow
-            deliverNewInboundFlowEvent(newFlow.identifier, flowMetadata: nil, in: &state)
+            deliverNewInboundFlowEvent(newFlow.identifier, flowMetadata: nil, in: &eventContext)
         }
     }
 
     public func triggerConnected() {
         log.debug("Multiplexing protocol triggering connected event")
-        fromExternal { state in
+        fromExternal { eventContext in
             delayConnected = false
-            deliverConnectedEvent(flow: .allFlows, in: &state)
+            deliverConnectedEvent(flow: .allFlows, in: &eventContext)
         }
     }
 }

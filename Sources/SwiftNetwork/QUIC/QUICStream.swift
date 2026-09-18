@@ -630,8 +630,8 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
 
     /// Releases this stream's event state from outside the protocol stack, for tests only.
     func destroyFromExternalTest() {
-        fromExternal { state in
-            unregisterEventManager(in: &state)
+        fromExternal { eventContext in
+            unregisterEventManager(in: &eventContext)
         }
     }
 

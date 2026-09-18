@@ -36,13 +36,13 @@ final class TimerTests: XCTestCase {
     func testOneTimer() {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1000))
         timer.timerFired(
                 timeNow: .init(milliseconds: 1000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(
             semaphore.wait(timeout: DispatchTime.now() + .seconds(1)),
@@ -54,15 +54,15 @@ final class TimerTests: XCTestCase {
     func testReschedule() {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one-reschedule", timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one-reschedule", timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .zero)
-        timer.reschedule(identifier: oneId, fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state)
+        timer.reschedule(identifier: oneId, fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext)
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1000))
         timer.timerFired(
                 timeNow: .init(milliseconds: 1000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(
             semaphore.wait(timeout: DispatchTime.now() + .seconds(1)),
@@ -74,16 +74,16 @@ final class TimerTests: XCTestCase {
     func testTwoTimersAtSameTime() throws {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
-        let twoId = timer.insert(description: "two", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let twoId = timer.insert(description: "two", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1000))
         timer.timerFired(
                 timeNow: .init(milliseconds: 1000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertNotEqual(oneId, twoId)
         XCTAssertEqual(
@@ -101,22 +101,22 @@ final class TimerTests: XCTestCase {
     func testTwoTimersAtDifferentTimes() throws {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one", fromNow: .milliseconds(2000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one", fromNow: .milliseconds(2000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 2000))
-        let twoId = timer.insert(description: "two", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let twoId = timer.insert(description: "two", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1000))
         timer.timerFired(
                 timeNow: .init(milliseconds: 1000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 2000))
         timer.timerFired(
                 timeNow: .init(milliseconds: 2000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertNotEqual(oneId, twoId)
         XCTAssertEqual(
@@ -134,7 +134,7 @@ final class TimerTests: XCTestCase {
     func testRecalculateAfterMissingTimer() throws {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one", fromNow: .milliseconds(1000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1000))
@@ -142,19 +142,19 @@ final class TimerTests: XCTestCase {
             description: "two",
             fromNow: .milliseconds(1000),
             timerNow: .init(milliseconds: 1500),
-            in: &NetworkContext.implicitContext.state
+            in: &NetworkContext.implicitContext.eventContext
         ) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 1500))
         timer.timerFired(
                 timeNow: .init(milliseconds: 1500),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(timer.nextDeadline, .init(milliseconds: 2500))
         timer.timerFired(
                 timeNow: .init(milliseconds: 2500),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertNotEqual(oneId, twoId)
         XCTAssertEqual(
@@ -173,7 +173,7 @@ final class TimerTests: XCTestCase {
     func testRecalculateWithinThreshold() throws {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
-        let oneId = timer.insert(description: "one", fromNow: .microseconds(1_000_000), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let oneId = timer.insert(description: "one", fromNow: .microseconds(1_000_000), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(microseconds: 1_000_000))
@@ -183,7 +183,7 @@ final class TimerTests: XCTestCase {
             description: "two",
             fromNow: .microseconds(1_000_000),
             timerNow: .init(microseconds: 2),
-            in: &NetworkContext.implicitContext.state
+            in: &NetworkContext.implicitContext.eventContext
         ) { _ in
             semaphore.signal()
         }
@@ -192,7 +192,7 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(timer.nextDeadline, .init(microseconds: 1_000_000))
         timer.timerFired(
                 timeNow: .init(microseconds: 1_000_000),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertNotEqual(oneId, twoId)
         XCTAssertEqual(
@@ -216,7 +216,7 @@ final class TimerTests: XCTestCase {
         let semaphore = DispatchSemaphore(value: 0)
 
         // A, in 2s
-        let idA = timer.insert(description: "A", fromNow: .seconds(2), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let idA = timer.insert(description: "A", fromNow: .seconds(2), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             XCTFail("A was disabled and must not fire")
         }
         XCTAssertEqual(timer.nextDeadline, .init(.seconds(2)))
@@ -226,7 +226,7 @@ final class TimerTests: XCTestCase {
             description: "B",
             fromNow: .seconds(2) + .microseconds(999),
             timerNow: .zero,
-            in: &NetworkContext.implicitContext.state
+            in: &NetworkContext.implicitContext.eventContext
         ) { _ in
             semaphore.signal()
         }
@@ -235,7 +235,7 @@ final class TimerTests: XCTestCase {
 
         // Disable A. B is now the earliest *enabled* entry but the scheduled
         // time should remain at 2s (as B was within the threshold of A).
-        timer.reschedule(identifier: idA, fromNow: .zero, timerNow: .zero, in: &NetworkContext.implicitContext.state)
+        timer.reschedule(identifier: idA, fromNow: .zero, timerNow: .zero, in: &NetworkContext.implicitContext.eventContext)
         XCTAssertEqual(timer.nextDeadline, .init(.seconds(2)))
 
         // Simulate a wakeup which is 0.5ms early. With the 1ms leeway,
@@ -243,7 +243,7 @@ final class TimerTests: XCTestCase {
         // deadline (2s + 999us), so B doesn't fire and the spurious path runs.
         timer.timerFired(
                 timeNow: .init(.seconds(2) - .microseconds(500)),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
 
         // timerFired needs to rearm the wakeup.
@@ -252,7 +252,7 @@ final class TimerTests: XCTestCase {
         // Make sure B fires.
         timer.timerFired(
                 timeNow: .init(.seconds(2)  + .microseconds(999)),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(
             semaphore.wait(timeout: DispatchTime.now() + .seconds(1)),
@@ -267,27 +267,27 @@ final class TimerTests: XCTestCase {
         let timer = QUICTimer(timerReference: TimerReference(), logPrefixer: timerTestsLogPrefixer)
         let semaphore = DispatchSemaphore(value: 0)
 
-        let idA = timer.insert(description: "A", fromNow: .seconds(2), timerNow: .zero, in: &NetworkContext.implicitContext.state) { _ in
+        let idA = timer.insert(description: "A", fromNow: .seconds(2), timerNow: .zero, in: &NetworkContext.implicitContext.eventContext) { _ in
             XCTFail("A was cancelled and must not fire")
         }
         XCTAssertEqual(timer.nextDeadline, .init(.seconds(2)))
 
         // Cancel A; disarm the wakeup.
-        timer.reschedule(identifier: idA, fromNow: .zero, timerNow: .zero, in: &NetworkContext.implicitContext.state)
+        timer.reschedule(identifier: idA, fromNow: .zero, timerNow: .zero, in: &NetworkContext.implicitContext.eventContext)
 
         // Schedule a new timer.
         let idB = timer.insert(
             description: "B",
             fromNow: .seconds(2) + .microseconds(500),
             timerNow: .zero,
-            in: &NetworkContext.implicitContext.state
+            in: &NetworkContext.implicitContext.eventContext
         ) { _ in
             semaphore.signal()
         }
         XCTAssertEqual(timer.nextDeadline, .init(.seconds(2) + .microseconds(500)))
         timer.timerFired(
                 timeNow: .init(.seconds(2) + .microseconds(500)),
-                in: &NetworkContext.implicitContext.state
+                in: &NetworkContext.implicitContext.eventContext
         )
         XCTAssertEqual(
             semaphore.wait(timeout: DispatchTime.now() + .seconds(1)),

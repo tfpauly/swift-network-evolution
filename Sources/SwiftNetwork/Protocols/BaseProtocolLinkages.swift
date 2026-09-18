@@ -683,9 +683,9 @@ public struct BaseDatagramMultipathLinkage<Group: LinkageFamilyGroup>: DatagramM
         parameters: Parameters?,
         path: PathProperties?
     ) throws(NetworkError) {
-        // This is an external entry point, so acquire the context state here and thread it
+        // This is an external entry point, so acquire the event context here and thread it
         // into the protocol below.
-        try identifier.fromExternal(in: &storage!.context.state) { state throws(NetworkError) in
+        try identifier.fromExternal(in: &storage!.context.eventContext) { eventContext throws(NetworkError) in
             let upperLinkage: MultipathLowerProtocol.PairedUpperLinkage
 
             switch protocolType {
@@ -696,7 +696,7 @@ public struct BaseDatagramMultipathLinkage<Group: LinkageFamilyGroup>: DatagramM
                     local: local,
                     parameters: parameters,
                     path: path,
-                    in: &state
+                    in: &eventContext
                 )
             default: fatalError("Protocol cannot accept attachLowerProtocolForNewPath call")
             }
