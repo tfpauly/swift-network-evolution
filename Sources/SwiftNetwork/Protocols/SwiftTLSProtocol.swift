@@ -420,7 +420,6 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             isServer = parameters.isServer
         }
 
-        // TODO: TFPDEBUG Ensure that the event manager is removed from the context
         final class EncryptionLevelHandler: TopStreamProtocol, InboundStreamLinkage, ProtocolInstanceAsLinkage {
             typealias PairedLowerLinkage = QUICCrypto<Families>
 
@@ -449,11 +448,14 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             }
             public var context: NetworkContext { parentInstance!.context }
 
-            public var identifier = InstanceIdentifier()
+            public var identifier: InstanceIdentifier
 
             var eventManager = ProtocolEventManager()
 
-            init(level: SwiftTLSOptions.EncryptionLevel) { self.level = level }
+            init(level: SwiftTLSOptions.EncryptionLevel) {
+                self.level = level
+                self.identifier = .init()
+            }
             convenience init() { self.init(level: .initial) }
 
             func invokeAttachLowerProtocol(_ lowerProtocol: QUICCrypto<Families>, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) { }

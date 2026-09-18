@@ -176,9 +176,6 @@ final class SwiftNetworkQUICStackTests: NetTestCase {
             serverParameters.defaultStack.transport = .udp(serverUDPOptions)
             serverParameters.defaultStack.internet = .ip(serverIPOptions)
 
-            client = DatagramLowerHarness<TestDatagramLinkageFamily>(identifier: "Client" + identifier, context: context)
-            server = DatagramLowerHarness<TestDatagramLinkageFamily>(identifier: "Server" + identifier, context: context)
-
             let (clientLowerHarness, clientLowerHarnessLinkage) = storage.createDatagramLowerHarness(
                 identifier: "Client" + identifier,
                 context: context)

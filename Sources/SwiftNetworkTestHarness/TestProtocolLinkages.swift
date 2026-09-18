@@ -50,9 +50,6 @@ public final class TestNetworkProtocolStorage:
     // and QUIC -- is inherited, so this only adds factories for the protocols the framework does
     // not know about.
 
-    // Test-only protocol instances, held the same way the base storage holds the framework's.
-    private var multiplexingInstances = [ObjectIdentifier: TestMultiplexingProtocol]()
-
     // The harnesses, built against the test families and held here to keep them alive for the
     // lifetime of the storage.
     private var datagramUpperHarnessesForTest = [DatagramUpperHarness<TestDatagramLinkageFamily>]()
@@ -147,7 +144,6 @@ public final class TestNetworkProtocolStorage:
         instance: TestMultiplexingProtocol
     ) {
         let instance = TestMultiplexingProtocol(context: context)
-        multiplexingInstances[ObjectIdentifier(instance)] = instance
         return (
             listener: TestDatagramListenerLinkage(multiplexing: instance),
             multipath: TestDatagramMultipathLinkage(multiplexing: instance),

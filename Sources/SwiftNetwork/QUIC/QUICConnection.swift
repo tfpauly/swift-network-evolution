@@ -181,7 +181,7 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
 
     public typealias Path = QUICPath<Families>
 
-    public var identifier = InstanceIdentifier()
+    public var identifier: InstanceIdentifier
 
     public var log = NetworkLoggerState()
     var logPrefixer: LogPrefixer

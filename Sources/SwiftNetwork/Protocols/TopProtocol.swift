@@ -22,8 +22,6 @@ internal import Logging
 internal import os
 #endif
 
-// TODO: TFPDEBUG Top protocols need to unregister their event managers
-
 // MARK: - Top Protocol Adoption
 
 /// Top protocols sit at the top of a stack and have only a lower protocol.

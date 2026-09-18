@@ -1158,7 +1158,7 @@ extension MultiplexedFlow {
             },
             newInboundFlowBlock: { _, _, _, _ in },
             networkProtocolEventBlock: { eventContext, from, event in
-                _ = upperProtocol.handleNetworkProtocolEvent(event: event, for: from, in: &eventContext)
+                upperProtocol.handleNetworkProtocolEvent(event: event, for: from, in: &eventContext)
             },
             // A plain data linkage has no unidirectional aborts to deliver.
             inboundAbortedBlock: { _, _, _ in },
@@ -1412,7 +1412,7 @@ open class MultiplexedStreamFlow<ParentProtocol: ManyToManyApplicationStreamProt
             },
             newInboundFlowBlock: { _, _, _, _ in },
             networkProtocolEventBlock: { eventContext, from, event in
-                _ = upperProtocol.handleNetworkProtocolEvent(event: event, for: from, in: &eventContext)
+                upperProtocol.handleNetworkProtocolEvent(event: event, for: from, in: &eventContext)
             },
             inboundAbortedBlock: { eventContext, from, error in
                 upperProtocol.handleInboundAbortedEvent(error: error, for: from, in: &eventContext)
