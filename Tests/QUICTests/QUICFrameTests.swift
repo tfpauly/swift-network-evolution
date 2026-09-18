@@ -22,6 +22,8 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 extension Frame {
     var allBytesCopy: [UInt8]? {
@@ -60,11 +62,18 @@ extension FrameDatagram {
 class QUICFrameTests: XCTestCase {
 
     var stats: Statistics!
-    var connection: QUICConnection!
+    var connection: QUICConnection<TestLinkageFamilyGroup>!
 
     override func setUp() {
-        connection = QUICConnection(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         stats = Statistics()
+    }
+
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        connection.context.onQueue { self.connection.destroyFromExternalTest() }
+        connection = nil
     }
 
     // MARK: Padding (0x00)
@@ -721,116 +730,128 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testStreamLengthWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0a,
-            0x06,
-            0x04,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0a,
+                0x06,
+                0x04,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 0,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
     }
 
     func testStreamLengthEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0a,
-            0x04,
-            0x00,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0a,
+                0x04,
+                0x00,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: 0,
-            isFinal: false
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 0,
+                length: 0,
+                isFinal: false
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
+        }
     }
 
     func testStreamLengthWritingFailure() throws {
-        let expectedBytes: [UInt8] = [
-            0x0a,
-            0x06,
-            0x04,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0a,
+                0x06,
+                0x04,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        XCTAssertEqual(frame.unclaimedLength, 7)
+            XCTAssertEqual(frame.unclaimedLength, 7)
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(4)
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(4)
 
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
-                into: &frame,
-                stats: &stats,
-                stream: stream,
-                offset: 0,
-                length: lengthToWrite,
-                isFinal: false
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 0,
+                    length: lengthToWrite,
+                    isFinal: false
+                )
             )
-        )
 
-        // Ensure no bytes were claimed
-        XCTAssertEqual(frame.unclaimedLength, 7)
+            // Ensure no bytes were claimed
+            XCTAssertEqual(frame.unclaimedLength, 7)
+        }
     }
 
     func testStreamLengthShortBuffer() throws {
-        var frame = Frame(count: 2)
-        // TODO: it should fit Type+StreamID, no offset/length/data is needed!
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            var frame = Frame(count: 2)
+            // TODO: it should fit Type+StreamID, no offset/length/data is needed!
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let lengthToWrite = UInt64(0)
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
-                into: &frame,
-                stats: &stats,
-                stream: stream,
-                offset: 0,
-                length: lengthToWrite,
-                isFinal: false
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let lengthToWrite = UInt64(0)
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 0,
+                    length: lengthToWrite,
+                    isFinal: false
+                )
             )
-        )
+        }
     }
 
     // MARK: Stream, Length+Final (0x0b)
@@ -885,100 +906,56 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testStreamLengthFinalWriting() throws {
+        try self.connection.context.onQueue {
 
-        let expectedBytes: [UInt8] = [
-            0x0b,
-            0x06,
-            0x04,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+            let expectedBytes: [UInt8] = [
+                0x0b,
+                0x06,
+                0x04,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 0,
+                length: lengthToWrite,
+                isFinal: true
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: lengthToWrite,
-            isFinal: true
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
     }
 
     func testStreamLengthFinalEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0b,
-            0x04,
-            0x00,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0b,
+                0x04,
+                0x00,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: 0,
-            isFinal: true
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
-    }
-
-    func testStreamLengthFinalEmptyWritingExtraSpace() throws {
-        let expectedBytes: [UInt8] = [
-            0x0b,
-            0x04,
-            0x00,
-        ]
-        var frame = Frame(count: expectedBytes.count + 1)  // Add extra byte space
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: 0,
-            isFinal: true
-        )
-        XCTAssertEqual(length, 0)
-        var frameBytes: [UInt8] = frame.allBytesCopy!
-        frameBytes.removeLast()  // Remove extra byte space
-        XCTAssertEqual(expectedBytes, frameBytes)
-    }
-
-    func testStreamFinalShortBuffer() throws {
-        // frame must have room for Type and Stream ID, but offset and length
-        // won't be written unless necessary. So with only 1byte it throws.
-        var frame = Frame(count: 1)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            _ = try FrameStreamSendMetadata.write(
                 into: &frame,
                 stats: &stats,
                 stream: stream,
@@ -986,31 +963,90 @@ class QUICFrameTests: XCTestCase {
                 length: 0,
                 isFinal: true
             )
-        )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
+        }
+    }
+
+    func testStreamLengthFinalEmptyWritingExtraSpace() throws {
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0b,
+                0x04,
+                0x00,
+            ]
+            var frame = Frame(count: expectedBytes.count + 1)  // Add extra byte space
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 0,
+                length: 0,
+                isFinal: true
+            )
+            XCTAssertEqual(length, 0)
+            var frameBytes: [UInt8] = frame.allBytesCopy!
+            frameBytes.removeLast()  // Remove extra byte space
+            XCTAssertEqual(expectedBytes, frameBytes)
+        }
+    }
+
+    func testStreamFinalShortBuffer() throws {
+        try self.connection.context.onQueue {
+            // frame must have room for Type and Stream ID, but offset and length
+            // won't be written unless necessary. So with only 1byte it throws.
+            var frame = Frame(count: 1)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 0,
+                    length: 0,
+                    isFinal: true
+                )
+            )
+        }
     }
 
     func testStreamFinalEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x09,
-            0x04,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x09,
+                0x04,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 0,
+                length: 0,
+                isFinal: true
+            )
+            XCTAssertEqual(length, 0)
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 0,
-            length: 0,
-            isFinal: true
-        )
-        XCTAssertEqual(length, 0)
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     // MARK: Stream, Offset (0x0c)
@@ -1174,119 +1210,169 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testStreamOffsetLengthWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0e,
-            0x06,
-            0x0a,
-            0x04,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0e,
+                0x06,
+                0x0a,
+                0x04,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
     }
 
     func testStreamNotEnoughSendBuffer() throws {
-        var frame = Frame(count: 8)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            var frame = Frame(count: 8)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        // We just have 4 bytes sendBuffer at offset 0, nothing at offset 10
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
-                into: &frame,
-                stats: &stats,
-                stream: stream,
-                offset: 10,
-                length: lengthToWrite,
-                isFinal: false
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            // We just have 4 bytes sendBuffer at offset 0, nothing at offset 10
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 10,
+                    length: lengthToWrite,
+                    isFinal: false
+                )
             )
-        )
+        }
     }
 
     func testStreamOffsetLengthEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0e,
-            0x04,
-            0x01,
-            0x00,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0e,
+                0x04,
+                0x01,
+                0x00,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+
+            // Add data to sendBuffer, it won't be sent because write is for 0 length
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            defer {
+                stream.sendBuffer.empty()
+            }
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 1,
+                length: 0,
+                isFinal: false
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
         }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-
-        // Add data to sendBuffer, it won't be sent because write is for 0 length
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        defer {
-            stream.sendBuffer.empty()
-        }
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 1,
-            length: 0,
-            isFinal: false
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
     }
 
     func testStreamOffsetNoLengthShortBuffer() throws {
-        var frame = Frame(count: 3)
-        defer {
-            frame.finalize(success: true)
+        try self.connection.context.onQueue {
+            var frame = Frame(count: 3)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 10,
+                    length: lengthToWrite,
+                    isFinal: false
+                )
+            )
         }
+    }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
+    func testStreamOffsetNoLengthMinimalBuffer() throws {
+        try self.connection.context.onQueue {
+            // If we don't need to write length, it can actually fit one byte
+            let expectedBytes: [UInt8] = [
+                0x0c,
+                0x04,
+                0x0a,
+                0xaa,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
 
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+
+            let length = try FrameStreamSendMetadata.write(
                 into: &frame,
                 stats: &stats,
                 stream: stream,
@@ -1294,254 +1380,234 @@ class QUICFrameTests: XCTestCase {
                 length: lengthToWrite,
                 isFinal: false
             )
-        )
-    }
-
-    func testStreamOffsetNoLengthMinimalBuffer() throws {
-        // If we don't need to write length, it can actually fit one byte
-        let expectedBytes: [UInt8] = [
-            0x0c,
-            0x04,
-            0x0a,
-            0xaa,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
+            XCTAssertEqual(length, 1)
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, 1)
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     func testStreamNoLengthLargeData() throws {
-        let expectedBytes: [UInt8] =
-            [
-                0x0c,
-                0x06,
-                0x0a,
-                0xaa,
-            ] + Array(repeating: 0xbb, count: 65_536) + [0x44]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] =
+                [
+                    0x0c,
+                    0x06,
+                    0x0a,
+                    0xaa,
+                ] + Array(repeating: 0xbb, count: 65_536) + [0x44]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(
-            copyBuffer: [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
-        )
-        let sendDataBeforeOffset10 = Frame(
-            copyBuffer: Array(repeating: UInt8(0), count: 10)
-        )
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(
+                copyBuffer: [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
+            )
+            let sendDataBeforeOffset10 = Frame(
+                copyBuffer: Array(repeating: UInt8(0), count: 10)
+            )
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertEqual(length, Int(lengthToWrite))
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, Int(lengthToWrite))
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     func testStreamLengthLargeDataCannotFit() throws {
-        // A very large stream data, yielding a large VLE encoded Length field
-        let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
-        let expectedBytes: [UInt8] =
-            [
-                0x0e,
-                0x06,
-                0x0a,
-                0x80, 0x01, 0x00, 0x01,  // 65537 in VLE!
-            ] + streamData
-        // Not enough space, but enough that Length field will be needed
-        var frame = Frame(count: expectedBytes.count - 1)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            // A very large stream data, yielding a large VLE encoded Length field
+            let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
+            let expectedBytes: [UInt8] =
+                [
+                    0x0e,
+                    0x06,
+                    0x0a,
+                    0x80, 0x01, 0x00, 0x01,  // 65537 in VLE!
+                ] + streamData
+            // Not enough space, but enough that Length field will be needed
+            var frame = Frame(count: expectedBytes.count - 1)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: streamData)
-        let sendDataBeforeOffset10 = Frame(
-            copyBuffer: Array(repeating: UInt8(0), count: 10)
-        )
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: streamData)
+            let sendDataBeforeOffset10 = Frame(
+                copyBuffer: Array(repeating: UInt8(0), count: 10)
+            )
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertEqual(length, Int(lengthToWrite) - 1)  // Subtract the byte that cannot fit
+            var expectedBytesActuallyWritten = expectedBytes
+            expectedBytesActuallyWritten.removeLast()  // Remove the byte that cannot fit
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytesActuallyWritten, frameBytes)
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, Int(lengthToWrite) - 1)  // Subtract the byte that cannot fit
-        var expectedBytesActuallyWritten = expectedBytes
-        expectedBytesActuallyWritten.removeLast()  // Remove the byte that cannot fit
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytesActuallyWritten, frameBytes)
     }
 
     func testStreamLengthLargeData() throws {
-        // A very large stream data, yielding a large VLE encoded Length field
-        let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
-        let expectedBytes: [UInt8] =
-            [
-                0x0e,
-                0x06,
-                0x0a,
-                0x80, 0x01, 0x00, 0x02,  // 65538 in VLE!
-            ] + streamData
-        // Data fits exactly with Length field
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            // A very large stream data, yielding a large VLE encoded Length field
+            let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
+            let expectedBytes: [UInt8] =
+                [
+                    0x0e,
+                    0x06,
+                    0x0a,
+                    0x80, 0x01, 0x00, 0x02,  // 65538 in VLE!
+                ] + streamData
+            // Data fits exactly with Length field
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: streamData)
-        let sendDataBeforeOffset10 = Frame(
-            copyBuffer: Array(repeating: UInt8(0), count: 10)
-        )
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: streamData)
+            let sendDataBeforeOffset10 = Frame(
+                copyBuffer: Array(repeating: UInt8(0), count: 10)
+            )
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertEqual(length, Int(lengthToWrite))
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, Int(lengthToWrite))
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     func testStreamLengthLargeDataExtraSpace() throws {
-        // A very large stream data, yielding a large VLE encoded Length field
-        let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
-        let expectedBytes: [UInt8] =
-            [
-                0x0e,
-                0x06,
-                0x0a,
-                0x80, 0x01, 0x00, 0x02,  // 65538 in VLE!
-            ] + streamData
-        // Bit of extra space, but not so much that Length field isn't necessary
-        var frame = Frame(count: expectedBytes.count + 1)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            // A very large stream data, yielding a large VLE encoded Length field
+            let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 65_536) + [0x44]
+            let expectedBytes: [UInt8] =
+                [
+                    0x0e,
+                    0x06,
+                    0x0a,
+                    0x80, 0x01, 0x00, 0x02,  // 65538 in VLE!
+                ] + streamData
+            // Bit of extra space, but not so much that Length field isn't necessary
+            var frame = Frame(count: expectedBytes.count + 1)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: streamData)
-        let sendDataBeforeOffset10 = Frame(
-            copyBuffer: Array(repeating: UInt8(0), count: 10)
-        )
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: streamData)
+            let sendDataBeforeOffset10 = Frame(
+                copyBuffer: Array(repeating: UInt8(0), count: 10)
+            )
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: false
+            )
+            XCTAssertEqual(length, Int(lengthToWrite))
+            var frameBytes: [UInt8] = frame.allBytesCopy!
+            frameBytes.removeLast(1)  // Remove the extra space
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, Int(lengthToWrite))
-        var frameBytes: [UInt8] = frame.allBytesCopy!
-        frameBytes.removeLast(1)  // Remove the extra space
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     func testStreamLengthVLEBreakingPoint() throws {
-        // Case of 1 byte VLE vs 2 byte VLE requested
-        // 64 byte stream data, but only 63 will fit!
-        let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 62) + [0x44]
-        var expectedBytes: [UInt8] =
-            [
-                0x0e,
-                0x06,
-                0x0a,
-                0x3f,  // 63 in VLE encoding (1 byte)
-            ] + streamData
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            // Case of 1 byte VLE vs 2 byte VLE requested
+            // 64 byte stream data, but only 63 will fit!
+            let streamData: [UInt8] = [0xaa] + Array(repeating: 0xbb, count: 62) + [0x44]
+            var expectedBytes: [UInt8] =
+                [
+                    0x0e,
+                    0x06,
+                    0x0a,
+                    0x3f,  // 63 in VLE encoding (1 byte)
+                ] + streamData
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: streamData)
-        let sendDataBeforeOffset10 = Frame(
-            copyBuffer: Array(repeating: UInt8(0), count: 10)
-        )
-        defer {
-            stream.sendBuffer.empty()
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: streamData)
+            let sendDataBeforeOffset10 = Frame(
+                copyBuffer: Array(repeating: UInt8(0), count: 10)
+            )
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let requestedLengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: false)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: requestedLengthToWrite,
+                isFinal: false
+            )
+            XCTAssertEqual(length, Int(requestedLengthToWrite) - 1)  // Subtract byte that won't fit
+            var frameBytes: [UInt8] = frame.allBytesCopy!
+            frameBytes.removeLast(1)  // Remove the extra unused byte
+            expectedBytes.removeLast(1)  // Remove the byte that won't fit
+            XCTAssertEqual(expectedBytes, frameBytes)
         }
-        let requestedLengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: false)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: requestedLengthToWrite,
-            isFinal: false
-        )
-        XCTAssertEqual(length, Int(requestedLengthToWrite) - 1)  // Subtract byte that won't fit
-        var frameBytes: [UInt8] = frame.allBytesCopy!
-        frameBytes.removeLast(1)  // Remove the extra unused byte
-        expectedBytes.removeLast(1)  // Remove the byte that won't fit
-        XCTAssertEqual(expectedBytes, frameBytes)
     }
 
     // MARK: Stream, Offset+Length+Final (0x0f)
@@ -1599,187 +1665,31 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testStreamOffsetLengthFinalWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0f,
-            0x06,
-            0x0a,
-            0x04,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0f,
+                0x06,
+                0x0a,
+                0x04,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
 
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: true
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
-    }
-
-    func testStreamOffsetLengthFinalEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0f,
-            0x04,
-            0x01,
-            0x00,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
-        _ = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 1,
-            length: 0,
-            isFinal: true
-        )
-        XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
-    }
-
-    func testStreamOffsetFinalWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0d,
-            0x06,
-            0x0a,
-            0xaa, 0xbb, 0xcc, 0x44,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: true
-        )
-        XCTAssertEqual(length, Int(lengthToWrite))
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
-    }
-
-    func testStreamOffsetFinalWriteShort() throws {
-        let expectedBytes: [UInt8] = [
-            0x0c,
-            0x06,
-            0x0a,
-            0xaa,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: lengthToWrite,
-            isFinal: true
-        )
-        XCTAssertEqual(length, 1)
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
-    }
-
-    func testStreamOffsetFinalEmptyWriting() throws {
-        let expectedBytes: [UInt8] = [
-            0x0d,
-            0x06,
-            0x0a,
-        ]
-        var frame = Frame(count: expectedBytes.count)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        // Putting data in stream's send buffer, even though it should not be used,
-        // just to check if that affects the test outcome
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        let length = try FrameStreamSendMetadata.write(
-            into: &frame,
-            stats: &stats,
-            stream: stream,
-            offset: 10,
-            length: 0,
-            isFinal: true
-        )
-        XCTAssertEqual(length, 0)
-        let frameBytes: [UInt8] = frame.allBytesCopy!
-        XCTAssertEqual(expectedBytes, frameBytes)
-    }
-
-    func testStreamOffsetFinalShortBuffer() throws {
-        var frame = Frame(count: 3)
-        defer {
-            frame.finalize(success: true)
-        }
-
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
-        let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
-        defer {
-            stream.sendBuffer.empty()
-        }
-        let lengthToWrite = UInt64(sendData.unclaimedLength)
-        stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
-        stream.sendBuffer.addSendData(sendData, isLast: true)
-        XCTAssertThrowsError(
-            try FrameStreamSendMetadata.write(
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            _ = try FrameStreamSendMetadata.write(
                 into: &frame,
                 stats: &stats,
                 stream: stream,
@@ -1787,60 +1697,240 @@ class QUICFrameTests: XCTestCase {
                 length: lengthToWrite,
                 isFinal: true
             )
-        )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
+        }
+    }
+
+    func testStreamOffsetLengthFinalEmptyWriting() throws {
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0f,
+                0x04,
+                0x01,
+                0x00,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(4), logPrefixer: .init("Test"))
+            _ = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 1,
+                length: 0,
+                isFinal: true
+            )
+            XCTAssertTrue(frame.allBytesCopy!.elementsEqual(expectedBytes))
+        }
+    }
+
+    func testStreamOffsetFinalWriting() throws {
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0d,
+                0x06,
+                0x0a,
+                0xaa, 0xbb, 0xcc, 0x44,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: true
+            )
+            XCTAssertEqual(length, Int(lengthToWrite))
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
+        }
+    }
+
+    func testStreamOffsetFinalWriteShort() throws {
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0c,
+                0x06,
+                0x0a,
+                0xaa,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: lengthToWrite,
+                isFinal: true
+            )
+            XCTAssertEqual(length, 1)
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
+        }
+    }
+
+    func testStreamOffsetFinalEmptyWriting() throws {
+        try self.connection.context.onQueue {
+            let expectedBytes: [UInt8] = [
+                0x0d,
+                0x06,
+                0x0a,
+            ]
+            var frame = Frame(count: expectedBytes.count)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            // Putting data in stream's send buffer, even though it should not be used,
+            // just to check if that affects the test outcome
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            let length = try FrameStreamSendMetadata.write(
+                into: &frame,
+                stats: &stats,
+                stream: stream,
+                offset: 10,
+                length: 0,
+                isFinal: true
+            )
+            XCTAssertEqual(length, 0)
+            let frameBytes: [UInt8] = frame.allBytesCopy!
+            XCTAssertEqual(expectedBytes, frameBytes)
+        }
+    }
+
+    func testStreamOffsetFinalShortBuffer() throws {
+        try self.connection.context.onQueue {
+            var frame = Frame(count: 3)
+            defer {
+                frame.finalize(success: true)
+            }
+
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(6), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [0xaa, 0xbb, 0xcc, 0x44])
+            let sendDataBeforeOffset10 = Frame(copyBuffer: Array(repeating: UInt8(0), count: 10))
+            defer {
+                stream.sendBuffer.empty()
+            }
+            let lengthToWrite = UInt64(sendData.unclaimedLength)
+            stream.sendBuffer.addSendData(sendDataBeforeOffset10, isLast: false)
+            stream.sendBuffer.addSendData(sendData, isLast: true)
+            XCTAssertThrowsError(
+                try FrameStreamSendMetadata.write(
+                    into: &frame,
+                    stats: &stats,
+                    stream: stream,
+                    offset: 10,
+                    length: lengthToWrite,
+                    isFinal: true
+                )
+            )
+        }
     }
 
     #if NETWORK_PERF_TESTS
     func testStreamHeaderSizePerformance() {
-        let stream = QUICStreamInstance(parent: connection, inbound: false)
-        stream.setup(streamID: QUICStreamID(1), logPrefixer: .init("Test"))
-        let sendData = Frame(copyBuffer: [UInt8](repeating: 0xab, count: 1400))
-        stream.sendBuffer.addSendData(sendData, isLast: false)
+        try self.connection.context.onQueue {
+            let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
+            stream.setup(streamID: QUICStreamID(1), logPrefixer: .init("Test"))
+            let sendData = Frame(copyBuffer: [UInt8](repeating: 0xab, count: 1400))
+            stream.sendBuffer.addSendData(sendData, isLast: false)
 
-        measure {
-            for _ in 0..<100_000_000 {
-                _ = FrameStreamSendMetadata.headerSizeForAvailableSize(
-                    streamID: QUICStreamID(1),
-                    offset: 10,
-                    availableSize: 1200
-                )
+            measure {
+                for _ in 0..<100_000_000 {
+                    _ = FrameStreamSendMetadata.headerSizeForAvailableSize(
+                        streamID: QUICStreamID(1),
+                        offset: 10,
+                        availableSize: 1200
+                    )
+                }
             }
+            let headerSize = FrameStreamSendMetadata.headerSizeForAvailableSize(
+                streamID: QUICStreamID(1),
+                offset: 10,
+                availableSize: 1200
+            )
+            XCTAssertEqual(headerSize, 5)
         }
-        let headerSize = FrameStreamSendMetadata.headerSizeForAvailableSize(
-            streamID: QUICStreamID(1),
-            offset: 10,
-            availableSize: 1200
-        )
-        XCTAssertEqual(headerSize, 5)
     }
 
     func testStreamHeaderWritePerformance() {
-        var frame = Frame(count: 1400)
-        defer {
-            frame.finalize(success: false)
-        }
-        var streams: [QUICStreamInstance] = []
-        for idx in 0..<1_000 {
-            let stream = QUICStreamInstance(parent: connection, inbound: false)
-            stream.setup(
-                streamID: QUICStreamID(UInt64(idx))!,
-                logPrefixer: .init("Test")
-            )
-            streams.append(stream)
-        }
+        try self.connection.context.onQueue {
+            var frame = Frame(count: 1400)
+            defer {
+                frame.finalize(success: false)
+            }
+            var streams: [QUICTestStream] = []
+            for idx in 0..<1_000 {
+                let stream = QUICTestStream(parent: connection, inbound: false)
+                defer { stream.destroyFromExternalTest() }
+                stream.setup(
+                    streamID: QUICStreamID(UInt64(idx))!,
+                    logPrefixer: .init("Test")
+                )
+                streams.append(stream)
+            }
 
-        measure {
-            for idx in 0..<10_000 {
-                for stream in streams {
-                    _ = try! FrameStreamSendMetadata.write(
-                        into: &frame,
-                        stats: &stats,
-                        stream: stream,
-                        offset: UInt64(idx),
-                        length: 0,
-                        isFinal: false
-                    )
-                    frame.startOffset = 0
+            measure {
+                for idx in 0..<10_000 {
+                    for stream in streams {
+                        _ = try! FrameStreamSendMetadata.write(
+                            into: &frame,
+                            stats: &stats,
+                            stream: stream,
+                            offset: UInt64(idx),
+                            length: 0,
+                            isFinal: false
+                        )
+                        frame.startOffset = 0
+                    }
                 }
             }
         }
@@ -2597,7 +2687,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2616,7 +2707,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -2637,7 +2729,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2657,7 +2750,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2678,7 +2772,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2698,7 +2793,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -2720,7 +2816,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2741,7 +2838,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -2762,7 +2860,8 @@ class QUICFrameTests: XCTestCase {
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
-                connection: connection
+                connection: connection,
+                in: &connection.context.eventContext
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3003,7 +3102,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3023,7 +3123,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.flowID, nil)
         XCTAssertEqual(quicFrame.contextID, nil)
@@ -3045,7 +3146,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3066,7 +3168,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: false,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, nil)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3088,7 +3191,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3109,7 +3213,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: false,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, nil)
@@ -3132,7 +3237,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3154,7 +3260,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
         XCTAssertEqual(quicFrame.contextID, 13)
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3176,7 +3283,8 @@ class QUICFrameTests: XCTestCase {
                 frame: &frame,
                 useFlowID: true,
                 useContextID: true,
-                connection: connection
+                connection: connection,
+                in: &connection.context.eventContext
             )
             XCTFail("Should have thrown error for frame creation")
         } catch {
@@ -3427,7 +3535,8 @@ class QUICFrameTests: XCTestCase {
             frame: &frame,
             useFlowID: true,
             useContextID: true,
-            connection: connection
+            connection: connection,
+            in: &connection.context.eventContext
         )
 
         XCTAssertEqual(quicFrame.flowID, 77)
@@ -3439,7 +3548,8 @@ class QUICFrameTests: XCTestCase {
     }
 
     func testDatagramBadLengthParsing() throws {
-        let connection = QUICConnection(context: NetworkContext.implicitContext)
+        let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
 
         let bytes: [UInt8] = [
             0x31,  // type: DATAGRAM with length
@@ -3458,7 +3568,8 @@ class QUICFrameTests: XCTestCase {
                 frame: &frame,
                 useFlowID: true,
                 useContextID: false,
-                connection: connection
+                connection: connection,
+                in: &connection.context.eventContext
             )
 
             quicFrame.frame.finalize(success: true)

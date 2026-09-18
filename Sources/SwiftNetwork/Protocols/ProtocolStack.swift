@@ -93,7 +93,7 @@ public final class ProtocolStack: Hashable {
             #endif
             }
         }
-        func matches(protocolInstance: ProtocolInstanceReference) -> Bool {
+        func matches(protocolInstance: InstanceIdentifier) -> Bool {
             switch self {
             case .none: return false
             case .quic(let options): return options.matches(protocolInstance: protocolInstance)
@@ -204,7 +204,7 @@ public final class ProtocolStack: Hashable {
             #endif
             }
         }
-        func matches(protocolInstance: ProtocolInstanceReference) -> Bool {
+        func matches(protocolInstance: InstanceIdentifier) -> Bool {
             switch self {
             case .defaultIP: return false
             case .ip(let options): return options.matches(protocolInstance: protocolInstance)
@@ -336,7 +336,7 @@ public final class ProtocolStack: Hashable {
             #endif
             }
         }
-        func matches(protocolInstance: ProtocolInstanceReference) -> Bool {
+        func matches(protocolInstance: InstanceIdentifier) -> Bool {
             switch self {
             case .none: return false
             case .udp(let options): return options.matches(protocolInstance: protocolInstance)
@@ -455,7 +455,7 @@ public final class ProtocolStack: Hashable {
             #endif
             }
         }
-        func matches(protocolInstance: ProtocolInstanceReference) -> Bool {
+        func matches(protocolInstance: InstanceIdentifier) -> Bool {
             switch self {
             case .none: return false
             #if !NETWORK_EMBEDDED
@@ -926,7 +926,7 @@ public final class ProtocolStack: Hashable {
         return nil
     }
 
-    internal func protocolOptions(for instance: ProtocolInstanceReference) -> AbstractProtocolOptions? {
+    internal func protocolOptions(for instance: InstanceIdentifier) -> AbstractProtocolOptions? {
         for applicationProtocol in self.persistentApplication {
             if applicationProtocol.matches(protocolInstance: instance) {
                 return applicationProtocol.options
@@ -989,7 +989,7 @@ public final class ProtocolStack: Hashable {
     }
 
     internal func setProtocolInstance(
-        _ instance: ProtocolInstanceReference,
+        _ instance: InstanceIdentifier,
         for handle: UnsafeRawPointer
     ) {
         for applicationProtocol in self.persistentApplication {

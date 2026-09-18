@@ -22,18 +22,32 @@ import XCTest
 @_spi(Essentials) @_spi(ProtocolProvider) @testable import Network
 #endif
 
+@_spi(TestHarness) @_spi(Essentials) @_spi(ProtocolProvider) import SwiftNetworkTestHarness
+
 @available(Network 0.1.0, *)
 final class QUICConnectionTests: XCTestCase {
-    var connection: QUICConnection!
+    var connection: QUICConnection<TestLinkageFamilyGroup>!
     override func setUp() {
-        connection = QUICConnection(context: NetworkContext.implicitContext)
+        connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
+    }
+
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        connection.context.onQueue { self.connection.destroyFromExternalTest() }
+        connection = nil
     }
 
     func testCreateInboundStreams() throws {
-        let zeroStreamID: QUICStreamID = QUICStreamID(0)
-        NetworkContext.implicitContext.async {
-            self.connection.fromExternal {
-                let _ = self.connection.createInboundStreams(streamID: zeroStreamID)
+        try self.connection.context.onQueue {
+            let zeroStreamID: QUICStreamID = QUICStreamID(0)
+            NetworkContext.implicitContext.async {
+                self.connection.fromExternal { eventContext in
+                    let _ = self.connection.createInboundStreams(
+                        streamID: zeroStreamID,
+                        in: &eventContext
+                    )
+                }
             }
         }
     }
