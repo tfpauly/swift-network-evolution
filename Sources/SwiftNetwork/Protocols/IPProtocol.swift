@@ -2118,9 +2118,6 @@ public struct IPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from existing: IPOptions) -> IPOptions { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> IPOptions? { IPOptions(from: serializedBytes) }
     public func newPerProtocolMetadata() -> IPMetadata? { IPMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
 
     static let identifier = ProtocolIdentifier(name: "ip", level: .internet, mapping: .oneToOne)
 
@@ -2129,10 +2126,6 @@ public struct IPProtocol: NetworkProtocol {
     #endif
 
     static public func options() -> ProtocolOptions<IPProtocol> { IPProtocol.definition.protocolOptions() }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        IPProtocol().newProtocolInstance(context: context)!
-    }
 
     static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
         return (UpperLinkage(), LowerLinkage())

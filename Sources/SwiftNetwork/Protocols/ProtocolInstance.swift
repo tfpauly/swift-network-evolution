@@ -50,7 +50,39 @@ public protocol ProtocolInstance: ~Copyable {
     var eventManager: ProtocolEventManager { get set }
 }
 
-// TODO: TFPDEBUG add another protocol extension, like the ones below, that just adds a single "teardown(in: inout NetworkContext.EventContext)" function. The implementation unregisters the event manager on the event context. This is to be called by any protocols that are not otherwise torn down explicitly by their linkages. Document that if you have
+@available(Network 0.1.0, *)
+extension ProtocolInstance where Self: ~Copyable {
+
+    /// Removes this instance's event state from its context.
+    ///
+    /// Every protocol instance registers an event state when it builds its identifier, and that
+    /// state has to be handed back before the instance goes away. A protocol that sits below
+    /// another one is unregistered by its lower linkage's `teardown(in:)` as part of being
+    /// detached from above, so it never needs to call this. Anything that isn't torn down that
+    /// way — a top protocol, or an instance that a linkage doesn't own storage for, such as
+    /// an encryption-level handler — must call this itself while tearing down. Not calling it
+    /// trips a precondition when the instance is destroyed.
+    ///
+    /// Safe to call from inside a call this instance is already handling: the event state is only
+    /// removed once nothing still holds it, so a retirement requested mid-call runs as the tail of
+    /// the work already in flight.
+    public mutating func unregisterEventManager(in eventContext: inout NetworkContext.EventContext) {
+        eventManager.unregister(in: &eventContext)
+    }
+}
+
+@available(Network 0.1.0, *)
+extension ProtocolInstance where Self: AnyObject {
+
+    /// Removes this instance's event state from its context.
+    ///
+    /// Class-based instances are usually held through an immutable reference, so this overload
+    /// takes `self` non-mutating; see `unregisterEventManager(in:)` on `ProtocolInstance`.
+    public func unregisterEventManager(in eventContext: inout NetworkContext.EventContext) {
+        var mutableSelf = self
+        mutableSelf.eventManager.unregister(in: &eventContext)
+    }
+}
 
 @available(Network 0.1.0, *)
 extension ProtocolInstance where Self: ~Copyable {

@@ -317,9 +317,23 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
     /// Path creation registers an event state, which needs the context state. Code already
     /// running inside the stack should use `init(state:parent:)` and thread its own state in;
     /// this convenience is for external entry points such as tests.
-    static func makeFromExternal(parent: QUICConnection<Families>) -> Self {
+    ///
+    /// A path built this way isn't in the parent's `multiplexingPaths`, so nothing tears it down.
+    /// Pair it with `destroyFromExternalTest()` before letting it go.
+    static func makeFromExternalTest(parent: QUICConnection<Families>) -> Self {
         parent.fromExternal { state in
             Self(parent: parent, in: &state)
+        }
+    }
+
+    /// Destroys a path built with `makeFromExternalTest(parent:)`, for tests only.
+    ///
+    /// This is an external entry point; code inside the stack calls `destroy(in:)` with the
+    /// state it already holds.
+    func destroyFromExternalTest() {
+        fromExternal { state in
+            var selfVar = self
+            selfVar.destroy(in: &state)
         }
     }
 
@@ -654,9 +668,6 @@ public final class QUICPath<Families: LinkageFamilyGroup>: MultiplexingDatagramP
         }
     }
 
-    func tearDownLowerStack(in eventContext: inout NetworkContext.EventContext) {
-        try? lower.invokeDetach(for: self.identifier, in: &eventContext)
-    }
 }
 
 // Congestion Control access

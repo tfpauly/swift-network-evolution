@@ -50,6 +50,14 @@ final class MigrationTests: XCTestCase {
 
     override func tearDown() {
         self.connection.currentPath = nil
+        // The paths built by `makePath` outlive the test body, and migration only destroys the
+        // one it migrated away from, so release whatever is left.
+        self.connection.context.onQueue {
+            for path in self.connection.multiplexingPaths.values {
+                path.destroyFromExternalTest()
+            }
+        }
+        self.connection.multiplexingPaths.removeAll()
     }
 
     // Builds a path that is open for sending, backed by a lower harness, with its DCID
@@ -64,7 +72,7 @@ final class MigrationTests: XCTestCase {
             lower.connect(in: &state)
         }
         var path = connection.context.onQueue {
-            QUICTestPath.makeFromExternal(parent: self.connection)
+            QUICTestPath.makeFromExternalTest(parent: self.connection)
         }
         path.set(interface: nil, priority: 1, isInitial: true)  // -> .routeEstablished
         path.assignDCID(dcid)  // -> .cidAssigned (open for sending)

@@ -380,15 +380,19 @@ final class QUICStreamIDTests: XCTestCase {
     func testQUICStreamIDPendingBidirectionalStreams() {
         var streamsState = QUICTestStreamIDState(.bidirectional)
         let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
         let logPrefixer = LogPrefixer("[testQUICStreamIDPendingStreams]")
         try connection.context.onQueue {
 
             // Create 3 inbound pending streams
             let stream1 = QUICTestStream(parent: connection, inbound: true)
+            defer { stream1.destroyFromExternalTest() }
             stream1.setup(streamID: nil, logPrefixer: logPrefixer)
             let stream2 = QUICTestStream(parent: connection, inbound: true)
+            defer { stream2.destroyFromExternalTest() }
             stream2.setup(streamID: nil, logPrefixer: logPrefixer)
             let stream3 = QUICTestStream(parent: connection, inbound: true)
+            defer { stream3.destroyFromExternalTest() }
             stream3.setup(streamID: nil, logPrefixer: logPrefixer)
 
             streamsState.addPending(stream1)

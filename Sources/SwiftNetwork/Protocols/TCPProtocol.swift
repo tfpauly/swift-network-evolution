@@ -419,7 +419,6 @@ public struct TCPProtocol: NetworkProtocol {
     public func newPerProtocolOptions(from existing: TCPOptions) -> TCPOptions { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> TCPOptions? { nil }
     public func newPerProtocolMetadata() -> TCPMetadata? { TCPMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? { nil }
 
     static let identifier = ProtocolIdentifier(name: "tcp", level: .transport, mapping: .oneToOne)
 
@@ -428,10 +427,6 @@ public struct TCPProtocol: NetworkProtocol {
     #endif
 
     static public func options() -> ProtocolOptions<TCPProtocol> { TCPProtocol.definition.protocolOptions() }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        TCPProtocol().newProtocolInstance(context: context)!
-    }
 }
 
 @_spi(Essentials)

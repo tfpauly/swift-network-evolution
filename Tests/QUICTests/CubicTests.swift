@@ -437,9 +437,11 @@ final class CubicTests: XCTestCase {
     func testCubicExercisingPacer() {
         // Path holds both Pacer and Cubic, thats why its setup this way.
         let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
         let path = connection.context.onQueue {
-            QUICTestPath.makeFromExternal(parent: connection)
+            QUICTestPath.makeFromExternalTest(parent: connection)
         }
+        defer { connection.context.onQueue { path.destroyFromExternalTest() } }
         path.pacePackets = true
         path.set(interface: nil, priority: 1, isInitial: true)
         // startupRate is 10 Mbps, this will affect the pacing time

@@ -31,8 +31,10 @@ final class FlowControlTests: XCTestCase {
         let connection = QUICConnection<TestLinkageFamilyGroup>(
             context: NetworkContext(identifier: "test context")
         )
-        try connection.context.onQueue {
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
+        connection.context.onQueue {
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: logPrefixer
@@ -69,14 +71,16 @@ final class FlowControlTests: XCTestCase {
         let connection = QUICConnection<TestLinkageFamilyGroup>(
             context: NetworkContext(identifier: "test context")
         )
-        try connection.context.onQueue {
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
+        connection.context.onQueue {
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: logPrefixer
             )
             let newPath = connection.context.onQueue {
-                QUICTestPath.makeFromExternal(parent: connection)
+                QUICTestPath.makeFromExternalTest(parent: connection)
             }
 
             newPath.mss = 1200
@@ -102,6 +106,7 @@ final class FlowControlTests: XCTestCase {
             XCTAssertEqual(maxUnreadInbound, initialReceiveSpace)
 
             connection.currentPath = nil
+            newPath.destroyFromExternalTest()
         }
     }
 
@@ -110,8 +115,10 @@ final class FlowControlTests: XCTestCase {
         let connection = QUICConnection<TestLinkageFamilyGroup>(
             context: NetworkContext(identifier: "test context")
         )
-        try connection.context.onQueue {
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
+        connection.context.onQueue {
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: logPrefixer

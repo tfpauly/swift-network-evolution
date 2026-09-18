@@ -154,10 +154,6 @@ public class AbstractProtocolOptions: PerProtocolOptions, Hashable {
         self.protocolInstance = identifier
     }
 
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
-
     public var identifier: ProtocolIdentifier
 
     public var topID: Int? = nil
@@ -234,10 +230,6 @@ public final class ProtocolOptions<P: NetworkProtocol>: AbstractProtocolOptions 
 
     public override func serialize() -> [UInt8]? {
         perProtocolOptions?.serialize() ?? nil
-    }
-
-    public override func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        P().newProtocolInstance(context: context)
     }
 
     public init(protocolIdentifier: ProtocolIdentifier, perProtocolOptions: P.Options?) {

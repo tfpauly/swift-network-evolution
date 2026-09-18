@@ -226,7 +226,9 @@ extension QUICConnection {
         }
 
         if isServer {
-            for (id, path) in multiplexingPaths where path.state == .routeUnavailable {
+            allPathIdentifiers { id in
+                guard var path = multiplexingPaths[id], path.state == .routeUnavailable else { return }
+                path.destroy(in: &eventContext)
                 multiplexingPaths.removeValue(forKey: id)
             }
         }
@@ -263,6 +265,7 @@ extension QUICConnection {
         _ oldPath: QUICPath<Families>,
         in eventContext: inout NetworkContext.EventContext
     ) {
+        var oldPath = oldPath
         guard oldPath !== currentPath else {
             log.fault("Refusing to tear down the current path \(oldPath.identifier)")
             return
@@ -274,7 +277,7 @@ extension QUICConnection {
         if oldPath.state.isValidStateChange(to: .routeUnavailable) {
             oldPath.changeState(to: .routeUnavailable)
         }
-        oldPath.tearDownLowerStack(in: &eventContext)
+        oldPath.destroy(in: &eventContext)
         multiplexingPaths.removeValue(forKey: oldPath.pathIdentifier)
         sendFrames(in: &eventContext)
     }

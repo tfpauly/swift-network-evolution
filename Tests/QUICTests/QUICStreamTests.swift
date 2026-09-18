@@ -40,6 +40,17 @@ final class QUICStreamTests: XCTestCase {
         )
     }
 
+    override func tearDown() {
+        // The stream and the connection were both built outside a protocol stack, so nothing
+        // else hands their event states back. The stream's `deinit` is an external entry point
+        // that acquires the context state, so release it on the queue too.
+        connection.context.onQueue {
+            self.stream.destroyFromExternalTest()
+            self.stream = nil
+            self.connection.destroyFromExternalTest()
+        }
+    }
+
     func testProcessIncomingStream() {
         connection.context.onQueue {
             let streamFrame = FrameStreamReceived(id: 0, offset: 0, data: [], isFinal: true)
@@ -84,6 +95,14 @@ final class QUICStreamIDStateTests: XCTestCase {
 
     override func tearDown() {
         streamsState.removeAllPending()
+        // The stream and the connection were both built outside a protocol stack, so nothing
+        // else hands their event states back. The stream's `deinit` is an external entry point
+        // that acquires the context state, so release it on the queue too.
+        connection.context.onQueue {
+            self.stream.destroyFromExternalTest()
+            self.stream = nil
+            self.connection.destroyFromExternalTest()
+        }
     }
 
     func testPendingStartStreams() {
@@ -108,12 +127,19 @@ final class QUICStreamListTests: XCTestCase {
     var connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
     var logPrefix = LogPrefixer("[QUICStreamListTests]")
 
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        connection.context.onQueue { self.connection.destroyFromExternalTest() }
+    }
+
     func testQUICStreamList() {
         try self.connection.context.onQueue {
             var unblockedList = QUICStreamList.unblockedSendStreamList()
             var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
             XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: quicStreamTestsLogPrefixer
@@ -130,6 +156,7 @@ final class QUICStreamListTests: XCTestCase {
             var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
             XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: quicStreamTestsLogPrefixer
@@ -149,6 +176,7 @@ final class QUICStreamListTests: XCTestCase {
             var pendingReassemblyDequeueList = QUICStreamList.pendingReassemblyDequeueList()
             XCTAssertEqual(pendingReassemblyDequeueList.count, 0)
             let stream = QUICTestStream(parent: connection, inbound: false)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(
                 streamID: QUICStreamID(0),
                 logPrefixer: quicStreamTestsLogPrefixer

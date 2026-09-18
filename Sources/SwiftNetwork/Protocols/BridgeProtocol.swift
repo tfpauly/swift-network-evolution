@@ -358,23 +358,12 @@ public struct BridgeDatagramProtocol: NetworkProtocol {
         BridgeOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
 
     static let identifier = ProtocolIdentifier(name: "bridge-datagram", level: .link, mapping: .oneToOne)
     static let definition = ProtocolDefinition<BridgeDatagramProtocol>(identifier: identifier)
 
     static public func options() -> ProtocolOptions<BridgeDatagramProtocol> {
         BridgeDatagramProtocol.definition.protocolOptions()
-    }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        BridgeDatagramProtocol().newProtocolInstance(context: context)!
-    }
-
-    static public func instance<LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> LowerLinkage {
-        return LowerLinkage()
     }
 }
 
@@ -542,18 +531,11 @@ public struct BridgeStreamProtocol: NetworkProtocol {
         BridgeOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> BridgeMetadata? { BridgeMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
 
     static let identifier = ProtocolIdentifier(name: "bridge-stream", level: .link, mapping: .oneToOne)
     static let definition = ProtocolDefinition<BridgeStreamProtocol>(identifier: identifier)
 
     static public func options() -> ProtocolOptions<BridgeStreamProtocol> {
         BridgeStreamProtocol.definition.protocolOptions()
-    }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        BridgeStreamProtocol().newProtocolInstance(context: context)!
     }
 }

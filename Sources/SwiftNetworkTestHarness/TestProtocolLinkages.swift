@@ -613,7 +613,8 @@ public struct TestOutboundDatagramLinkage: OutboundDatagramLinkage, @unchecked S
 
     public func teardown(in eventContext: inout NetworkContext.EventContext) {
         switch protocolType {
-        case .datagramLowerHarness, .multiplexedFlow: break
+        case .datagramLowerHarness(let harness): harness.unregisterEventManager(in: &eventContext)
+        case .multiplexedFlow(let flow): flow.unregisterEventManager(in: &eventContext)
         default: base.teardown(in: &eventContext)
         }
     }
@@ -1663,7 +1664,7 @@ public struct TestOutboundStreamLinkage: OutboundStreamLinkage, @unchecked Senda
 
     public func teardown(in eventContext: inout NetworkContext.EventContext) {
         switch protocolType {
-        case .streamLowerHarness: break
+        case .streamLowerHarness(let harness): harness.unregisterEventManager(in: &eventContext)
         default: base.teardown(in: &eventContext)
         }
     }

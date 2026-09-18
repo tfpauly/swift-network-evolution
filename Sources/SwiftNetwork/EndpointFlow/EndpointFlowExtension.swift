@@ -309,28 +309,9 @@ extension EndpointFlow {
                     }
                 } else if stack.applicationProtocols.count == 1 {
                     switch stack.applicationProtocols.first {
-                    case .swiftTLS(let options):
-                        guard let identifier = TLSProtocol().newProtocolInstance(context: context) else {
-                            throw NetworkError.posix(EINVAL)
-                        }
-                        options.setProtocolInstance(identifier)
-                        let flow = try StreamEndpointFlowProtocol<BaseStreamLinkageFamily>(
-                            identifier: String(self.identifier),
-                            local: effectiveLocalEndpoint,
-                            remote: effectiveRemoteEndpoint,
-                            parameters: parameters,
-                            path: path,
-                            context: context,
-                        )
-                        self.flowProtocol = .stream(flow)
-                        options.setLogID(
-                            prefix: "C",
-                            parent: String(self.identifier),
-                            protocolLogIDNumber: Int(self.identifier)
-                        )
-                        // TODO: The TLS instance has no base linkage yet, so there is nothing to
-                        // attach the flow to. `newProtocolInstance` above returns nil today, so
-                        // this branch always throws before reaching here.
+                    case .swiftTLS(_):
+                        Logger.connection.error("Record layer TLS not supported yet")
+                        throw NetworkError.posix(EINVAL)
                     default:
                         Logger.connection.error("Unsupported application protocol")
                         throw NetworkError.posix(EINVAL)

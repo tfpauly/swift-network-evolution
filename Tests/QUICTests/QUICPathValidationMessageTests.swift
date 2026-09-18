@@ -33,10 +33,21 @@ class QUICPathValidationMessageTests: XCTestCase {
     override func setUp() {
         connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         path = connection.context.onQueue {
-            QUICTestPath.makeFromExternal(parent: self.connection)
+            QUICTestPath.makeFromExternalTest(parent: self.connection)
         }
         path.set(interface: nil, priority: 0, isInitial: true)
         path.assignDCID(QUICConnectionID(8))
+    }
+
+    override func tearDown() {
+        // The path and the connection were both built outside a protocol stack, so nothing else
+        // releases their event states.
+        connection.context.onQueue {
+            self.path.destroyFromExternalTest()
+            self.connection.destroyFromExternalTest()
+        }
+        path = nil
+        connection = nil
     }
 
     func testIncomingPathChallenge() {

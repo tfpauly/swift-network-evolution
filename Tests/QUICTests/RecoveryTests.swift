@@ -53,7 +53,7 @@ final class RecoveryTests: XCTestCase {
             lowerHarness.fromExternal { state in
                 lowerHarness.connect(in: &state)
             }
-            var newPath = QUICTestPath.makeFromExternal(parent: self.connection)
+            var newPath = QUICTestPath.makeFromExternalTest(parent: self.connection)
             newPath.set(interface: nil, priority: 1, isInitial: true)
             newPath.assignDCID(QUICConnectionID(0))
             newPath.setSCID(QUICConnectionID(0))
@@ -78,6 +78,11 @@ final class RecoveryTests: XCTestCase {
 
     override func tearDown() {
         self.connection.currentPath = nil
+        self.connection.context.onQueue {
+            self.path.destroyFromExternalTest()
+        }
+        self.connection.multiplexingPaths.removeAll()
+        self.path = nil
     }
 
     func sentPacket(_ sentPacket: consuming SentPacketRecord, connection: QUICConnection<TestLinkageFamilyGroup>) {
@@ -688,6 +693,7 @@ final class RecoveryTests: XCTestCase {
         // Register a flow and close it, so its STREAM data can never be rebuilt for retransmission.
         var streamStorage: QUICTestStream? = connection.context.onQueue {
             let stream = QUICTestStream(parent: connection, inbound: true)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
             return stream
         }
@@ -762,6 +768,7 @@ final class RecoveryTests: XCTestCase {
         // `multiplexedFlows`, so writing it produces no payload.
         var unregisteredStreamStorage: QUICTestStream? = connection.context.onQueue {
             let stream = QUICTestStream(parent: connection, inbound: true)
+            defer { stream.destroyFromExternalTest() }
             stream.setup(streamID: QUICStreamID(0), logPrefixer: recoveryTestsLogPrefixer)
             return stream
         }

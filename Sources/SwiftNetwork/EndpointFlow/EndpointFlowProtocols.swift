@@ -163,16 +163,15 @@ class EndpointFlowProtocol<LinkageFamily: DataLinkageFamily>: TopDatapathProtoco
     /// this rather than `teardown()`.
     public func teardown(in eventContext: inout NetworkContext.EventContext) {
         do throws(NetworkError) {
-            try lower.invokeDetach(for: identifier, in: &eventContext)
+            var mutatingSelf = self
+            try mutatingSelf.invokeDetach(in: &eventContext)
         } catch {
             log.error("Failed to detach lower protocol: \(error)")
         }
-        // Dropping the linkage here can release the last reference to the lower instance, whose
-        // `deinit` is a genuine external entry point and acquires the state itself. Hand the old
-        // value to the queue so it is released after this call has unwound.
-        let oldLower = lower
-        lower = .init()
-        eventContext.async { _ = oldLower }
+        // Nothing sits above a top protocol, so no lower linkage hands this instance's event
+        // state back. Release it here; the retirement is deferred to whichever call still holds
+        // the state, so this is safe even when reached from inside this instance's own call.
+        unregisterEventManager(in: &eventContext)
     }
 
     public func abort(error: NetworkError? = nil) {

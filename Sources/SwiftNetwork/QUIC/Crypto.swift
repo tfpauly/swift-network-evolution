@@ -180,7 +180,10 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
     /// Stops using a context state the caller already holds.
     func stop(in eventContext: inout NetworkContext.EventContext) {
         guard self.parentConnection != nil else {
-            // Already stopped, ignore
+            // Never started, or already stopped. Both this object and the TLS instance register
+            // their event states at init, before `start`, so they still have to be handed back.
+            tlsInstance?.teardown(in: &eventContext)
+            teardown(in: &eventContext)
             return
         }
         try? self.tlsLinkage?.invokeDetach(for: identifier, in: &eventContext)
@@ -192,6 +195,11 @@ final class QUICCrypto<Families: LinkageFamilyGroup> {
         initialOutboundData.empty()
         handshakeOutboundData.empty()
         applicationOutboundData.empty()
+
+        // Nothing sits above this crypto object, so no lower linkage ever detaches it and calls
+        // `teardown(in:)`. Detaching the TLS instance above releases the encryption-level
+        // handlers, which is what `teardown(in:)` waits on, so run it here.
+        teardown(in: &eventContext)
 
         self.parentConnection = nil
     }

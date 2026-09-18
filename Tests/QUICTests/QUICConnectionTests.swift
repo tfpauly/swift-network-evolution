@@ -31,6 +31,13 @@ final class QUICConnectionTests: XCTestCase {
         connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
     }
 
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        connection.context.onQueue { self.connection.destroyFromExternalTest() }
+        connection = nil
+    }
+
     func testCreateInboundStreams() throws {
         try self.connection.context.onQueue {
             let zeroStreamID: QUICStreamID = QUICStreamID(0)

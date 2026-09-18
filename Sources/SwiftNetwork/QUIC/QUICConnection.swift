@@ -1507,6 +1507,19 @@ public final class QUICConnection<Families: LinkageFamilyGroup>: ManyToManyAppli
         close(in: &eventContext)
     }
 
+    /// Tears down a connection built outside a protocol stack, for tests only.
+    public func destroyFromExternalTest() {
+        fromExternal { state in
+            teardown(in: &state)
+            for path in multiplexingPaths.values {
+                var path = path
+                path.destroy(in: &state)
+            }
+            multiplexingPaths.removeAll()
+            unregisterEventManager(in: &state)
+        }
+    }
+
     public func disconnect(error: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         if let error {
             if closeError == nil, let transportError = error.quicTransportError {

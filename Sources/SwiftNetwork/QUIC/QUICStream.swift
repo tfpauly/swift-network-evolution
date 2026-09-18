@@ -613,21 +613,26 @@ public final class QUICStreamInstance<Families: LinkageFamilyGroup>: Multiplexed
             log.debug("Deallocating unassigned stream")
         }
         reassemblyQueue.dequeueAll()
-        // If handleStreamClose has already been called just return
-        guard !self.closed else {
-            return
-        }
         self.sendBuffer.empty()
-        // `deinit` cannot take the context state, so this is a genuine external entry point.
-        let parent = parentProtocol
-        parent.fromExternal { state in
-            parent.handleStreamClose(stream: self, error: nil, in: &state)
-        }
+    }
+
+    func teardown(in eventContext: inout NetworkContext.EventContext) {
+        reassemblyQueue.dequeueAll()
+        guard !self.closed else { return }
+        self.sendBuffer.empty()
+        parentProtocol.handleStreamClose(stream: self, error: nil, in: &eventContext)
     }
 
     func close(errorCode: NetworkError?, in eventContext: inout NetworkContext.EventContext) {
         self.sendBuffer.empty()
         parentProtocol.handleStreamClose(stream: self, error: errorCode, in: &eventContext)
+    }
+
+    /// Releases this stream's event state from outside the protocol stack, for tests only.
+    func destroyFromExternalTest() {
+        fromExternal { state in
+            unregisterEventManager(in: &state)
+        }
     }
 
     /// The application error code for the inbound (receive) direction.

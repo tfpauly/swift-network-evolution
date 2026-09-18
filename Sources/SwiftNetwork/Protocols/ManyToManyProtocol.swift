@@ -237,6 +237,10 @@ public protocol MultiplexedFlow: LowerProtocolHandler, LoggableProtocol {
     /// A requirement rather than just an extension member so that refinements which can deliver
     /// more event kinds — unidirectional aborts, say — are dispatched to.
     func drainQueuedEventsForUpperProtocol(in eventContext: inout NetworkContext.EventContext)
+    /// Releases whatever this flow holds, as its upper protocol detaches.
+    ///
+    /// Empty by default.
+    func teardown(in eventContext: inout NetworkContext.EventContext)
     /// Creates a flow using a context state the caller already holds.
     ///
     /// Prefer this over `init(parent:inbound:)` anywhere the state is already in scope, so
@@ -410,6 +414,15 @@ extension ManyToManyProtocolHandler {
         event: NetworkProtocolEvent,
         in eventContext: inout NetworkContext.EventContext
     ) -> HandleNetworkEventResult { .unconsumed }
+}
+
+@available(Network 0.1.0, *)
+extension ManyToManyProtocolHandler {
+    /// Hands this instance's event state back once every upper linkage has detached.
+    fileprivate func releaseEventStateOnceDetached(in eventContext: inout NetworkContext.EventContext) {
+        var mutableSelf = self
+        mutableSelf.unregisterEventManager(in: &eventContext)
+    }
 }
 
 @available(Network 0.1.0, *)
@@ -649,8 +662,11 @@ extension HomogeneousManyToManyProtocolHandler {
             return
         }
         teardown(in: &eventContext)
-        applyToAllPaths { $0.invokeDetach(in: &eventContext) }
+        allPathIdentifiers { pathIdentifier in
+            multiplexingPaths[pathIdentifier]?.destroy(in: &eventContext)
+        }
         multiplexingPaths.removeAll()
+        releaseEventStateOnceDetached(in: &eventContext)
     }
 
     public mutating func detach(
@@ -719,8 +735,11 @@ extension HeterogeneousManyToManyProtocolHandler {
             return
         }
         teardown(in: &eventContext)
-        applyToAllPaths { $0.invokeDetach(in: &eventContext) }
+        allPathIdentifiers { pathIdentifier in
+            multiplexingPaths[pathIdentifier]?.destroy(in: &eventContext)
+        }
         multiplexingPaths.removeAll()
+        releaseEventStateOnceDetached(in: &eventContext)
     }
 
     public mutating func detach(
@@ -1039,6 +1058,9 @@ extension MultiplexedFlow {
 
     public var context: NetworkContext { parentProtocol.context }
 
+    /// Empty by default; a flow with per-flow cleanup overrides this.
+    public func teardown(in eventContext: inout NetworkContext.EventContext) {}
+
     public mutating func attachUpperProtocol(
         _ upperProtocol: UpperProtocol,
         remote: Endpoint?,
@@ -1067,6 +1089,7 @@ extension MultiplexedFlow {
         in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        teardown(in: &eventContext)
         parentProtocol.teardown(flow: flowIdentifier, in: &eventContext)
         parentProtocol.multiplexedFlows.removeValue(forKey: flowIdentifier)
         upper = UpperProtocol()
@@ -1220,6 +1243,7 @@ extension MultiplexedFlow where ParentProtocol: HeterogeneousManyToManyProtocolH
         in eventContext: inout NetworkContext.EventContext
     ) throws(NetworkError) {
         do { try validate(upper: instance, #function) } catch { throw NetworkError.posix(EINVAL) }
+        teardown(in: &eventContext)
         parentProtocol.teardown(flow: flowIdentifier, in: &eventContext)
         parentProtocol.multiplexedFlows.removeValue(forKey: flowIdentifier)
         parentProtocol.multiplexedSecondaryFlows.removeValue(forKey: flowIdentifier)
@@ -1747,6 +1771,12 @@ extension MultiplexingPath {
 
     fileprivate func invokeDetach(in eventContext: inout NetworkContext.EventContext) {
         try? lower.invokeDetach(for: self.identifier, in: &eventContext)
+    }
+
+    /// Detaches the lower protocol and releases this path's own event state.
+    public mutating func destroy(in eventContext: inout NetworkContext.EventContext) {
+        invokeDetach(in: &eventContext)
+        unregisterEventManager(in: &eventContext)
     }
 }
 

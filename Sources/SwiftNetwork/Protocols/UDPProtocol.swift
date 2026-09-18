@@ -533,10 +533,6 @@ public struct UDPProtocol: NetworkProtocol {
     }
     public func newPerProtocolMetadata() -> UDPMetadata? { UDPMetadata() }
 
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
-
     static public let identifier = ProtocolIdentifier(name: "udp", level: .transport, mapping: .oneToOne)
 
     #if !NETWORK_PRIVATE
@@ -544,10 +540,6 @@ public struct UDPProtocol: NetworkProtocol {
     #endif
 
     static public func options() -> ProtocolOptions<UDPProtocol> { UDPProtocol.definition.protocolOptions() }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        UDPProtocol().newProtocolInstance(context: context)!
-    }
 
     static public func instance<UpperLinkage: InboundDatagramLinkage, LowerLinkage: OutboundDatagramLinkage>(context: NetworkContext) -> (UpperLinkage, LowerLinkage) {
         return (UpperLinkage(), LowerLinkage())

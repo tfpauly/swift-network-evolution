@@ -377,9 +377,9 @@ struct ProtocolEventManagerState: ~Copyable {
         outstandingWakeups -= 1
     }
 
-    // Whether the event state can be removed, meaning no scheduled block still holds its index.
+    // Whether the event state can be removed now.
     var canRemove: Bool {
-        outstandingWakeups == 0
+        outstandingWakeups == 0 && eventState == .idle && !drainingEvents
     }
 
     var drainingEvents = false
@@ -415,7 +415,15 @@ public struct ProtocolEventManager: ~Copyable {
         eventContext.retireProtocolEventState(contextIndex)
         self.contextIndex = nil
     }
-    // TODO: TFPDEBUG add a deinit with a preconditionFailure that trips if the contextIndex is non-nil, to catch protocols that don't unregister
+    /// Catches a protocol instance that is destroyed while its event state is still registered.
+    deinit {
+        if contextIndex != nil {
+            preconditionFailure(
+                "Protocol event manager destroyed while still registered; the protocol instance "
+                    + "must unregister its event manager during teardown"
+            )
+        }
+    }
 }
 
 @available(Network 0.1.0, *)
@@ -433,7 +441,7 @@ extension NetworkContext.EventContext {
         removeProtocolEventStateIfRetired(index)
     }
 
-    // Removes an event state that is retiring once nothing scheduled still holds its index.
+    // Removes an event state that is retiring once nothing still holds it.
     fileprivate mutating func removeProtocolEventStateIfRetired(_ index: NetworkStateIndex) {
         guard protocolEventStates[index].retiring, protocolEventStates[index].canRemove else {
             return
@@ -441,11 +449,7 @@ extension NetworkContext.EventContext {
         unregisterProtocolEventState(index)
     }
 
-    // Retires the event state for `index`, removing it now if nothing scheduled still holds it.
-    //
-    // Queued async blocks and scheduled timer wakeups capture the index and dereference it when
-    // they run, so removing the state while any are outstanding would leave them pointing at an
-    // empty slot. In that case the state is marked retiring and the last such block removes it.
+    // Retires the event state for `index`, removing it now if nothing still holds it.
     fileprivate mutating func retireProtocolEventState(_ index: NetworkStateIndex) {
         guard protocolEventStates[index].canRemove else {
             protocolEventStates[index].retiring = true

@@ -233,11 +233,8 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
     }
 
     public func teardown() {
-        do throws(NetworkError) {
-            var mutatingSelf = self
-            try mutatingSelf.invokeDetach()
-        } catch {
-            log.error("Failed to detach lower protocol: \(error)")
+        fromExternal { state in
+            teardown(in: &state)
         }
     }
 
@@ -252,6 +249,7 @@ public class UpperHarness<LinkageFamily: DataLinkageFamily>: UpperHarnessProtoco
         } catch {
             log.error("Failed to detach lower protocol: \(error)")
         }
+        unregisterEventManager(in: &eventContext)
     }
 
     public func waitForInboundDataAvailable(

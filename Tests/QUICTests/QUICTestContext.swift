@@ -32,7 +32,7 @@ extension NetworkContext {
     ///
     /// Acquiring the context state asserts that the caller is already running on the context's
     /// queue. Test bodies run on the main thread, so anything that reaches `fromExternal` — for
-    /// example building a path with `makeFromExternal`, or letting a stream deallocate — has to
+    /// example building a path with `makeFromExternalTest`, or letting a stream deallocate — has to
     /// hop here first. `sync` keeps `body` non-escaping, which matters for the noncopyable
     /// values these tests build.
     ///

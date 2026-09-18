@@ -461,11 +461,12 @@ public struct SwiftTLSProtocol: NetworkProtocol {
             func invokeAttachLowerProtocol(_ lowerProtocol: QUICCrypto<Families>, remote: Endpoint?, local: Endpoint?, parameters: Parameters?, path: PathProperties?) throws(NetworkError) { }
 
             func destroy() {
-                if !lower.isDetached {
-                    try? lower.invokeDetach(for: identifier, in: &context.state)
-                    lower = LowerProtocol()
+                // `context` comes from the parent, and `setParent` is also what registers the
+                // event state, so an unparented handler has nothing to release.
+                guard parentInstance != nil else { return }
+                fromExternal { state in
+                    destroy(in: &state)
                 }
-                parentInstance = nil
             }
 
             /// Destroys using a context state the caller already holds.
@@ -474,6 +475,8 @@ public struct SwiftTLSProtocol: NetworkProtocol {
                     try? lower.invokeDetach(for: identifier, in: &eventContext)
                     lower = LowerProtocol()
                 }
+                // Nothing below a top protocol hands its event state back, so release it here.
+                unregisterEventManager(in: &eventContext)
                 parentInstance = nil
             }
 
@@ -869,10 +872,6 @@ public struct SwiftTLSProtocol: NetworkProtocol {
         }
     }
 
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
-
     public func newPerProtocolOptions() -> SwiftTLSProtocolOptions? { SwiftTLSProtocolOptions() }
     public func newPerProtocolOptions(from existing: SwiftTLSProtocolOptions) -> SwiftTLSProtocolOptions { existing }
     public func newPerProtocolOptions(from serializedBytes: [UInt8]) -> SwiftTLSProtocolOptions? { nil }
@@ -884,10 +883,6 @@ public struct SwiftTLSProtocol: NetworkProtocol {
     #endif
 
     static public func options() -> ProtocolOptions<SwiftTLSProtocol> { SwiftTLSProtocol.definition.protocolOptions() }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        SwiftTLSProtocol().newProtocolInstance(context: context)!
-    }
 }
 
 @_spi(ProtocolProvider)

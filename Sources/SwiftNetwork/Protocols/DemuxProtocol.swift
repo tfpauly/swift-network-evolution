@@ -561,19 +561,12 @@ public struct DemuxProtocol: NetworkProtocol {
         DemuxOptions(from: serializedBytes)
     }
     public func newPerProtocolMetadata() -> DemuxMetadata? { DemuxMetadata() }
-    public func newProtocolInstance(context: NetworkContext) -> InstanceIdentifier? {
-        nil
-    }
 
     static let identifier = ProtocolIdentifier(name: "demux", level: .link, mapping: .oneToOne)
     static let definition = ProtocolDefinition<DemuxProtocol>(identifier: identifier)
 
     static public func options() -> ProtocolOptions<DemuxProtocol> {
         DemuxProtocol.definition.protocolOptions()
-    }
-
-    static public func instance(context: NetworkContext) -> InstanceIdentifier {
-        DemuxProtocol().newProtocolInstance(context: context)!
     }
 }
 

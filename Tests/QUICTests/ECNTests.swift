@@ -41,6 +41,14 @@ final class ECNTests: XCTestCase {
         stats = Statistics()
     }
 
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        conn.context.onQueue { self.conn.destroyFromExternalTest() }
+        conn = nil
+        super.tearDown()
+    }
+
     private func runInitTest(
         echoEnabled: Bool,
         markingEnabled: Bool,
@@ -416,6 +424,14 @@ final class ECNValidateTests: XCTestCase {
         super.setUp()
         conn = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
         stats = Statistics()
+    }
+
+    override func tearDown() {
+        // The connection was built directly rather than attached to a stack, so nothing else
+        // hands its event state back.
+        conn.context.onQueue { self.conn.destroyFromExternalTest() }
+        conn = nil
+        super.tearDown()
     }
 
     private func createFrame(
@@ -843,6 +859,7 @@ final class ECNValidateTests: XCTestCase {
 
     func testValidateAckReturnsCorrectCECount() async throws {
         let connection = QUICConnection<TestLinkageFamilyGroup>(context: NetworkContext.implicitContext)
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,
@@ -884,6 +901,7 @@ final class ECNValidateTests: XCTestCase {
         context.activate()
 
         let connection = QUICConnection<TestLinkageFamilyGroup>(context: context)
+        defer { connection.context.onQueue { connection.destroyFromExternalTest() } }
         let ecn = ECN(
             echoEnabled: true,
             markingEnabled: true,
