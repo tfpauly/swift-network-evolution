@@ -1665,6 +1665,7 @@ open class MultiplexedDatagramFlow<ParentProtocol: ManyToManyApplicationDatagram
     public required init(parent: ParentProtocol, inbound: Bool) {
         self.parentProtocol = parent
         identifier = .init(context: parent.context, eventManager: &self.eventManager)
+        identifier.setParentInstance(parent.identifier)
         if inbound {
             flowIdentifier = .init(inboundInstance: identifier)
         } else {
