@@ -122,47 +122,18 @@ struct BandwidthDelayProduct {
     var timestamp: NetworkClock.Instant = .zero
 }
 
-// Constants for path behavior. These live outside QUICPath because a generic type cannot
-// have static stored properties.
-@available(Network 0.1.0, *)
-enum QUICPathConstants {
-    // Initial probe interval for resending PATH_CHALLENGE is 250 ms
-    // Further probes will follow exponential backoff.
-    static let initialProbeInterval: NetworkDuration = .milliseconds(250)
-
-    static let slowInitialProbeInterval: NetworkDuration = .seconds(1)
-
-    static let maximumPendingChallenges: Int = 6
-}
-
-// Path flags. Lifted out of QUICPath because a generic type cannot have static stored
-// properties, including those of its nested types.
-@available(Network 0.1.0, *)
-struct QUICPathFlags: OptionSet {
-    init(rawValue: Self.RawValue) {
-        self.rawValue = rawValue
-    }
-    var rawValue: UInt16
-    static let pacePackets = QUICPathFlags(rawValue: 1 << 0)
-    static let isInitialPath = QUICPathFlags(rawValue: 1 << 1)
-    static let isPrimaryPath = QUICPathFlags(rawValue: 1 << 2)
-    static let spinValue = QUICPathFlags(rawValue: 1 << 3)
-    static let useSlowProbeInterval = QUICPathFlags(rawValue: 1 << 4)
-    static let isPreferredAddress = QUICPathFlags(rawValue: 1 << 5)
-    static let migrationPending = QUICPathFlags(rawValue: 1 << 6)
-    static let isLossy = QUICPathFlags(rawValue: 1 << 7)
-    static let hasPreAssignedCIDs = QUICPathFlags(rawValue: 1 << 8)
-    static let isFlowControlled = QUICPathFlags(rawValue: 1 << 9)
-    static let l4sEnabled = QUICPathFlags(rawValue: 1 << 10)
-    static let reportedIdleEvent = QUICPathFlags(rawValue: 1 << 11)
-}
-
 @_spi(ProtocolProvider)
 @available(Network 0.1.0, *)
 public final class QUICPath: MultiplexingDatagramPath<
     QUICConnection,
     BaseOutboundDatagramLinkage
 >, Equatable, PrefixedLoggable {
+    // Initial probe interval for resending PATH_CHALLENGE is 250 ms
+    // Further probes will follow exponential backoff.
+    static let initialProbeInterval: NetworkDuration = .milliseconds(250)
+
+    static let slowInitialProbeInterval: NetworkDuration = .seconds(1)
+
     private(set) var state: QUICPathState = QUICPathState()
     var priority: Int = 0  // Relative priority to other paths, used to gate migration decisions
     var interface: Interface?
@@ -173,6 +144,7 @@ public final class QUICPath: MultiplexingDatagramPath<
     var pendingInboundChallenges = [UInt64]()  // Received challenges requiring a response
 
     var pendingOutboundChallenges = [PendingChallenge]()  // Sent challenges waiting for a response
+    static let maximumPendingChallenges: Int = 6
     private(set) var challengesSent: Int = 0
     private(set) var lastChallengeSentTime: NetworkClock.Instant = .zero
     private(set) var nextChallengeDuration: NetworkDuration = .zero
@@ -186,7 +158,7 @@ public final class QUICPath: MultiplexingDatagramPath<
     var pacer: Pacer
 
     var pmtudState = PMTUDState()
-    var recoveryState = RecoveryPathState()
+    var recoveryState = Recovery.PathState()
     var ecnState: ECNPathState?
     var pathStatistics = Statistics()
 
@@ -195,7 +167,25 @@ public final class QUICPath: MultiplexingDatagramPath<
     var maximumMSS = 0
     var minimumMSS = 0
 
-    private var flags = QUICPathFlags()
+    struct Flags: OptionSet {
+        init(rawValue: Self.RawValue) {
+            self.rawValue = rawValue
+        }
+        var rawValue: UInt16
+        static let pacePackets = Flags(rawValue: 1 << 0)
+        static let isInitialPath = Flags(rawValue: 1 << 1)
+        static let isPrimaryPath = Flags(rawValue: 1 << 2)
+        static let spinValue = Flags(rawValue: 1 << 3)
+        static let useSlowProbeInterval = Flags(rawValue: 1 << 4)
+        static let isPreferredAddress = Flags(rawValue: 1 << 5)
+        static let migrationPending = Flags(rawValue: 1 << 6)
+        static let isLossy = Flags(rawValue: 1 << 7)
+        static let hasPreAssignedCIDs = Flags(rawValue: 1 << 8)
+        static let isFlowControlled = Flags(rawValue: 1 << 9)
+        static let l4sEnabled = Flags(rawValue: 1 << 10)
+        static let reportedIdleEvent = Flags(rawValue: 1 << 11)
+    }
+    private var flags = Flags()
 
     var pacePackets: Bool {
         get { flags.contains(.pacePackets) }
@@ -597,7 +587,7 @@ public final class QUICPath: MultiplexingDatagramPath<
     ) {
         guard shouldSendPathChallenge(now: now) else { return }
 
-        guard challengesSent < QUICPathConstants.maximumPendingChallenges else {
+        guard challengesSent < QUICPath.maximumPendingChallenges else {
             // Exceeded limit, move to unreachable, and retire the CID
             changeState(to: .unreachable)
             if let dcid, !hasPreAssignedCIDs {
@@ -615,9 +605,9 @@ public final class QUICPath: MultiplexingDatagramPath<
         pendingItems.addPathChallenge(FramePathChallenge(data: challenge.data))
         lastChallengeSentTime = now
         if useSlowProbeInterval {
-            nextChallengeDuration = QUICPathConstants.slowInitialProbeInterval * (1 << challengesSent)
+            nextChallengeDuration = QUICPath.slowInitialProbeInterval * (1 << challengesSent)
         } else {
-            nextChallengeDuration = QUICPathConstants.initialProbeInterval * (1 << challengesSent)
+            nextChallengeDuration = QUICPath.initialProbeInterval * (1 << challengesSent)
         }
         challengesSent += 1
 

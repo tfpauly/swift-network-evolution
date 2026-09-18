@@ -5951,7 +5951,7 @@ extension QUICConnection {
         packetNumberSpace: PacketNumberSpace,
         sentPath: QUICPath
     ) {
-        for block in AckBlockSequence.blocks(frame: frame) {
+        for block in Ack.blockSequence(frame: frame) {
             ack.acknowledged(
                 packetNumberSpace: packetNumberSpace,
                 between: block.start,

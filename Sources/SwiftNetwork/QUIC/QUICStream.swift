@@ -324,30 +324,6 @@ struct StreamListMembership: OptionSet {
 
 // MARK: QUIC Stream
 
-@available(Network 0.1.0, *)
-struct QUICStreamFlags: OptionSet {
-    init(rawValue: Self.RawValue) {
-        self.rawValue = rawValue
-    }
-    var rawValue: UInt16
-    static let hasSentDataBlocked = QUICStreamFlags(rawValue: 1 << 0)
-    static let updatingCredit = QUICStreamFlags(rawValue: 1 << 1)
-    static let stopSendRequested = QUICStreamFlags(rawValue: 1 << 2)
-    static let pendingStart = QUICStreamFlags(rawValue: 1 << 3)  // on the pending list
-    static let closed = QUICStreamFlags(rawValue: 1 << 4)  // stream is closed by handle_stop or report_done
-    static let writeClosed = QUICStreamFlags(rawValue: 1 << 5)
-    static let readClosed = QUICStreamFlags(rawValue: 1 << 6)
-    static let pendingReportReady = QUICStreamFlags(rawValue: 1 << 7)
-    static let receivedStopSending = QUICStreamFlags(rawValue: 1 << 8)
-    static let unidirectional = QUICStreamFlags(rawValue: 1 << 9)
-    static let resetSent = QUICStreamFlags(rawValue: 1 << 10)
-    static let resetReceived = QUICStreamFlags(rawValue: 1 << 11)
-    static let hasAdvertisedMaxStreamData = QUICStreamFlags(rawValue: 1 << 12)
-    static let peerAcknowledgedFIN = QUICStreamFlags(rawValue: 1 << 13)
-    static let markedInboundFINOnFrame = QUICStreamFlags(rawValue: 1 << 14)
-    static let applicationMarkedIdle = QUICStreamFlags(rawValue: 1 << 15)
-}
-
 // QUICStreamList is designed to hold a list of flow identifiers that fit different list types.
 // For example, pendingReassemblyDequeue, sendable, and unblockedSend lists.
 // Note that QUICStreamList only holds the flow identifiers that are used to lookup
@@ -470,7 +446,29 @@ public final class QUICStreamInstance: MultiplexedStreamFlow<QUICConnection, Bas
     var sendState = QUICSendStreamState()
     var receiveState = QUICReceiveStreamState()
 
-    private var flags = QUICStreamFlags()
+    struct Flags: OptionSet {
+        init(rawValue: Self.RawValue) {
+            self.rawValue = rawValue
+        }
+        var rawValue: UInt16
+        static let hasSentDataBlocked = Flags(rawValue: 1 << 0)
+        static let updatingCredit = Flags(rawValue: 1 << 1)
+        static let stopSendRequested = Flags(rawValue: 1 << 2)
+        static let pendingStart = Flags(rawValue: 1 << 3)  // on the pending list
+        static let closed = Flags(rawValue: 1 << 4)  // stream is closed by handle_stop or report_done
+        static let writeClosed = Flags(rawValue: 1 << 5)
+        static let readClosed = Flags(rawValue: 1 << 6)
+        static let pendingReportReady = Flags(rawValue: 1 << 7)
+        static let receivedStopSending = Flags(rawValue: 1 << 8)
+        static let unidirectional = Flags(rawValue: 1 << 9)
+        static let resetSent = Flags(rawValue: 1 << 10)
+        static let resetReceived = Flags(rawValue: 1 << 11)
+        static let hasAdvertisedMaxStreamData = Flags(rawValue: 1 << 12)
+        static let peerAcknowledgedFIN = Flags(rawValue: 1 << 13)
+        static let markedInboundFINOnFrame = Flags(rawValue: 1 << 14)
+        static let applicationMarkedIdle = Flags(rawValue: 1 << 15)
+    }
+    private var flags = Flags()
 
     override public func asLowerLinkage() -> UpperProtocol.PairedLowerLinkage {
         BaseOutboundStreamLinkage(quicStream: self)

@@ -49,13 +49,6 @@ internal import CryptoKit
 #endif
 #endif
 
-// Buffer limit for crypto reassembly. Lives outside QUICCrypto because a generic type
-// cannot have static stored properties.
-@available(Network 0.1.0, *)
-enum QUICCryptoConstants {
-    static let bufferLimit: Int = 4 * 1024
-}
-
 @available(Network 0.1.0, *)
 final class QUICCrypto {
     var eventManager = ProtocolEventManager()
@@ -94,6 +87,8 @@ final class QUICCrypto {
     var ciphersuite: Int = 0
 
     var enableEarlyData = false
+
+    static let bufferLimit: Int = 4 * 1024
 
     init() {
         identifier = .init()
@@ -490,7 +485,7 @@ extension QUICCrypto: TopStreamProtocol {
             return false
         }
         let bufferLimitForPNSpace =
-            packetNumberSpace == .handshake ? 2 * QUICCryptoConstants.bufferLimit : QUICCryptoConstants.bufferLimit
+            packetNumberSpace == .handshake ? 2 * QUICCrypto.bufferLimit : QUICCrypto.bufferLimit
         guard reassemblyQueue.size <= bufferLimitForPNSpace else {
             parentConnection?.log.error(
                 "Read crypto buffer size \(reassemblyQueue.size) is larger than limit \(bufferLimitForPNSpace)"
